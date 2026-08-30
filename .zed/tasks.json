@@ -1,0 +1,9 @@
+[
+  {
+    "label": "Sort derives (current file)",
+    "command": "python3",
+    "args": ["scripts/sort_derives.py", "$ZED_FILE"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "never"
+  }
+]

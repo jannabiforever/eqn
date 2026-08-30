@@ -1,0 +1,20 @@
+{
+  "languages": {
+    "Rust": {
+      "format_on_save": "on",
+      "formatter": [
+        { "language_server": { "name": "rust-analyzer" } },
+        {
+          "external": {
+            "command": "python3",
+            "arguments": ["scripts/sort_derives.py"],
+          },
+        },
+      ],
+    },
+    "TOML": {
+      "format_on_save": "on",
+      "formatter": "language_server",
+    },
+  },
+}

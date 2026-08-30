@@ -1,0 +1,14 @@
+[package]
+name = "rust_project_template"
+version.workspace = true
+edition.workspace = true
+
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]

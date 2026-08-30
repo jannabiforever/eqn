@@ -1,0 +1,7 @@
+edition = "2024"
+
+# Nightly options but useful
+wrap_comments = true
+format_code_in_doc_comments = true
+imports_granularity = "Module"
+group_imports = "StdExternalCrate"
