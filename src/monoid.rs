@@ -1,17 +1,17 @@
 use crate::domain::Domain;
-use crate::op::{CommutativeOperator, IdentityOperator};
+use crate::op::{AssociativeOperator, CommutativeOperator, IdentityOperator};
 use crate::symbol::Symbol;
 
 /// A monoid: a domain paired with an associative operator that has an
-/// identity element. Associativity is implied by the definition, so only
-/// the identity is encoded as a bound.
+/// identity element. Both laws are demanded as bounds, so an operator
+/// must declare them to qualify.
 pub trait Monoid {
     type Domain: Domain;
-    type Operator: IdentityOperator<Self::Domain>;
+    type Operator: AssociativeOperator<Self::Domain> + IdentityOperator<Self::Domain>;
 }
 
 /// Any (domain, operator) pair forms a monoid for free.
-impl<D: Domain, Op: IdentityOperator<D>> Monoid for (D, Op) {
+impl<D: Domain, Op: AssociativeOperator<D> + IdentityOperator<D>> Monoid for (D, Op) {
     type Domain = D;
     type Operator = Op;
 }
@@ -169,6 +169,8 @@ mod tests {
     impl IdentityOperator<TestDomain> for TestOperator {
         const IDENTITY: <TestDomain as Domain>::Element = 0;
     }
+
+    impl AssociativeOperator<TestDomain> for TestOperator {}
 
     impl CommutativeOperator<TestDomain> for TestOperator {}
 
