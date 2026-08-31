@@ -16,6 +16,10 @@ pub trait IdentityOperator<D: Domain>: BinaryOperator<D> {
     const IDENTITY: D::Element;
 }
 
+pub trait InverseOperator<D: Domain>: BinaryOperator<D> {
+    fn inverse(a: D::Element) -> D::Element;
+}
+
 // ================================================================================
 // Structs
 // ================================================================================

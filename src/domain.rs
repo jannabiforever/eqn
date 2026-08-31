@@ -3,7 +3,8 @@
 // ================================================================================
 
 pub trait Domain {
-    type Element: Clone + Eq + PartialEq;
+    // Ord gives expressions a total order for canonical (sorted) forms.
+    type Element: Clone + Ord;
 }
 
 // ================================================================================
