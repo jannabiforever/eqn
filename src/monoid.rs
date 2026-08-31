@@ -107,13 +107,13 @@ where
 {
     /// Simplifies to a canonical form, additionally using commutativity:
     /// all constants fold into one leading constant, and symbols sort by
-    /// name (`BTreeMap` key order) with multiplicity preserved.
+    /// name with multiplicity preserved.
     pub fn simplify_with_commutativity(self) -> Self {
         match self {
             Self::Const(_) | Self::Symbol(_) => self,
             Self::Op(exprs) => {
                 let mut acc = O::IDENTITY;
-                let mut counts = std::collections::BTreeMap::new();
+                let mut syms = Vec::new();
 
                 // Worklist instead of recursion for nested ops; visiting
                 // order is irrelevant under commutativity.
@@ -121,20 +121,18 @@ where
                 while let Some(expr) = work.pop() {
                     match expr.simplify_with_commutativity() {
                         Self::Const(c) => acc = O::apply(acc, c),
-                        Self::Symbol(s) => *counts.entry(s).or_insert(0usize) += 1,
+                        Self::Symbol(s) => syms.push(s),
                         Self::Op(inner) => work.extend(inner),
                     }
                 }
 
+                syms.sort();
+
                 let mut out = Vec::new();
-                if counts.is_empty() || acc != O::IDENTITY {
+                if syms.is_empty() || acc != O::IDENTITY {
                     out.push(Self::Const(acc));
                 }
-                for (sym, count) in counts {
-                    for _ in 0..count {
-                        out.push(Self::Symbol(sym.clone()));
-                    }
-                }
+                out.extend(syms.into_iter().map(Self::Symbol));
 
                 if out.len() == 1 {
                     out.into_iter().next().unwrap()
