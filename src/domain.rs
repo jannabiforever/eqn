@@ -4,7 +4,7 @@
 
 pub trait Domain {
     // Ord gives expressions a total order for canonical (sorted) forms.
-    type Element: Clone + Ord;
+    type Element: Clone + Eq;
 }
 
 // ================================================================================

@@ -84,7 +84,10 @@ impl<SR: SemiRing> PartialEq for SemiRingExpr<SR> {
 
 impl<SR: SemiRing> Eq for SemiRingExpr<SR> {}
 
-impl<SR: SemiRing> PartialOrd for SemiRingExpr<SR> {
+impl<SR: SemiRing> PartialOrd for SemiRingExpr<SR>
+where
+    <SR::Domain as Domain>::Element: Ord,
+{
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
@@ -92,9 +95,12 @@ impl<SR: SemiRing> PartialOrd for SemiRingExpr<SR> {
 
 /// Structural total order (variant rank, then contents); exists so
 /// expressions can key a `BTreeMap` and sort into canonical forms.
-impl<SR: SemiRing> Ord for SemiRingExpr<SR> {
+impl<SR: SemiRing> Ord for SemiRingExpr<SR>
+where
+    <SR::Domain as Domain>::Element: Ord,
+{
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        fn rank<SR: SemiRing>(e: &SemiRingExpr<SR>) -> u8 {
+        const fn rank<SR: SemiRing>(e: &SemiRingExpr<SR>) -> u8 {
             match e {
                 SemiRingExpr::Const(_) => 0,
                 SemiRingExpr::Symbol(_) => 1,
@@ -105,7 +111,7 @@ impl<SR: SemiRing> Ord for SemiRingExpr<SR> {
         }
 
         match (self, other) {
-            (Self::Const(s), Self::Const(o)) => s.cmp(o),
+            (Self::Const(s), Self::Const(o)) => Ord::cmp(s, o),
             (Self::Symbol(s), Self::Symbol(o)) => s.cmp(o),
             (Self::Add(s), Self::Add(o)) => s.cmp(o),
             (Self::Mul(s), Self::Mul(o)) => s.cmp(o),
@@ -168,7 +174,11 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
         }
         acc
     }
-
+}
+impl<SR: SemiRing> SemiRingExpr<SR>
+where
+    <SR::Domain as Domain>::Element: Ord,
+{
     /// Simplifies using the semi-ring laws, mirroring [`crate::monoid`]:
     /// - `Add` (commutative monoid): flattens, folds *all* constants into one
     ///   leading constant, drops zeros, and collects structurally equal terms
