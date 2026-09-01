@@ -1,5 +1,5 @@
 pub mod domain;
-pub mod expr;
+pub mod map;
 pub mod monoid;
 pub mod op;
 pub mod ring;
