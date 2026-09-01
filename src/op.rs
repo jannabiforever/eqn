@@ -1,53 +1,21 @@
-use crate::domain::{Domain, NaturalNumber};
+use crate::set::Set;
 
 // ================================================================================
 // Traits
 // ================================================================================
 
-pub trait BinaryOperator<D: Domain> {
-    fn apply(a: D::Element, b: D::Element) -> D::Element;
+pub trait BinaryOperator<S: Set> {
+    fn apply(a: S::Element, b: S::Element) -> S::Element;
 }
 
-pub trait AssociativeOperator<D: Domain>: BinaryOperator<D> {}
+pub trait AssociativeOperator<S: Set>: BinaryOperator<S> {}
 
-pub trait CommutativeOperator<D: Domain>: BinaryOperator<D> {}
+pub trait CommutativeOperator<S: Set>: BinaryOperator<S> {}
 
-pub trait IdentityOperator<D: Domain>: BinaryOperator<D> {
+pub trait IdentityOperator<D: Set>: BinaryOperator<D> {
     const IDENTITY: D::Element;
 }
 
-pub trait InverseOperator<D: Domain>: BinaryOperator<D> {
+pub trait InverseOperator<D: Set>: BinaryOperator<D> {
     fn inverse(a: D::Element) -> D::Element;
-}
-
-// ================================================================================
-// Structs
-// ================================================================================
-
-pub struct AddOperator<D: Domain> {
-    _domain_marker: std::marker::PhantomData<D>,
-}
-
-impl BinaryOperator<NaturalNumber> for AddOperator<NaturalNumber> {
-    fn apply(
-        a: <NaturalNumber as Domain>::Element,
-        b: <NaturalNumber as Domain>::Element,
-    ) -> <NaturalNumber as Domain>::Element {
-        a + b
-    }
-}
-
-impl AssociativeOperator<NaturalNumber> for AddOperator<NaturalNumber> {}
-
-pub struct MultiplyOperator<D: Domain> {
-    _domain_marker: std::marker::PhantomData<D>,
-}
-
-impl BinaryOperator<NaturalNumber> for MultiplyOperator<NaturalNumber> {
-    fn apply(
-        a: <NaturalNumber as Domain>::Element,
-        b: <NaturalNumber as Domain>::Element,
-    ) -> <NaturalNumber as Domain>::Element {
-        a * b
-    }
 }

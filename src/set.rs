@@ -2,7 +2,7 @@
 // Domain traits
 // ================================================================================
 
-pub trait Domain {
+pub trait Set {
     // Ord gives expressions a total order for canonical (sorted) forms.
     type Element: Clone + Eq;
 }
@@ -11,9 +11,9 @@ pub trait Domain {
 // Domains
 // ================================================================================
 
-pub struct NaturalNumber;
+pub struct NaturalNumberSet;
 
-impl Domain for NaturalNumber {
+impl Set for NaturalNumberSet {
     // TODO: use big-number like python so large numbers don't overflow
     type Element = u64;
 }

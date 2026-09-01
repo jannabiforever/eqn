@@ -1,10 +1,10 @@
 use std::num::NonZeroUsize;
 
-use crate::domain::Domain;
 use crate::formatter::Formatter;
 use crate::op::{
     AssociativeOperator, BinaryOperator, CommutativeOperator, IdentityOperator, InverseOperator,
 };
+use crate::set::Set;
 use crate::symbol::Symbol;
 
 // ================================================================================
@@ -15,7 +15,7 @@ use crate::symbol::Symbol;
 /// monoid. Distributivity and annihilation (`0 * a = 0`) relate the two
 /// operators and cannot be encoded as bounds; they are part of the contract.
 pub trait SemiRing {
-    type Domain: Domain;
+    type Domain: Set;
 
     /// The addition operator for this semi-ring.
     ///
@@ -29,23 +29,23 @@ pub trait SemiRing {
     /// Should be associative and have an identity element.
     type Multiplication: AssociativeOperator<Self::Domain> + IdentityOperator<Self::Domain>;
 
-    const ZERO: <Self::Domain as Domain>::Element =
+    const ZERO: <Self::Domain as Set>::Element =
         <Self::Addition as IdentityOperator<Self::Domain>>::IDENTITY;
 
-    const ONE: <Self::Domain as Domain>::Element =
+    const ONE: <Self::Domain as Set>::Element =
         <Self::Multiplication as IdentityOperator<Self::Domain>>::IDENTITY;
 
     fn add(
-        a: <Self::Domain as Domain>::Element,
-        b: <Self::Domain as Domain>::Element,
-    ) -> <Self::Domain as Domain>::Element {
+        a: <Self::Domain as Set>::Element,
+        b: <Self::Domain as Set>::Element,
+    ) -> <Self::Domain as Set>::Element {
         <Self::Addition as BinaryOperator<Self::Domain>>::apply(a, b)
     }
 
     fn multiply(
-        a: <Self::Domain as Domain>::Element,
-        b: <Self::Domain as Domain>::Element,
-    ) -> <Self::Domain as Domain>::Element {
+        a: <Self::Domain as Set>::Element,
+        b: <Self::Domain as Set>::Element,
+    ) -> <Self::Domain as Set>::Element {
         <Self::Multiplication as BinaryOperator<Self::Domain>>::apply(a, b)
     }
 }
@@ -53,7 +53,7 @@ pub trait SemiRing {
 /// A ring: a semi-ring whose addition also has inverses.
 pub trait Ring: SemiRing {
     /// The additive inverse.
-    fn negate(a: <Self::Domain as Domain>::Element) -> <Self::Domain as Domain>::Element;
+    fn negate(a: <Self::Domain as Set>::Element) -> <Self::Domain as Set>::Element;
 }
 
 /// Any semi-ring with invertible addition is a ring for free.
@@ -61,7 +61,7 @@ impl<SR: SemiRing> Ring for SR
 where
     SR::Addition: InverseOperator<SR::Domain>,
 {
-    fn negate(a: <Self::Domain as Domain>::Element) -> <Self::Domain as Domain>::Element {
+    fn negate(a: <Self::Domain as Set>::Element) -> <Self::Domain as Set>::Element {
         <SR::Addition as InverseOperator<SR::Domain>>::inverse(a)
     }
 }
@@ -69,7 +69,7 @@ where
 /// An expression tree over a semi-ring: constants, named symbols, n-ary sums
 /// and products, and powers (repeated multiplication, exponent >= 1).
 pub enum SemiRingExpr<SR: SemiRing> {
-    Const(<SR::Domain as Domain>::Element),
+    Const(<SR::Domain as Set>::Element),
     Symbol(Symbol<SR::Domain>),
     Add(Vec<SemiRingExpr<SR>>),
     Mul(Vec<SemiRingExpr<SR>>),
@@ -79,7 +79,7 @@ pub enum SemiRingExpr<SR: SemiRing> {
     },
 }
 
-impl<D: Domain, SR: SemiRing<Domain = D>> From<Symbol<D>> for SemiRingExpr<SR> {
+impl<D: Set, SR: SemiRing<Domain = D>> From<Symbol<D>> for SemiRingExpr<SR> {
     fn from(value: Symbol<D>) -> Self {
         Self::Symbol(value)
     }
@@ -193,7 +193,7 @@ fn normalize<SR: SemiRing>(expr: SemiRingExpr<SR>, commutative: bool) -> SemiRin
             // neither Ord nor Hash on elements. Coefficients are summed as
             // domain elements, so cancellation (`x + (-1)*x = 0`) works.
             // ponytail: O(n^2) in term count; fine for expression trees.
-            let mut coeffs: Vec<(SemiRingExpr<SR>, <SR::Domain as Domain>::Element)> = Vec::new();
+            let mut coeffs: Vec<(SemiRingExpr<SR>, <SR::Domain as Set>::Element)> = Vec::new();
 
             for expr in exprs {
                 let items = match normalize(expr, commutative) {
@@ -536,7 +536,7 @@ where
 /// An expression tree over a ring; `Neg` is the additive inverse, which is
 /// what distinguishes it from [`SemiRingExpr`].
 pub enum RingExpr<R: Ring> {
-    Const(<R::Domain as Domain>::Element),
+    Const(<R::Domain as Set>::Element),
     Symbol(Symbol<R::Domain>),
     Neg(Box<RingExpr<R>>),
     Add(Vec<RingExpr<R>>),
@@ -614,7 +614,7 @@ mod tests {
 
     struct TestDomain;
 
-    impl Domain for TestDomain {
+    impl Set for TestDomain {
         type Element = i64;
     }
 

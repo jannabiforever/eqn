@@ -1,9 +1,9 @@
-use crate::domain::Domain;
+use crate::set::Set;
 
 pub trait Map<D, R>
 where
-    D: Domain,
-    R: Domain,
+    D: Set,
+    R: Set,
 {
     fn map(&self, d: D::Element) -> R::Element;
 }

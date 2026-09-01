@@ -1,28 +1,28 @@
-use crate::domain::Domain;
 use crate::formatter::Formatter;
 use crate::op::{AssociativeOperator, BinaryOperator, CommutativeOperator, IdentityOperator};
+use crate::set::Set;
 use crate::symbol::Symbol;
 
 /// A monoid: a domain paired with an associative operator that has an
 /// identity element. Both laws are demanded as bounds, so an operator
 /// must declare them to qualify.
 pub trait Monoid {
-    type Domain: Domain;
+    type Domain: Set;
     type Operator: AssociativeOperator<Self::Domain> + IdentityOperator<Self::Domain>;
 
-    const IDENTITY: <Self::Domain as Domain>::Element =
+    const IDENTITY: <Self::Domain as Set>::Element =
         <Self::Operator as IdentityOperator<Self::Domain>>::IDENTITY;
 
     fn apply(
-        lhs: <Self::Domain as Domain>::Element,
-        rhs: <Self::Domain as Domain>::Element,
-    ) -> <Self::Domain as Domain>::Element {
+        lhs: <Self::Domain as Set>::Element,
+        rhs: <Self::Domain as Set>::Element,
+    ) -> <Self::Domain as Set>::Element {
         <Self::Operator as BinaryOperator<Self::Domain>>::apply(lhs, rhs)
     }
 }
 
 /// Any (domain, operator) pair forms a monoid for free.
-impl<D: Domain, Op: AssociativeOperator<D> + IdentityOperator<D>> Monoid for (D, Op) {
+impl<D: Set, Op: AssociativeOperator<D> + IdentityOperator<D>> Monoid for (D, Op) {
     type Domain = D;
     type Operator = Op;
 }
@@ -30,7 +30,7 @@ impl<D: Domain, Op: AssociativeOperator<D> + IdentityOperator<D>> Monoid for (D,
 /// An expression tree over a monoid: constants, named symbols, and n-ary
 /// applications of the monoid's operator.
 pub enum MonoidExpr<M: Monoid> {
-    Const(<M::Domain as Domain>::Element),
+    Const(<M::Domain as Set>::Element),
     Symbol(Symbol<M::Domain>),
     Op(Vec<MonoidExpr<M>>),
 }
@@ -38,12 +38,12 @@ pub enum MonoidExpr<M: Monoid> {
 impl<M: Monoid> MonoidExpr<M> {
     /// Wraps a domain element as a constant expression.
     #[inline]
-    pub const fn constant(value: <M::Domain as Domain>::Element) -> Self {
+    pub const fn constant(value: <M::Domain as Set>::Element) -> Self {
         Self::Const(value)
     }
 }
 
-impl<D: Domain, M: Monoid<Domain = D>> From<Symbol<D>> for MonoidExpr<M> {
+impl<D: Set, M: Monoid<Domain = D>> From<Symbol<D>> for MonoidExpr<M> {
     fn from(value: Symbol<D>) -> Self {
         Self::Symbol(value)
     }
@@ -205,7 +205,7 @@ mod tests {
 
     struct TestDomain;
 
-    impl Domain for TestDomain {
+    impl Set for TestDomain {
         type Element = i64;
     }
 
@@ -213,15 +213,15 @@ mod tests {
 
     impl BinaryOperator<TestDomain> for TestOperator {
         fn apply(
-            a: <TestDomain as Domain>::Element,
-            b: <TestDomain as Domain>::Element,
-        ) -> <TestDomain as Domain>::Element {
+            a: <TestDomain as Set>::Element,
+            b: <TestDomain as Set>::Element,
+        ) -> <TestDomain as Set>::Element {
             a + b
         }
     }
 
     impl IdentityOperator<TestDomain> for TestOperator {
-        const IDENTITY: <TestDomain as Domain>::Element = 0;
+        const IDENTITY: <TestDomain as Set>::Element = 0;
     }
 
     impl AssociativeOperator<TestDomain> for TestOperator {}
