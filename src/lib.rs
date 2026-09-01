@@ -1,4 +1,5 @@
 pub mod domain;
+pub mod formatter;
 pub mod map;
 pub mod monoid;
 pub mod op;

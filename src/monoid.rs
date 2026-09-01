@@ -1,5 +1,6 @@
 use crate::domain::Domain;
-use crate::op::{AssociativeOperator, CommutativeOperator, IdentityOperator};
+use crate::formatter::Formatter;
+use crate::op::{AssociativeOperator, BinaryOperator, CommutativeOperator, IdentityOperator};
 use crate::symbol::Symbol;
 
 /// A monoid: a domain paired with an associative operator that has an
@@ -8,6 +9,16 @@ use crate::symbol::Symbol;
 pub trait Monoid {
     type Domain: Domain;
     type Operator: AssociativeOperator<Self::Domain> + IdentityOperator<Self::Domain>;
+
+    const IDENTITY: <Self::Domain as Domain>::Element =
+        <Self::Operator as IdentityOperator<Self::Domain>>::IDENTITY;
+
+    fn apply(
+        lhs: <Self::Domain as Domain>::Element,
+        rhs: <Self::Domain as Domain>::Element,
+    ) -> <Self::Domain as Domain>::Element {
+        <Self::Operator as BinaryOperator<Self::Domain>>::apply(lhs, rhs)
+    }
 }
 
 /// Any (domain, operator) pair forms a monoid for free.
@@ -50,33 +61,45 @@ impl<M: Monoid> PartialEq for MonoidExpr<M> {
     }
 }
 
-impl<D, O, M> MonoidExpr<M>
-where
-    D: Domain,
-    O: IdentityOperator<D>,
-    M: Monoid<Domain = D, Operator = O>,
-{
-    /// Simplifies using only the monoid laws: flattens nested ops
-    /// (associativity), drops identities, and folds *adjacent* constants.
-    /// Symbols keep their order -- reordering would need commutativity.
-    pub fn simplify(self) -> Self {
-        match self {
-            Self::Const(_) | Self::Symbol(_) => self,
-            Self::Op(exprs) => {
-                let mut stack: Vec<Self> = Vec::new();
+pub struct NonCommutativeMonoidFormatter<M> {
+    _monoid_marker: std::marker::PhantomData<M>,
+}
+
+impl<M: Monoid> NonCommutativeMonoidFormatter<M> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<M: Monoid> Default for NonCommutativeMonoidFormatter<M> {
+    fn default() -> Self {
+        Self {
+            _monoid_marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<M: Monoid> Formatter for NonCommutativeMonoidFormatter<M> {
+    type Expr = MonoidExpr<M>;
+
+    fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
+        match expr {
+            MonoidExpr::Const(_) | MonoidExpr::Symbol(_) => expr,
+            MonoidExpr::Op(exprs) => {
+                let mut stack: Vec<MonoidExpr<M>> = Vec::new();
 
                 for expr in exprs {
-                    let items = match expr.simplify() {
-                        Self::Op(inner) => inner,
+                    let items = match self.format_expr(expr) {
+                        MonoidExpr::Op(inner) => inner,
                         e => vec![e],
                     };
                     for item in items {
-                        if item == Self::Const(O::IDENTITY) {
+                        if item == MonoidExpr::Const(M::IDENTITY) {
                             continue;
                         }
                         match (item, stack.pop()) {
-                            (Self::Const(s), Some(Self::Const(t))) => {
-                                stack.push(Self::Const(O::apply(t, s)))
+                            (MonoidExpr::Const(s), Some(MonoidExpr::Const(t))) => {
+                                stack.push(MonoidExpr::Const(M::apply(t, s)))
                             }
                             (item, popped) => {
                                 if let Some(p) = popped {
@@ -90,54 +113,85 @@ where
 
                 match stack.len() {
                     // NOTE: empty op simplifies to identity to keep the interface total.
-                    0 => Self::Const(O::IDENTITY),
+                    0 => MonoidExpr::Const(M::IDENTITY),
                     1 => stack.pop().unwrap(),
-                    _ => Self::Op(stack),
+                    _ => MonoidExpr::Op(stack),
                 }
             }
         }
     }
 }
 
-impl<D, O, M> MonoidExpr<M>
+/// Simplifies to a canonical form, additionally using commutativity:
+/// all constants fold into one leading constant, and symbols sort by
+/// name with multiplicity preserved.
+pub struct CommutativeMonoidFormatter<M>
 where
-    D: Domain,
-    O: IdentityOperator<D> + CommutativeOperator<D>,
-    M: Monoid<Domain = D, Operator = O>,
+    M: Monoid,
+    M::Operator: CommutativeOperator<M::Domain>,
 {
-    /// Simplifies to a canonical form, additionally using commutativity:
-    /// all constants fold into one leading constant, and symbols sort by
-    /// name with multiplicity preserved.
-    pub fn simplify_with_commutativity(self) -> Self {
-        match self {
-            Self::Const(_) | Self::Symbol(_) => self,
-            Self::Op(exprs) => {
-                let mut acc = O::IDENTITY;
+    _marker: std::marker::PhantomData<M>,
+}
+
+impl<M> CommutativeMonoidFormatter<M>
+where
+    M: Monoid,
+    M::Operator: CommutativeOperator<M::Domain>,
+{
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<M> Default for CommutativeMonoidFormatter<M>
+where
+    M: Monoid,
+    M::Operator: CommutativeOperator<M::Domain>,
+{
+    fn default() -> Self {
+        Self {
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<M> Formatter for CommutativeMonoidFormatter<M>
+where
+    M: Monoid,
+    M::Operator: CommutativeOperator<M::Domain>,
+{
+    type Expr = MonoidExpr<M>;
+
+    fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
+        match expr {
+            MonoidExpr::Const(_) | MonoidExpr::Symbol(_) => expr,
+            MonoidExpr::Op(exprs) => {
+                let mut acc = M::IDENTITY;
                 let mut syms = Vec::new();
 
                 // Worklist instead of recursion for nested ops; visiting
                 // order is irrelevant under commutativity.
                 let mut work = exprs;
                 while let Some(expr) = work.pop() {
-                    match expr.simplify_with_commutativity() {
-                        Self::Const(c) => acc = O::apply(acc, c),
-                        Self::Symbol(s) => syms.push(s),
-                        Self::Op(inner) => work.extend(inner),
+                    match self.format_expr(expr) {
+                        MonoidExpr::Const(c) => acc = M::apply(acc, c),
+                        MonoidExpr::Symbol(s) => syms.push(s),
+                        MonoidExpr::Op(inner) => work.extend(inner),
                     }
                 }
 
                 syms.sort();
 
                 let mut out = Vec::new();
-                if syms.is_empty() || acc != O::IDENTITY {
-                    out.push(Self::Const(acc));
+                if syms.is_empty() || acc != M::IDENTITY {
+                    out.push(MonoidExpr::Const(acc));
                 }
-                out.extend(syms.into_iter().map(Self::Symbol));
+                out.extend(syms.into_iter().map(MonoidExpr::Symbol));
 
                 if out.len() == 1 {
                     out.into_iter().next().unwrap()
                 } else {
-                    Self::Op(out)
+                    MonoidExpr::Op(out)
                 }
             }
         }
@@ -182,7 +236,7 @@ mod tests {
             MonoidExpr::Const(2),
             MonoidExpr::Symbol(x.clone()),
         ]);
-        let simplified = expr.simplify();
+        let simplified = NonCommutativeMonoidFormatter::new().format_expr(expr);
 
         assert!(simplified == MonoidExpr::Op(vec![MonoidExpr::Const(3), MonoidExpr::Symbol(x),]));
     }
@@ -199,7 +253,7 @@ mod tests {
             MonoidExpr::Const(4),
             MonoidExpr::Symbol(x.clone()),
         ]);
-        let simplified = expr.simplify_with_commutativity();
+        let simplified = CommutativeMonoidFormatter::new().format_expr(expr);
 
         assert!(
             simplified
