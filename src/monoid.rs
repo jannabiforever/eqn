@@ -8,21 +8,24 @@ use crate::symbol::Symbol;
 /// must declare them to qualify.
 pub trait Monoid {
     type Domain: Set;
-    type Operator: AssociativeOperator<Self::Domain> + IdentityOperator<Self::Domain>;
+    type Operator: BinaryOperator<Domain = Self::Domain> + AssociativeOperator + IdentityOperator;
 
-    const IDENTITY: <Self::Domain as Set>::Element =
-        <Self::Operator as IdentityOperator<Self::Domain>>::IDENTITY;
+    const IDENTITY: <Self::Domain as Set>::Element = <Self::Operator as IdentityOperator>::IDENTITY;
 
     fn apply(
         lhs: <Self::Domain as Set>::Element,
         rhs: <Self::Domain as Set>::Element,
     ) -> <Self::Domain as Set>::Element {
-        <Self::Operator as BinaryOperator<Self::Domain>>::apply(lhs, rhs)
+        <Self::Operator as BinaryOperator>::apply(lhs, rhs)
     }
 }
 
 /// Any (domain, operator) pair forms a monoid for free.
-impl<D: Set, Op: AssociativeOperator<D> + IdentityOperator<D>> Monoid for (D, Op) {
+impl<D, Op> Monoid for (D, Op)
+where
+    D: Set,
+    Op: BinaryOperator<Domain = D> + AssociativeOperator + IdentityOperator,
+{
     type Domain = D;
     type Operator = Op;
 }
@@ -128,7 +131,7 @@ impl<M: Monoid> Formatter for NonCommutativeMonoidFormatter<M> {
 pub struct CommutativeMonoidFormatter<M>
 where
     M: Monoid,
-    M::Operator: CommutativeOperator<M::Domain>,
+    M::Operator: CommutativeOperator,
 {
     _marker: std::marker::PhantomData<M>,
 }
@@ -136,7 +139,7 @@ where
 impl<M> CommutativeMonoidFormatter<M>
 where
     M: Monoid,
-    M::Operator: CommutativeOperator<M::Domain>,
+    M::Operator: CommutativeOperator,
 {
     pub fn new() -> Self {
         Self::default()
@@ -146,7 +149,7 @@ where
 impl<M> Default for CommutativeMonoidFormatter<M>
 where
     M: Monoid,
-    M::Operator: CommutativeOperator<M::Domain>,
+    M::Operator: CommutativeOperator,
 {
     fn default() -> Self {
         Self {
@@ -158,7 +161,7 @@ where
 impl<M> Formatter for CommutativeMonoidFormatter<M>
 where
     M: Monoid,
-    M::Operator: CommutativeOperator<M::Domain>,
+    M::Operator: CommutativeOperator,
 {
     type Expr = MonoidExpr<M>;
 
@@ -211,7 +214,9 @@ mod tests {
 
     struct TestOperator;
 
-    impl BinaryOperator<TestDomain> for TestOperator {
+    impl BinaryOperator for TestOperator {
+        type Domain = TestDomain;
+
         fn apply(
             a: <TestDomain as Set>::Element,
             b: <TestDomain as Set>::Element,
@@ -220,13 +225,13 @@ mod tests {
         }
     }
 
-    impl IdentityOperator<TestDomain> for TestOperator {
+    impl IdentityOperator for TestOperator {
         const IDENTITY: <TestDomain as Set>::Element = 0;
     }
 
-    impl AssociativeOperator<TestDomain> for TestOperator {}
+    impl AssociativeOperator for TestOperator {}
 
-    impl CommutativeOperator<TestDomain> for TestOperator {}
+    impl CommutativeOperator for TestOperator {}
 
     #[test]
     fn test_simplify_op() {
