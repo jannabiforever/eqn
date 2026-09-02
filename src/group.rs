@@ -1,6 +1,6 @@
 use crate::domain::Domain;
 use crate::monoid::Monoid;
-use crate::op::InverseOperator;
+use crate::op::{CommutativeOperator, InverseOperator};
 
 /// A monoid in which every element has a (two-sided) inverse.
 ///
@@ -20,6 +20,19 @@ impl<M> Group for M
 where
     M: Monoid,
     M::Operator: InverseOperator<M::Domain>,
+{
+}
+
+/// A group whose operator is commutative.
+///
+/// In addition to the group laws, the [`CommutativeOperator`] is needed.
+pub trait AbelianGroup: Group + Monoid<Operator: CommutativeOperator<Self::Domain>> {}
+
+/// Every group with a commutative operator forms an abelian group.
+impl<G> AbelianGroup for G
+where
+    G: Group,
+    G::Operator: CommutativeOperator<G::Domain>,
 {
 }
 
@@ -43,6 +56,8 @@ mod tests {
     }
 
     impl AssociativeOperator<Integer> for Addition {}
+
+    impl CommutativeOperator<Integer> for Addition {}
 
     impl IdentityOperator<Integer> for Addition {
         const IDENTITY: i64 = 0;
@@ -77,6 +92,34 @@ mod tests {
                 IntegerAddition::apply(value, inverse),
                 IntegerAddition::IDENTITY
             );
+        }
+    }
+
+    #[test]
+    fn commutative_group_is_an_abelian_group() {
+        fn assert_commutative_operator<D, Op>()
+        where
+            D: Domain,
+            Op: CommutativeOperator<D>,
+        {
+        }
+
+        fn assert_abelian_group<G: AbelianGroup>() {
+            assert_commutative_operator::<G::Domain, G::Operator>();
+        }
+
+        assert_abelian_group::<IntegerAddition>();
+    }
+
+    #[test]
+    fn abelian_group_operator_is_commutative() {
+        for lhs in [-10, -1, 0, 1, 10] {
+            for rhs in [-10, -1, 0, 1, 10] {
+                assert_eq!(
+                    IntegerAddition::apply(lhs, rhs),
+                    IntegerAddition::apply(rhs, lhs)
+                );
+            }
         }
     }
 }
