@@ -1,4 +1,7 @@
 /target
 /.direnv
+.codex/
+.omc/
+.vscode/
 
 .DS_Store

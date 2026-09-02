@@ -1,4 +1,5 @@
 pub mod formatter;
+pub mod group;
 pub mod map;
 pub mod monoid;
 pub mod op;
