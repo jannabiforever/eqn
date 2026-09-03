@@ -4,7 +4,7 @@
 
 pub trait Set {
     // Ord gives expressions a total order for canonical (sorted) forms.
-    type Element: Clone + Eq;
+    type Element: Clone + Eq + std::fmt::Debug;
 }
 
 // ================================================================================
