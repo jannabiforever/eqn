@@ -25,7 +25,6 @@ impl<M: Manifold> Set for ZeroForms<M> {
     type Element = DifferentialForm<M>;
 }
 
-#[derive(Debug)]
 pub enum DifferentialForm<M: Manifold> {
     Const(Scalar<M>),
     /// unknown `f: M -> Scalar`, a 0-form. coordinates are just functions:
@@ -63,6 +62,28 @@ impl<M: Manifold> Clone for DifferentialForm<M> {
             Self::Add(forms) => Self::Add(forms.clone()),
             Self::Wedged(forms) => Self::Wedged(forms.clone()),
             Self::Differential(form) => Self::Differential(form.clone()),
+        }
+    }
+}
+
+impl<M: Manifold> std::fmt::Debug for DifferentialForm<M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DifferentialForm::Const(c) => f.debug_tuple("Const").field(c).finish(),
+            DifferentialForm::Function(symbol) => f.debug_tuple("Function").field(symbol).finish(),
+            DifferentialForm::Neg(differential_form) => {
+                f.debug_tuple("Neg").field(differential_form).finish()
+            }
+            DifferentialForm::Add(differential_forms) => {
+                f.debug_tuple("Add").field(differential_forms).finish()
+            }
+            DifferentialForm::Wedged(differential_forms) => {
+                f.debug_tuple("Wedged").field(differential_forms).finish()
+            }
+            DifferentialForm::Differential(differential_form) => f
+                .debug_tuple("Differential")
+                .field(differential_form)
+                .finish(),
         }
     }
 }
@@ -157,6 +178,7 @@ mod tests {
         type Multiplication = Mul;
     }
 
+    #[derive(Debug)]
     struct Plane;
     impl Manifold for Plane {
         type Scalar = RealRing;
