@@ -1,3 +1,4 @@
+pub mod differential;
 pub mod formatter;
 pub mod group;
 pub mod map;
