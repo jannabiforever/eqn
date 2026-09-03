@@ -45,6 +45,7 @@ where
 
 /// An expression tree over a group. `Inv` is the operation that distinguishes
 /// it from a [`crate::monoid::MonoidExpr`].
+#[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 pub enum GroupExpr<G: Group> {
     Const(<G::Domain as Set>::Element),
     Symbol(Symbol<G::Domain>),
@@ -59,21 +60,6 @@ pub enum GroupExpr<G: Group> {
 impl<D: Set, G: Group<Domain = D>> From<Symbol<D>> for GroupExpr<G> {
     fn from(value: Symbol<D>) -> Self {
         Self::Symbol(value)
-    }
-}
-
-impl<G: Group> Clone for GroupExpr<G> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Const(c) => Self::Const(c.clone()),
-            Self::Symbol(s) => Self::Symbol(s.clone()),
-            Self::Inv(e) => Self::Inv(e.clone()),
-            Self::Op(v) => Self::Op(v.clone()),
-            Self::Pow { base, exponent } => Self::Pow {
-                base: base.clone(),
-                exponent: *exponent,
-            },
-        }
     }
 }
 
@@ -111,30 +97,6 @@ impl<G: Group> Expression for GroupExpr<G> {
         }
     }
 }
-
-impl<G: Group> PartialEq for GroupExpr<G> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Const(s), Self::Const(o)) => s == o,
-            (Self::Symbol(s), Self::Symbol(o)) => s == o,
-            (Self::Inv(s), Self::Inv(o)) => s == o,
-            (Self::Op(s), Self::Op(o)) => s == o,
-            (
-                Self::Pow {
-                    base: sb,
-                    exponent: se,
-                },
-                Self::Pow {
-                    base: ob,
-                    exponent: oe,
-                },
-            ) => sb == ob && se == oe,
-            _ => false,
-        }
-    }
-}
-
-impl<G: Group> Eq for GroupExpr<G> {}
 
 fn cmp_structural<G: Group>(lhs: &GroupExpr<G>, rhs: &GroupExpr<G>) -> std::cmp::Ordering {
     const fn rank<G: Group>(expr: &GroupExpr<G>) -> u8 {
@@ -387,6 +349,7 @@ fn normalize<G: Group>(expr: GroupExpr<G>, commutative: bool) -> GroupExpr<G> {
 }
 
 /// Canonicalizes group expressions while preserving factor order.
+#[derive_where::derive_where(Default)]
 pub struct GroupFormatter<G: Group> {
     _marker: std::marker::PhantomData<G>,
 }
@@ -394,14 +357,6 @@ pub struct GroupFormatter<G: Group> {
 impl<G: Group> GroupFormatter<G> {
     pub fn new() -> Self {
         Self::default()
-    }
-}
-
-impl<G: Group> Default for GroupFormatter<G> {
-    fn default() -> Self {
-        Self {
-            _marker: std::marker::PhantomData,
-        }
     }
 }
 
@@ -415,6 +370,7 @@ impl<G: Group> Formatter for GroupFormatter<G> {
 
 /// Canonicalizes group expressions using the abelian group laws, collecting
 /// equal bases and distributing powers over the group operation.
+#[derive_where::derive_where(Default)]
 pub struct AbelianGroupFormatter<G: AbelianGroup> {
     _marker: std::marker::PhantomData<G>,
 }
@@ -422,14 +378,6 @@ pub struct AbelianGroupFormatter<G: AbelianGroup> {
 impl<G: AbelianGroup> AbelianGroupFormatter<G> {
     pub fn new() -> Self {
         Self::default()
-    }
-}
-
-impl<G: AbelianGroup> Default for AbelianGroupFormatter<G> {
-    fn default() -> Self {
-        Self {
-            _marker: std::marker::PhantomData,
-        }
     }
 }
 
