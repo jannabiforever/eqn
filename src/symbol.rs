@@ -5,20 +5,26 @@ pub struct Symbol<D: Set> {
     pub name: String,
 }
 
-impl<D: Set> Clone for Symbol<D> {
-    fn clone(&self) -> Self {
-        Self {
-            _domain_marker: std::marker::PhantomData,
-            name: self.name.clone(),
-        }
-    }
-}
-
 impl<D: Set> Symbol<D> {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             _domain_marker: std::marker::PhantomData,
             name: name.into(),
+        }
+    }
+}
+
+impl<D: Set> AsRef<str> for Symbol<D> {
+    fn as_ref(&self) -> &str {
+        &self.name
+    }
+}
+
+impl<D: Set> Clone for Symbol<D> {
+    fn clone(&self) -> Self {
+        Self {
+            _domain_marker: std::marker::PhantomData,
+            name: self.name.clone(),
         }
     }
 }
@@ -46,5 +52,17 @@ impl<D: Set> Ord for Symbol<D> {
 impl<D: Set> std::hash::Hash for Symbol<D> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.name.hash(state);
+    }
+}
+
+impl<D: Set> std::fmt::Display for Symbol<D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.name.fmt(f)
+    }
+}
+
+impl<D: Set> std::fmt::Debug for Symbol<D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Symbol({})", self.name)
     }
 }

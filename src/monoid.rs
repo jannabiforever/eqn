@@ -1,4 +1,6 @@
-use crate::formatter::Formatter;
+use std::collections::HashSet;
+
+use crate::formatter::{Expression, Formatter};
 use crate::op::{AssociativeOperator, BinaryOperator, CommutativeOperator, IdentityOperator};
 use crate::set::Set;
 use crate::symbol::Symbol;
@@ -36,6 +38,58 @@ pub enum MonoidExpr<M: Monoid> {
     Const(<M::Domain as Set>::Element),
     Symbol(Symbol<M::Domain>),
     Op(Vec<MonoidExpr<M>>),
+}
+
+impl<M: Monoid> Clone for MonoidExpr<M> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Const(e) => Self::Const(e.clone()),
+            Self::Symbol(s) => Self::Symbol(s.clone()),
+            Self::Op(v) => Self::Op(v.clone()),
+        }
+    }
+}
+
+impl<M: Monoid> Expression for MonoidExpr<M> {
+    type Domain = M::Domain;
+
+    fn degrees_of_freedom(&self) -> usize {
+        let mut visited = HashSet::new();
+        let mut to_visit = vec![self];
+
+        while let Some(e) = to_visit.pop() {
+            match e {
+                Self::Const(_) => continue,
+                Self::Symbol(s) => {
+                    visited.insert(s);
+                }
+                Self::Op(v) => {
+                    to_visit.extend(v.iter());
+                }
+            }
+        }
+        visited.len()
+    }
+
+    fn from_symbol(sym: Symbol<Self::Domain>) -> Self {
+        Self::Symbol(sym)
+    }
+
+    fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
+        let mut to_visit = vec![self];
+        while let Some(e) = to_visit.pop() {
+            match e {
+                Self::Const(_) => continue,
+                Self::Symbol(s) if *s == sym => {
+                    *e = expr.clone();
+                }
+                Self::Symbol(_) => continue,
+                Self::Op(v) => {
+                    to_visit.extend(v.iter_mut());
+                }
+            }
+        }
+    }
 }
 
 impl<M: Monoid> MonoidExpr<M> {

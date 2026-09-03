@@ -1,6 +1,7 @@
+use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
-use crate::formatter::Formatter;
+use crate::formatter::{Expression, Formatter};
 use crate::op::{
     AssociativeOperator, BinaryOperator, CommutativeOperator, IdentityOperator, InverseOperator,
 };
@@ -79,6 +80,45 @@ pub enum SemiRingExpr<SR: SemiRing> {
         base: Box<SemiRingExpr<SR>>,
         exponent: NonZeroUsize,
     },
+}
+
+impl<SR: SemiRing> Expression for SemiRingExpr<SR> {
+    type Domain = SR::Domain;
+
+    fn degrees_of_freedom(&self) -> usize {
+        let mut visited = HashSet::new();
+        let mut to_visit = vec![self];
+        while let Some(e) = to_visit.pop() {
+            match e {
+                SemiRingExpr::Const(_) => continue,
+                SemiRingExpr::Symbol(symbol) => {
+                    visited.insert(symbol);
+                }
+                SemiRingExpr::Add(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter()),
+                SemiRingExpr::Mul(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter()),
+                SemiRingExpr::Pow { base, .. } => to_visit.push(base),
+            }
+        }
+        visited.len()
+    }
+
+    fn from_symbol(sym: Symbol<Self::Domain>) -> Self {
+        Self::from(sym)
+    }
+
+    fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
+        let mut to_visit = vec![self];
+        while let Some(e) = to_visit.pop() {
+            match e {
+                SemiRingExpr::Const(_) => continue,
+                SemiRingExpr::Symbol(symbol) if *symbol == sym => *e = expr.clone(),
+                SemiRingExpr::Symbol(_) => continue,
+                SemiRingExpr::Add(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter_mut()),
+                SemiRingExpr::Mul(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter_mut()),
+                SemiRingExpr::Pow { base, .. } => to_visit.push(base),
+            }
+        }
+    }
 }
 
 impl<D: Set, SR: SemiRing<Domain = D>> From<Symbol<D>> for SemiRingExpr<SR> {
@@ -547,6 +587,69 @@ pub enum RingExpr<R: Ring> {
         base: Box<RingExpr<R>>,
         exponent: NonZeroUsize,
     },
+}
+
+impl<R: Ring> Clone for RingExpr<R> {
+    fn clone(&self) -> Self {
+        match self {
+            RingExpr::Const(e) => RingExpr::Const(e.clone()),
+            RingExpr::Symbol(s) => RingExpr::Symbol(s.clone()),
+            RingExpr::Neg(e) => RingExpr::Neg(e.clone()),
+            RingExpr::Add(es) => RingExpr::Add(es.clone()),
+            RingExpr::Mul(es) => RingExpr::Mul(es.clone()),
+            RingExpr::Pow { base, exponent } => RingExpr::Pow {
+                base: base.clone(),
+                exponent: *exponent,
+            },
+        }
+    }
+}
+
+impl<R: Ring> Expression for RingExpr<R> {
+    type Domain = R::Domain;
+
+    fn degrees_of_freedom(&self) -> usize {
+        let mut visited = HashSet::new();
+        let mut to_visit = vec![self];
+        while let Some(e) = to_visit.pop() {
+            match e {
+                RingExpr::Const(_) => continue,
+                RingExpr::Symbol(symbol) => {
+                    visited.insert(symbol);
+                }
+                RingExpr::Neg(e) => to_visit.push(e),
+                RingExpr::Add(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter()),
+                RingExpr::Mul(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter()),
+                RingExpr::Pow { base, .. } => to_visit.push(base),
+            }
+        }
+        visited.len()
+    }
+
+    fn from_symbol(sym: Symbol<Self::Domain>) -> Self {
+        Self::from(sym)
+    }
+
+    fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
+        let mut to_visit = vec![self];
+        while let Some(e) = to_visit.pop() {
+            match e {
+                RingExpr::Const(_) => continue,
+                RingExpr::Symbol(symbol) if *symbol == sym => *e = expr.clone(),
+                RingExpr::Symbol(_) => continue,
+                RingExpr::Neg(e) => to_visit.push(e),
+                RingExpr::Add(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter_mut()),
+                RingExpr::Mul(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter_mut()),
+                RingExpr::Pow { base, .. } => to_visit.push(base),
+            }
+        }
+    }
+}
+
+impl<R: Ring> From<Symbol<R::Domain>> for RingExpr<R> {
+    fn from(sym: Symbol<R::Domain>) -> Self {
+        Self::Symbol(sym)
+    }
 }
 
 /// Structural equality; no algebraic normalization (format first for that).
