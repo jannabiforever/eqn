@@ -33,13 +33,11 @@ impl<E: Expression> Formatter for TrivialFormatter<E> {
     }
 }
 
-pub trait Expression: Clone {
+pub trait Expression: Clone + From<Symbol<Self::Domain>> {
     type Domain: Set;
 
     fn degrees_of_freedom(&self) -> usize;
-    fn from_symbol(sym: Symbol<Self::Domain>) -> Self;
     fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self);
-
     fn substituted(mut self, sym: Symbol<Self::Domain>, expr: &Self) -> Self {
         self.substitute(sym, expr);
         self

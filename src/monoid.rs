@@ -71,10 +71,6 @@ impl<M: Monoid> Expression for MonoidExpr<M> {
         visited.len()
     }
 
-    fn from_symbol(sym: Symbol<Self::Domain>) -> Self {
-        Self::Symbol(sym)
-    }
-
     fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
         let mut to_visit = vec![self];
         while let Some(e) = to_visit.pop() {

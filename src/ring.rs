@@ -102,10 +102,6 @@ impl<SR: SemiRing> Expression for SemiRingExpr<SR> {
         visited.len()
     }
 
-    fn from_symbol(sym: Symbol<Self::Domain>) -> Self {
-        Self::from(sym)
-    }
-
     fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
         let mut to_visit = vec![self];
         while let Some(e) = to_visit.pop() {
@@ -624,10 +620,6 @@ impl<R: Ring> Expression for RingExpr<R> {
             }
         }
         visited.len()
-    }
-
-    fn from_symbol(sym: Symbol<Self::Domain>) -> Self {
-        Self::from(sym)
     }
 
     fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
