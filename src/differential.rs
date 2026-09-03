@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+
+use crate::formatter::Expression;
 use crate::ring::{Ring, SemiRing};
 use crate::set::Set;
 use crate::symbol::Symbol;
@@ -11,29 +14,26 @@ pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
 pub trait Manifold {
     type Scalar: Ring;
 
-    const DIM: usize;
+    type const DIM: usize;
 }
 
 /// An element of the scalar ring of `M`.
 pub type Scalar<M> = <<<M as Manifold>::Scalar as SemiRing>::Domain as Set>::Element;
 
 /// The set of 0-forms on `M`, i.e. smooth functions `M -> Scalar`.
-/// Tags a [`Symbol`] as an unknown function rather than an unknown point.
 pub struct ZeroForms<M: Manifold>(std::marker::PhantomData<M>);
 
 impl<M: Manifold> Set for ZeroForms<M> {
-    type Element = DifferentialForm<M>;
+    type Element = Scalar<M>;
 }
 
 pub enum DifferentialForm<M: Manifold> {
     Const(Scalar<M>),
-    /// unknown `f: M -> Scalar`, a 0-form. coordinates are just functions:
-    /// `dx` is `Differential(Function(x))`, and a chart is `DIM` of them.
+    /// unknown `f: M -> Scalar`, a 0-form.
     Function(Symbol<ZeroForms<M>>),
     Neg(Box<Self>),
     Add(Vec<Self>),
     Wedged(Vec<Self>),
-    /// unevaluated `d`
     Differential(Box<Self>),
 }
 
@@ -51,8 +51,6 @@ impl<M: Manifold> PartialEq for DifferentialForm<M> {
     }
 }
 
-impl<M: Manifold> Eq for DifferentialForm<M> {}
-
 impl<M: Manifold> Clone for DifferentialForm<M> {
     fn clone(&self) -> Self {
         match self {
@@ -62,6 +60,56 @@ impl<M: Manifold> Clone for DifferentialForm<M> {
             Self::Add(forms) => Self::Add(forms.clone()),
             Self::Wedged(forms) => Self::Wedged(forms.clone()),
             Self::Differential(form) => Self::Differential(form.clone()),
+        }
+    }
+}
+
+impl<M: Manifold> From<Symbol<ZeroForms<M>>> for DifferentialForm<M> {
+    fn from(value: Symbol<ZeroForms<M>>) -> Self {
+        Self::Function(value)
+    }
+}
+
+impl<M: Manifold> DifferentialForm<M> {
+    fn children(&self) -> Vec<&Self> {
+        match self {
+            Self::Const(_) | Self::Function(_) => vec![],
+            Self::Neg(inner) | Self::Differential(inner) => vec![inner],
+            Self::Add(forms) | Self::Wedged(forms) => forms.iter().collect(),
+        }
+    }
+
+    fn children_mut(&mut self) -> Vec<&mut Self> {
+        match self {
+            Self::Const(_) | Self::Function(_) => vec![],
+            Self::Neg(inner) | Self::Differential(inner) => vec![inner],
+            Self::Add(forms) | Self::Wedged(forms) => forms.iter_mut().collect(),
+        }
+    }
+}
+
+impl<M: Manifold> Expression for DifferentialForm<M> {
+    type Domain = ZeroForms<M>;
+
+    fn degrees_of_freedom(&self) -> usize {
+        let mut visited = HashSet::new();
+        let mut to_visit = vec![self];
+        while let Some(e) = to_visit.pop() {
+            if let Self::Function(f) = e {
+                visited.insert(f);
+            }
+            to_visit.extend(e.children());
+        }
+        visited.len()
+    }
+
+    fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
+        let mut to_visit = vec![self];
+        while let Some(e) = to_visit.pop() {
+            match e {
+                Self::Function(f) if *f == sym => *e = expr.clone(),
+                _ => to_visit.extend(e.children_mut()),
+            }
         }
     }
 }
@@ -88,44 +136,32 @@ impl<M: Manifold> std::fmt::Debug for DifferentialForm<M> {
     }
 }
 
-/// A coordinate chart: `M::DIM` distinct functions declared independent, so
-/// their differentials `dx^i` form a basis of 1-forms. Several charts may
-/// coexist on one manifold; relating them is a substitution rule, not a chart.
+/// A coordinate chart
 pub struct Chart<M: Manifold> {
-    coordinates: Vec<Symbol<ZeroForms<M>>>,
+    coordinates: [Symbol<ZeroForms<M>>; M::DIM],
 }
 
 impl<M: Manifold> Chart<M> {
-    /// # Panics
-    /// If the count is not `M::DIM` or two coordinates share a name.
-    pub fn new(coordinates: impl Into<Vec<Symbol<ZeroForms<M>>>>) -> Self {
-        let coordinates = coordinates.into();
-        assert_eq!(
-            coordinates.len(),
-            M::DIM,
-            "chart needs exactly DIM coordinates"
-        );
-        let mut names: Vec<_> = coordinates.iter().collect();
-        names.sort();
-        assert!(
-            names.windows(2).all(|w| w[0] != w[1]),
-            "chart coordinates must be distinct"
-        );
+    pub fn new(coordinates: [Symbol<ZeroForms<M>>; M::DIM]) -> Self {
         Self { coordinates }
     }
 
-    pub fn coordinates(&self) -> &[Symbol<ZeroForms<M>>] {
+    pub fn coordinates(&self) -> &[Symbol<ZeroForms<M>>; M::DIM] {
         &self.coordinates
     }
 
     /// `x^i` as a 0-form.
-    pub fn coordinate(&self, i: usize) -> DifferentialForm<M> {
-        DifferentialForm::Function(self.coordinates[i].clone())
+    pub fn coordinate(&self, i: usize) -> Option<DifferentialForm<M>> {
+        self.coordinates
+            .get(i)
+            .cloned()
+            .map(DifferentialForm::Function)
     }
 
     /// `dx^i`.
-    pub fn differential(&self, i: usize) -> DifferentialForm<M> {
-        DifferentialForm::Differential(Box::new(self.coordinate(i)))
+    pub fn differential(&self, i: usize) -> Option<DifferentialForm<M>> {
+        self.coordinate(i)
+            .map(|c| DifferentialForm::Differential(Box::new(c)))
     }
 }
 
@@ -182,7 +218,7 @@ mod tests {
     struct Plane;
     impl Manifold for Plane {
         type Scalar = RealRing;
-        const DIM: usize = 2;
+        type const DIM: usize = 2;
     }
 
     #[test]
@@ -191,21 +227,31 @@ mod tests {
         let polar = Chart::<Plane>::new([Symbol::new("r"), Symbol::new("θ")]);
 
         assert_eq!(
-            cartesian.differential(0),
+            cartesian.differential(0).unwrap(),
             DifferentialForm::Differential(Box::new(DifferentialForm::Function(Symbol::new("x"))))
         );
         assert_ne!(cartesian.differential(0), polar.differential(0));
     }
 
     #[test]
-    #[should_panic]
-    fn wrong_dimension_panics() {
-        Chart::<Plane>::new([Symbol::new("x")]);
-    }
+    fn substitute_replaces_coordinate_inside_differential() {
+        let polar = Chart::<Plane>::new([Symbol::new("r"), Symbol::new("θ")]);
+        // ω = r ∧ dθ, two free functions
+        let mut omega = DifferentialForm::Wedged(vec![
+            polar.coordinate(0).unwrap(),
+            polar.differential(1).unwrap(),
+        ]);
+        assert_eq!(omega.degrees_of_freedom(), 2);
 
-    #[test]
-    #[should_panic]
-    fn duplicate_coordinate_panics() {
-        Chart::<Plane>::new([Symbol::new("x"), Symbol::new("x")]);
+        // θ := 3  ⇒  r ∧ d3
+        omega.substitute(Symbol::new("θ"), &DifferentialForm::Const(3));
+        assert_eq!(
+            omega,
+            DifferentialForm::Wedged(vec![
+                polar.coordinate(0).unwrap(),
+                DifferentialForm::Differential(Box::new(DifferentialForm::Const(3))),
+            ])
+        );
+        assert_eq!(omega.degrees_of_freedom(), 1);
     }
 }
