@@ -4,18 +4,24 @@ use crate::set::Set;
 // Traits
 // ================================================================================
 
-pub trait BinaryOperator<S: Set> {
-    fn apply(a: S::Element, b: S::Element) -> S::Element;
+pub trait BinaryOperator {
+    type Domain: Set;
+    fn apply(
+        a: <Self::Domain as Set>::Element,
+        b: <Self::Domain as Set>::Element,
+    ) -> <Self::Domain as Set>::Element;
 }
 
-pub trait AssociativeOperator<S: Set>: BinaryOperator<S> {}
+pub trait AssociativeOperator: BinaryOperator {}
 
-pub trait CommutativeOperator<S: Set>: BinaryOperator<S> {}
+pub trait CommutativeOperator: BinaryOperator {}
 
-pub trait IdentityOperator<D: Set>: BinaryOperator<D> {
-    const IDENTITY: D::Element;
+pub trait IdentityOperator: BinaryOperator {
+    const IDENTITY: <<Self as BinaryOperator>::Domain as Set>::Element;
 }
 
-pub trait InverseOperator<D: Set>: BinaryOperator<D> {
-    fn inverse(a: D::Element) -> D::Element;
+pub trait InverseOperator: BinaryOperator {
+    fn inverse(
+        a: <<Self as BinaryOperator>::Domain as Set>::Element,
+    ) -> <<Self as BinaryOperator>::Domain as Set>::Element;
 }

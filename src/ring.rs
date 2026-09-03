@@ -20,33 +20,35 @@ pub trait SemiRing {
     /// The addition operator for this semi-ring.
     ///
     /// Should be associative, commutative, and have an identity element.
-    type Addition: AssociativeOperator<Self::Domain>
-        + CommutativeOperator<Self::Domain>
-        + IdentityOperator<Self::Domain>;
+    type Addition: BinaryOperator<Domain = Self::Domain>
+        + AssociativeOperator
+        + CommutativeOperator
+        + IdentityOperator;
 
     /// The multiplication operator for this semi-ring.
     ///
     /// Should be associative and have an identity element.
-    type Multiplication: AssociativeOperator<Self::Domain> + IdentityOperator<Self::Domain>;
+    type Multiplication: BinaryOperator<Domain = Self::Domain>
+        + AssociativeOperator
+        + IdentityOperator;
 
-    const ZERO: <Self::Domain as Set>::Element =
-        <Self::Addition as IdentityOperator<Self::Domain>>::IDENTITY;
+    const ZERO: <Self::Domain as Set>::Element = <Self::Addition as IdentityOperator>::IDENTITY;
 
     const ONE: <Self::Domain as Set>::Element =
-        <Self::Multiplication as IdentityOperator<Self::Domain>>::IDENTITY;
+        <Self::Multiplication as IdentityOperator>::IDENTITY;
 
     fn add(
         a: <Self::Domain as Set>::Element,
         b: <Self::Domain as Set>::Element,
     ) -> <Self::Domain as Set>::Element {
-        <Self::Addition as BinaryOperator<Self::Domain>>::apply(a, b)
+        <Self::Addition as BinaryOperator>::apply(a, b)
     }
 
     fn multiply(
         a: <Self::Domain as Set>::Element,
         b: <Self::Domain as Set>::Element,
     ) -> <Self::Domain as Set>::Element {
-        <Self::Multiplication as BinaryOperator<Self::Domain>>::apply(a, b)
+        <Self::Multiplication as BinaryOperator>::apply(a, b)
     }
 }
 
@@ -59,10 +61,10 @@ pub trait Ring: SemiRing {
 /// Any semi-ring with invertible addition is a ring for free.
 impl<SR: SemiRing> Ring for SR
 where
-    SR::Addition: InverseOperator<SR::Domain>,
+    SR::Addition: InverseOperator,
 {
     fn negate(a: <Self::Domain as Set>::Element) -> <Self::Domain as Set>::Element {
-        <SR::Addition as InverseOperator<SR::Domain>>::inverse(a)
+        <SR::Addition as InverseOperator>::inverse(a)
     }
 }
 
@@ -520,7 +522,7 @@ impl<R: Ring> Default for CommutativeRingFormatter<R> {
 
 impl<R: Ring> Formatter for CommutativeRingFormatter<R>
 where
-    R::Multiplication: CommutativeOperator<R::Domain>,
+    R::Multiplication: CommutativeOperator,
 {
     type Expr = RingExpr<R>;
 
@@ -620,18 +622,20 @@ mod tests {
 
     struct TestAdd;
 
-    impl BinaryOperator<TestDomain> for TestAdd {
+    impl BinaryOperator for TestAdd {
+        type Domain = TestDomain;
+
         fn apply(a: i64, b: i64) -> i64 {
             a + b
         }
     }
 
-    impl AssociativeOperator<TestDomain> for TestAdd {}
-    impl CommutativeOperator<TestDomain> for TestAdd {}
-    impl IdentityOperator<TestDomain> for TestAdd {
+    impl AssociativeOperator for TestAdd {}
+    impl CommutativeOperator for TestAdd {}
+    impl IdentityOperator for TestAdd {
         const IDENTITY: i64 = 0;
     }
-    impl InverseOperator<TestDomain> for TestAdd {
+    impl InverseOperator for TestAdd {
         fn inverse(a: i64) -> i64 {
             -a
         }
@@ -639,15 +643,17 @@ mod tests {
 
     struct TestMul;
 
-    impl BinaryOperator<TestDomain> for TestMul {
+    impl BinaryOperator for TestMul {
+        type Domain = TestDomain;
+
         fn apply(a: i64, b: i64) -> i64 {
             a * b
         }
     }
 
-    impl AssociativeOperator<TestDomain> for TestMul {}
-    impl CommutativeOperator<TestDomain> for TestMul {}
-    impl IdentityOperator<TestDomain> for TestMul {
+    impl AssociativeOperator for TestMul {}
+    impl CommutativeOperator for TestMul {}
+    impl IdentityOperator for TestMul {
         const IDENTITY: i64 = 1;
     }
 
