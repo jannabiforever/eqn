@@ -1,4 +1,6 @@
-use crate::formatter::Formatter;
+use std::collections::HashSet;
+
+use crate::formatter::{Expression, Formatter};
 use crate::monoid::Monoid;
 use crate::op::{BinaryOperator, CommutativeOperator, InverseOperator};
 use crate::set::Set;
@@ -71,6 +73,41 @@ impl<G: Group> Clone for GroupExpr<G> {
                 base: base.clone(),
                 exponent: *exponent,
             },
+        }
+    }
+}
+
+impl<G: Group> Expression for GroupExpr<G> {
+    type Domain = G::Domain;
+
+    fn degrees_of_freedom(&self) -> usize {
+        let mut symbols = HashSet::new();
+        let mut expressions = vec![self];
+
+        while let Some(expr) = expressions.pop() {
+            match expr {
+                Self::Const(_) => {}
+                Self::Symbol(symbol) => {
+                    symbols.insert(symbol);
+                }
+                Self::Inv(expr) | Self::Pow { base: expr, .. } => expressions.push(expr),
+                Self::Op(exprs) => expressions.extend(exprs),
+            }
+        }
+        symbols.len()
+    }
+
+    fn substitute(&mut self, symbol: Symbol<Self::Domain>, replacement: &Self) {
+        let mut expressions = vec![self];
+
+        while let Some(expr) = expressions.pop() {
+            match expr {
+                Self::Const(_) => {}
+                Self::Symbol(candidate) if *candidate == symbol => *expr = replacement.clone(),
+                Self::Symbol(_) => {}
+                Self::Inv(expr) | Self::Pow { base: expr, .. } => expressions.push(expr),
+                Self::Op(exprs) => expressions.extend(exprs),
+            }
         }
     }
 }
@@ -547,6 +584,36 @@ mod tests {
         assert!(
             AbelianGroupFormatter::new().format_expr(commutator)
                 == Expr::Const(IntegerAdditionGroup::IDENTITY)
+        );
+    }
+
+    #[test]
+    fn group_expression_supports_substitution() {
+        let x = Symbol::new("x");
+        let y = Symbol::new("y");
+        let expr = Expr::Op(vec![
+            Expr::Symbol(x.clone()),
+            Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
+            Expr::Pow {
+                base: Box::new(Expr::Op(vec![
+                    Expr::Symbol(x.clone()),
+                    Expr::Symbol(y.clone()),
+                ])),
+                exponent: 2,
+            },
+        ]);
+
+        assert_eq!(expr.degrees_of_freedom(), 2);
+        assert!(
+            expr.substituted(x, &Expr::Const(4))
+                == Expr::Op(vec![
+                    Expr::Const(4),
+                    Expr::Inv(Box::new(Expr::Const(4))),
+                    Expr::Pow {
+                        base: Box::new(Expr::Op(vec![Expr::Const(4), Expr::Symbol(y),])),
+                        exponent: 2,
+                    },
+                ])
         );
     }
 
