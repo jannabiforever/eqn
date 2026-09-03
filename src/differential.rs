@@ -27,6 +27,7 @@ impl<M: Manifold> Set for ZeroForms<M> {
     type Element = Scalar<M>;
 }
 
+#[derive_where::derive_where(Clone, Debug, PartialEq)]
 pub enum DifferentialForm<M: Manifold> {
     Const(Scalar<M>),
     /// unknown `f: M -> Scalar`, a 0-form.
@@ -35,33 +36,6 @@ pub enum DifferentialForm<M: Manifold> {
     Add(Vec<Self>),
     Wedged(Vec<Self>),
     Differential(Box<Self>),
-}
-
-impl<M: Manifold> PartialEq for DifferentialForm<M> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Const(a), Self::Const(b)) => a == b,
-            (Self::Function(a), Self::Function(b)) => a == b,
-            (Self::Neg(a), Self::Neg(b)) => a == b,
-            (Self::Add(a), Self::Add(b)) => a == b,
-            (Self::Wedged(a), Self::Wedged(b)) => a == b,
-            (Self::Differential(a), Self::Differential(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl<M: Manifold> Clone for DifferentialForm<M> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Const(c) => Self::Const(c.clone()),
-            Self::Function(f) => Self::Function(f.clone()),
-            Self::Neg(inner) => Self::Neg(inner.clone()),
-            Self::Add(forms) => Self::Add(forms.clone()),
-            Self::Wedged(forms) => Self::Wedged(forms.clone()),
-            Self::Differential(form) => Self::Differential(form.clone()),
-        }
-    }
 }
 
 impl<M: Manifold> From<Symbol<ZeroForms<M>>> for DifferentialForm<M> {
@@ -110,28 +84,6 @@ impl<M: Manifold> Expression for DifferentialForm<M> {
                 Self::Function(f) if *f == sym => *e = expr.clone(),
                 _ => to_visit.extend(e.children_mut()),
             }
-        }
-    }
-}
-
-impl<M: Manifold> std::fmt::Debug for DifferentialForm<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DifferentialForm::Const(c) => f.debug_tuple("Const").field(c).finish(),
-            DifferentialForm::Function(symbol) => f.debug_tuple("Function").field(symbol).finish(),
-            DifferentialForm::Neg(differential_form) => {
-                f.debug_tuple("Neg").field(differential_form).finish()
-            }
-            DifferentialForm::Add(differential_forms) => {
-                f.debug_tuple("Add").field(differential_forms).finish()
-            }
-            DifferentialForm::Wedged(differential_forms) => {
-                f.debug_tuple("Wedged").field(differential_forms).finish()
-            }
-            DifferentialForm::Differential(differential_form) => f
-                .debug_tuple("Differential")
-                .field(differential_form)
-                .finish(),
         }
     }
 }
@@ -187,18 +139,10 @@ impl<S> Atom<S> {
 }
 
 /// `coeff · a_1 ∧ … ∧ a_n`.
+#[derive_where::derive_where(Clone)]
 struct Term<M: Manifold> {
     coeff: Scalar<M>,
     atoms: Vec<Atom<Symbol<ZeroForms<M>>>>,
-}
-
-impl<M: Manifold> Clone for Term<M> {
-    fn clone(&self) -> Self {
-        Self {
-            coeff: self.coeff.clone(),
-            atoms: self.atoms.clone(),
-        }
-    }
 }
 
 impl<M: Manifold> Term<M> {
@@ -348,6 +292,7 @@ fn normalize<M: Manifold>(expr: DifferentialForm<M>, canonical: bool) -> Differe
 /// Normalizes by the exterior-algebra laws that need no ordering: linearity,
 /// `∧` distributing over `+`, `dc = 0`, `d² = 0`, Leibniz, constant folding,
 /// and vanishing above degree `M::DIM`. Wedge factors keep their written order.
+#[derive_where::derive_where(Default)]
 pub struct ExteriorFormatter<M: Manifold> {
     _marker: std::marker::PhantomData<M>,
 }
@@ -355,14 +300,6 @@ pub struct ExteriorFormatter<M: Manifold> {
 impl<M: Manifold> ExteriorFormatter<M> {
     pub fn new() -> Self {
         Self::default()
-    }
-}
-
-impl<M: Manifold> Default for ExteriorFormatter<M> {
-    fn default() -> Self {
-        Self {
-            _marker: std::marker::PhantomData,
-        }
     }
 }
 
@@ -377,6 +314,7 @@ impl<M: Manifold> Formatter for ExteriorFormatter<M> {
 /// [`ExteriorFormatter`] plus graded commutativity: wedge factors sort into
 /// a canonical order with the permutation sign, `df ∧ df = 0`, and like
 /// terms collect into one coefficient.
+#[derive_where::derive_where(Default)]
 pub struct GradedCommutativeFormatter<M: Manifold> {
     _marker: std::marker::PhantomData<M>,
 }
@@ -384,14 +322,6 @@ pub struct GradedCommutativeFormatter<M: Manifold> {
 impl<M: Manifold> GradedCommutativeFormatter<M> {
     pub fn new() -> Self {
         Self::default()
-    }
-}
-
-impl<M: Manifold> Default for GradedCommutativeFormatter<M> {
-    fn default() -> Self {
-        Self {
-            _marker: std::marker::PhantomData,
-        }
     }
 }
 

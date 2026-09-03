@@ -3,12 +3,18 @@ import sys
 import re
 
 DERIVE_REGEX = re.compile(r"#\[derive\((.*)\)\]")
+DERIVE_WHERE_REGEX = re.compile(r"#\[derive_where::derive_where\((.*)\)\]")
 
 
 def sort_derives(content: str) -> str:
     for matched in DERIVE_REGEX.finditer(content):
         sorted_derives = sorted(d.strip() for d in matched.group(1).split(","))
         content = content.replace(matched.group(0), f"#[derive({', '.join(sorted_derives)})]")
+
+    for matched in DERIVE_WHERE_REGEX.finditer(content):
+        sorted_derives = sorted(d.strip() for d in matched.group(1).split(","))
+        content = content.replace(matched.group(0), f"#[derive_where::derive_where({', '.join(sorted_derives)})]")
+
     return content
 
 

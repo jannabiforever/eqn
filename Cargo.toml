@@ -13,4 +13,5 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
+derive-where = "1.6.1"
 thiserror = "2.0.20"

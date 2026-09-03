@@ -71,6 +71,7 @@ where
 
 /// An expression tree over a semi-ring: constants, named symbols, n-ary sums
 /// and products, and powers (repeated multiplication, exponent >= 1).
+#[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 pub enum SemiRingExpr<SR: SemiRing> {
     Const(<SR::Domain as Set>::Element),
     Symbol(Symbol<SR::Domain>),
@@ -122,46 +123,6 @@ impl<D: Set, SR: SemiRing<Domain = D>> From<Symbol<D>> for SemiRingExpr<SR> {
         Self::Symbol(value)
     }
 }
-
-impl<SR: SemiRing> Clone for SemiRingExpr<SR> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Const(c) => Self::Const(c.clone()),
-            Self::Symbol(s) => Self::Symbol(s.clone()),
-            Self::Add(v) => Self::Add(v.clone()),
-            Self::Mul(v) => Self::Mul(v.clone()),
-            Self::Pow { base, exponent } => Self::Pow {
-                base: base.clone(),
-                exponent: *exponent,
-            },
-        }
-    }
-}
-
-/// Structural equality; no algebraic normalization (format first for that).
-impl<SR: SemiRing> PartialEq for SemiRingExpr<SR> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Const(s), Self::Const(o)) => s == o,
-            (Self::Symbol(s), Self::Symbol(o)) => s == o,
-            (Self::Add(s), Self::Add(o)) => s == o,
-            (Self::Mul(s), Self::Mul(o)) => s == o,
-            (
-                Self::Pow {
-                    base: sb,
-                    exponent: se,
-                },
-                Self::Pow {
-                    base: ob,
-                    exponent: oe,
-                },
-            ) => se == oe && sb == ob,
-            _ => false,
-        }
-    }
-}
-
-impl<SR: SemiRing> Eq for SemiRingExpr<SR> {}
 
 // ================================================================================
 // Normalization engine
@@ -477,6 +438,7 @@ fn normalize<SR: SemiRing>(expr: SemiRingExpr<SR>, commutative: bool) -> SemiRin
 
 /// Canonicalizes [`SemiRingExpr`]s using the semi-ring laws (see
 /// [`normalize`]).
+#[derive_where::derive_where(Default)]
 pub struct SemiRingFormatter<SR: SemiRing> {
     _semi_ring_marker: std::marker::PhantomData<SR>,
 }
@@ -484,14 +446,6 @@ pub struct SemiRingFormatter<SR: SemiRing> {
 impl<SR: SemiRing> SemiRingFormatter<SR> {
     pub fn new() -> Self {
         Self::default()
-    }
-}
-
-impl<SR: SemiRing> Default for SemiRingFormatter<SR> {
-    fn default() -> Self {
-        Self {
-            _semi_ring_marker: std::marker::PhantomData,
-        }
     }
 }
 
@@ -508,6 +462,7 @@ impl<SR: SemiRing> Formatter for SemiRingFormatter<SR> {
 /// `Neg` (a negated term shows up as a constant coefficient), and every Neg
 /// rule (`--x = x`, `-c` folding, `x + (-x) = 0`) falls out of the ordinary
 /// constant folding and coefficient collection.
+#[derive_where::derive_where(Default)]
 pub struct RingFormatter<R: Ring> {
     _ring_marker: std::marker::PhantomData<R>,
 }
@@ -515,14 +470,6 @@ pub struct RingFormatter<R: Ring> {
 impl<R: Ring> RingFormatter<R> {
     pub fn new() -> Self {
         Self::default()
-    }
-}
-
-impl<R: Ring> Default for RingFormatter<R> {
-    fn default() -> Self {
-        Self {
-            _ring_marker: std::marker::PhantomData,
-        }
     }
 }
 
@@ -538,6 +485,7 @@ impl<R: Ring> Formatter for RingFormatter<R> {
 /// additionally folds all constants of a product into one leading constant,
 /// collects repeated factors into powers (`x * y * x -> x^2 * y`), and sorts
 /// factors and terms into a canonical order.
+#[derive_where::derive_where(Default)]
 pub struct CommutativeRingFormatter<R: Ring> {
     _ring_marker: std::marker::PhantomData<R>,
 }
@@ -545,14 +493,6 @@ pub struct CommutativeRingFormatter<R: Ring> {
 impl<R: Ring> CommutativeRingFormatter<R> {
     pub fn new() -> Self {
         Self::default()
-    }
-}
-
-impl<R: Ring> Default for CommutativeRingFormatter<R> {
-    fn default() -> Self {
-        Self {
-            _ring_marker: std::marker::PhantomData,
-        }
     }
 }
 
@@ -573,6 +513,7 @@ where
 
 /// An expression tree over a ring; `Neg` is the additive inverse, which is
 /// what distinguishes it from [`SemiRingExpr`].
+#[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 pub enum RingExpr<R: Ring> {
     Const(<R::Domain as Set>::Element),
     Symbol(Symbol<R::Domain>),
@@ -583,22 +524,6 @@ pub enum RingExpr<R: Ring> {
         base: Box<RingExpr<R>>,
         exponent: NonZeroUsize,
     },
-}
-
-impl<R: Ring> Clone for RingExpr<R> {
-    fn clone(&self) -> Self {
-        match self {
-            RingExpr::Const(e) => RingExpr::Const(e.clone()),
-            RingExpr::Symbol(s) => RingExpr::Symbol(s.clone()),
-            RingExpr::Neg(e) => RingExpr::Neg(e.clone()),
-            RingExpr::Add(es) => RingExpr::Add(es.clone()),
-            RingExpr::Mul(es) => RingExpr::Mul(es.clone()),
-            RingExpr::Pow { base, exponent } => RingExpr::Pow {
-                base: base.clone(),
-                exponent: *exponent,
-            },
-        }
-    }
 }
 
 impl<R: Ring> Expression for RingExpr<R> {
@@ -643,32 +568,6 @@ impl<R: Ring> From<Symbol<R::Domain>> for RingExpr<R> {
         Self::Symbol(sym)
     }
 }
-
-/// Structural equality; no algebraic normalization (format first for that).
-impl<R: Ring> PartialEq for RingExpr<R> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Const(s), Self::Const(o)) => s == o,
-            (Self::Symbol(s), Self::Symbol(o)) => s == o,
-            (Self::Neg(s), Self::Neg(o)) => s == o,
-            (Self::Add(s), Self::Add(o)) => s == o,
-            (Self::Mul(s), Self::Mul(o)) => s == o,
-            (
-                Self::Pow {
-                    base: sb,
-                    exponent: se,
-                },
-                Self::Pow {
-                    base: ob,
-                    exponent: oe,
-                },
-            ) => se == oe && sb == ob,
-            _ => false,
-        }
-    }
-}
-
-impl<R: Ring> Eq for RingExpr<R> {}
 
 /// Lowers to the semi-ring tree by encoding `Neg(x)` as `(-1) * x`
 /// (`-1` = the additive inverse of one, which is central in every ring).

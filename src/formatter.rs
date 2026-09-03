@@ -7,6 +7,7 @@ pub trait Formatter {
     fn format_expr(&self, expr: Self::Expr) -> Self::Expr;
 }
 
+#[derive_where::derive_where(Default)]
 pub struct TrivialFormatter<E: Expression> {
     _marker: std::marker::PhantomData<E>,
 }
@@ -14,14 +15,6 @@ pub struct TrivialFormatter<E: Expression> {
 impl<E: Expression> TrivialFormatter<E> {
     pub fn new() -> Self {
         Self::default()
-    }
-}
-
-impl<E: Expression> Default for TrivialFormatter<E> {
-    fn default() -> Self {
-        Self {
-            _marker: std::marker::PhantomData,
-        }
     }
 }
 

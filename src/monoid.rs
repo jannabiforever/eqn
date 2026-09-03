@@ -34,20 +34,11 @@ where
 
 /// An expression tree over a monoid: constants, named symbols, and n-ary
 /// applications of the monoid's operator.
+#[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 pub enum MonoidExpr<M: Monoid> {
     Const(<M::Domain as Set>::Element),
     Symbol(Symbol<M::Domain>),
     Op(Vec<MonoidExpr<M>>),
-}
-
-impl<M: Monoid> Clone for MonoidExpr<M> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Const(e) => Self::Const(e.clone()),
-            Self::Symbol(s) => Self::Symbol(s.clone()),
-            Self::Op(v) => Self::Op(v.clone()),
-        }
-    }
 }
 
 impl<M: Monoid> Expression for MonoidExpr<M> {
@@ -102,18 +93,7 @@ impl<D: Set, M: Monoid<Domain = D>> From<Symbol<D>> for MonoidExpr<M> {
     }
 }
 
-/// Structural equality; no algebraic normalization (simplify first for that).
-impl<M: Monoid> PartialEq for MonoidExpr<M> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Const(s), Self::Const(o)) => s == o,
-            (Self::Symbol(s), Self::Symbol(o)) => s == o,
-            (Self::Op(s), Self::Op(o)) => s == o,
-            _ => false,
-        }
-    }
-}
-
+#[derive_where::derive_where(Clone, Copy, Default)]
 pub struct NonCommutativeMonoidFormatter<M> {
     _monoid_marker: std::marker::PhantomData<M>,
 }
@@ -121,14 +101,6 @@ pub struct NonCommutativeMonoidFormatter<M> {
 impl<M: Monoid> NonCommutativeMonoidFormatter<M> {
     pub fn new() -> Self {
         Self::default()
-    }
-}
-
-impl<M: Monoid> Default for NonCommutativeMonoidFormatter<M> {
-    fn default() -> Self {
-        Self {
-            _monoid_marker: std::marker::PhantomData,
-        }
     }
 }
 
@@ -178,6 +150,7 @@ impl<M: Monoid> Formatter for NonCommutativeMonoidFormatter<M> {
 /// Simplifies to a canonical form, additionally using commutativity:
 /// all constants fold into one leading constant, and symbols sort by
 /// name with multiplicity preserved.
+#[derive_where::derive_where(Clone, Copy, Default)]
 pub struct CommutativeMonoidFormatter<M>
 where
     M: Monoid,
@@ -193,18 +166,6 @@ where
 {
     pub fn new() -> Self {
         Self::default()
-    }
-}
-
-impl<M> Default for CommutativeMonoidFormatter<M>
-where
-    M: Monoid,
-    M::Operator: CommutativeOperator,
-{
-    fn default() -> Self {
-        Self {
-            _marker: std::marker::PhantomData,
-        }
     }
 }
 
