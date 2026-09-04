@@ -1,0 +1,19 @@
+{
+  "name": "eqn",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/nix:1": {
+      "extraNixConfig": "experimental-features = nix-command flakes"
+    },
+    "ghcr.io/devcontainers-contrib/features/direnv:2": {}
+  },
+  "postCreateCommand": "direnv allow && nix develop -c cargo fetch",
+  "customizations": {
+    "vscode": {
+      "extensions": ["rust-lang.rust-analyzer", "tamasfe.even-better-toml", "mkhl.direnv"],
+      "settings": {
+        "direnv.restart.automatic": true
+      }
+    }
+  }
+}
