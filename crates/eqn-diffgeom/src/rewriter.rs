@@ -5,7 +5,7 @@ use eqn_core::symbol::Symbol;
 use crate::{DifferentialForm, Manifold, Scalar, ZeroForms};
 
 // ================================================================================
-// Formatters
+// Normalization engine
 // ================================================================================
 
 /// A wedge factor after normalization: a function `f` (degree 0) or its
@@ -144,40 +144,61 @@ fn terms<M: Manifold>(expr: DifferentialForm<M>) -> Vec<Term<M>> {
     }
 }
 
-/// Canonical form: a sum of terms, each a scalar times a wedge of atoms.
-/// Terms of degree above `M::DIM` vanish. With `canonical`, wedge factors
-/// are sorted by graded commutativity and like terms are collected.
-fn normalize<M: Manifold>(expr: &mut DifferentialForm<M>, canonical: bool) {
-    // The canonical form is a flat term list, so the tree is consumed and
-    // rebuilt rather than edited in place.
+/// Expands the tree into its term list by linearity, distributing `∧` over
+/// `+`, Leibniz, `dc = 0` and `d² = 0`; terms of degree above `M::DIM`
+/// vanish. The canonical form is a flat term list, so the tree is consumed
+/// rather than edited in place.
+fn terms_of<M: Manifold>(expr: &mut DifferentialForm<M>) -> Vec<Term<M>> {
     let taken = std::mem::replace(expr, DifferentialForm::Add(Vec::new()));
-    let mut ts: Vec<Term<M>> = terms(taken)
+    terms(taken)
         .into_iter()
         .filter(|t| t.degree() <= M::DIM)
-        .collect();
+        .collect()
+}
 
-    if canonical {
-        ts = ts.into_iter().filter_map(Term::canonical).collect();
-        ts.sort_by(|a, b| a.atoms.cmp(&b.atoms));
-        let mut merged: Vec<Term<M>> = vec![];
-        for t in ts {
-            match merged.last_mut() {
-                Some(last) if last.atoms == t.atoms => {
-                    last.coeff = M::Scalar::add(last.coeff.clone(), t.coeff);
-                }
-                _ => merged.push(t),
+/// Graded commutativity: sorts each term's wedge factors with the permutation
+/// sign (`df ∧ df = 0` drops the term), then sorts terms and merges equal
+/// ones into a single coefficient.
+fn canonicalize<M: Manifold>(ts: Vec<Term<M>>) -> Vec<Term<M>> {
+    let mut ts: Vec<Term<M>> = ts.into_iter().filter_map(Term::canonical).collect();
+    ts.sort_by(|a, b| a.atoms.cmp(&b.atoms));
+    let mut merged: Vec<Term<M>> = vec![];
+    for t in ts {
+        match merged.last_mut() {
+            Some(last) if last.atoms == t.atoms => {
+                last.coeff = M::Scalar::add(last.coeff.clone(), t.coeff);
             }
+            _ => merged.push(t),
         }
-        ts = merged;
     }
+    merged
+}
 
+/// Rebuilds a form from its terms, dropping zero coefficients.
+fn build_sum<M: Manifold>(mut ts: Vec<Term<M>>) -> DifferentialForm<M> {
     ts.retain(|t| t.coeff != <M::Scalar as SemiRing>::ZERO);
-    *expr = match ts.len() {
+    match ts.len() {
         0 => DifferentialForm::Const(<M::Scalar as SemiRing>::ZERO),
         1 => ts.pop().unwrap().into_form(),
         _ => DifferentialForm::Add(ts.into_iter().map(Term::into_form).collect()),
-    };
+    }
 }
+
+/// Normalizes by the exterior-algebra laws that need no ordering; wedge
+/// factors keep their written order.
+fn normalize<M: Manifold>(expr: &mut DifferentialForm<M>) {
+    *expr = build_sum(terms_of(expr));
+}
+
+/// [`normalize`] plus graded commutativity: wedge factors sort into a
+/// canonical order and like terms collect.
+fn normalize_graded<M: Manifold>(expr: &mut DifferentialForm<M>) {
+    *expr = build_sum(canonicalize(terms_of(expr)));
+}
+
+// ================================================================================
+// Formatters
+// ================================================================================
 
 /// Normalizes by the exterior-algebra laws that need no ordering: linearity,
 /// `∧` distributing over `+`, `dc = 0`, `d² = 0`, Leibniz, constant folding,
@@ -197,7 +218,7 @@ impl<M: Manifold> Rewriter for ExteriorRewriter<M> {
     type Expr = DifferentialForm<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
-        normalize(expr, false);
+        normalize(expr);
     }
 }
 
@@ -219,7 +240,7 @@ impl<M: Manifold> Rewriter for GradedCommutativeRewriter<M> {
     type Expr = DifferentialForm<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
-        normalize(expr, true);
+        normalize_graded(expr);
     }
 }
 

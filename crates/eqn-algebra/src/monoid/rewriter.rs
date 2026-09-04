@@ -3,6 +3,109 @@ use crate::flatten;
 use crate::op::Commutative;
 use crate::rewriter::Rewriter;
 
+// ================================================================================
+// Normalization engine
+// ================================================================================
+
+fn finish<M: Monoid>(mut exprs: Vec<MonoidExpr<M>>) -> MonoidExpr<M> {
+    match exprs.len() {
+        // NOTE: empty op simplifies to identity to keep the interface total.
+        0 => MonoidExpr::Const(M::IDENTITY),
+        1 => exprs.pop().unwrap(),
+        _ => MonoidExpr::Op(exprs),
+    }
+}
+
+fn split_op<M: Monoid>(expr: MonoidExpr<M>) -> Result<Vec<MonoidExpr<M>>, MonoidExpr<M>> {
+    match expr {
+        MonoidExpr::Op(inner) => Ok(inner),
+        e => Err(e),
+    }
+}
+
+/// Order-preserving product of normalized factors: drops identities and
+/// folds *adjacent* constants.
+fn fold_adjacent<M: Monoid>(factors: impl Iterator<Item = MonoidExpr<M>>) -> MonoidExpr<M> {
+    let mut out: Vec<MonoidExpr<M>> = Vec::new();
+
+    for item in factors {
+        if item == MonoidExpr::Const(M::IDENTITY) {
+            continue;
+        }
+        match (item, out.pop()) {
+            (MonoidExpr::Const(s), Some(MonoidExpr::Const(t))) => {
+                out.push(MonoidExpr::Const(M::apply(t, s)))
+            }
+            (item, popped) => {
+                out.extend(popped);
+                out.push(item);
+            }
+        }
+    }
+
+    finish(out)
+}
+
+/// Commutative product of normalized factors: *all* constants fold into one
+/// leading constant, and symbols sort by name with multiplicity preserved.
+fn collect_symbols<M>(factors: impl Iterator<Item = MonoidExpr<M>>) -> MonoidExpr<M>
+where
+    M: Monoid,
+    M::Operator: Commutative,
+{
+    let mut acc = M::IDENTITY;
+    let mut syms = Vec::new();
+
+    for item in factors {
+        match item {
+            MonoidExpr::Const(c) => acc = M::apply(acc, c),
+            MonoidExpr::Symbol(s) => syms.push(s),
+            // Children are normalized, so a nested op was already spliced.
+            MonoidExpr::Op(_) => unreachable!(),
+        }
+    }
+
+    syms.sort();
+
+    let mut out = Vec::new();
+    if syms.is_empty() || acc != M::IDENTITY {
+        out.push(MonoidExpr::Const(acc));
+    }
+    out.extend(syms.into_iter().map(MonoidExpr::Symbol));
+
+    finish(out)
+}
+
+/// Normalizes in place using the monoid laws only; factor order is
+/// preserved. Leaves are untouched, children are normalized where they sit,
+/// and only nodes whose shape changes are replaced.
+fn normalize<M: Monoid>(expr: &mut MonoidExpr<M>) {
+    let MonoidExpr::Op(exprs) = expr else {
+        return;
+    };
+    exprs.iter_mut().for_each(normalize);
+    *expr = fold_adjacent(flatten(std::mem::take(exprs), split_op));
+}
+
+/// [`normalize`] plus commutativity: constants fold globally and symbols
+/// sort.
+fn normalize_commutative<M>(expr: &mut MonoidExpr<M>)
+where
+    M: Monoid,
+    M::Operator: Commutative,
+{
+    let MonoidExpr::Op(exprs) = expr else {
+        return;
+    };
+    exprs.iter_mut().for_each(normalize_commutative);
+    *expr = collect_symbols(flatten(std::mem::take(exprs), split_op));
+}
+
+// ================================================================================
+// Formatters
+// ================================================================================
+
+/// Canonicalizes monoid expressions while preserving factor order.
 #[derive_where::derive_where(Clone, Copy, Default)]
 pub struct NonCommutativeMonoidRewriter<M> {
     _monoid_marker: std::marker::PhantomData<M>,
@@ -18,46 +121,8 @@ impl<M: Monoid> Rewriter for NonCommutativeMonoidRewriter<M> {
     type Expr = MonoidExpr<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
-        normalize_noncommutative(expr);
+        normalize(expr);
     }
-}
-
-fn finish<M: Monoid>(mut exprs: Vec<MonoidExpr<M>>) -> MonoidExpr<M> {
-    match exprs.len() {
-        // NOTE: empty op simplifies to identity to keep the interface total.
-        0 => MonoidExpr::Const(M::IDENTITY),
-        1 => exprs.pop().unwrap(),
-        _ => MonoidExpr::Op(exprs),
-    }
-}
-
-fn normalize_noncommutative<M: Monoid>(expr: &mut MonoidExpr<M>) {
-    let MonoidExpr::Op(exprs) = expr else {
-        return;
-    };
-    exprs.iter_mut().for_each(normalize_noncommutative);
-
-    let mut stack: Vec<MonoidExpr<M>> = Vec::with_capacity(exprs.len());
-    let split = |e| match e {
-        MonoidExpr::Op(inner) => Ok(inner),
-        e => Err(e),
-    };
-    for item in flatten(std::mem::take(exprs), split) {
-        if item == MonoidExpr::Const(M::IDENTITY) {
-            continue;
-        }
-        match (item, stack.pop()) {
-            (MonoidExpr::Const(s), Some(MonoidExpr::Const(t))) => {
-                stack.push(MonoidExpr::Const(M::apply(t, s)))
-            }
-            (item, popped) => {
-                stack.extend(popped);
-                stack.push(item);
-            }
-        }
-    }
-
-    *expr = finish(stack);
 }
 
 /// Simplifies to a canonical form, additionally using commutativity:
@@ -92,41 +157,6 @@ where
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
         normalize_commutative(expr);
     }
-}
-
-fn normalize_commutative<M>(expr: &mut MonoidExpr<M>)
-where
-    M: Monoid,
-    M::Operator: Commutative,
-{
-    let MonoidExpr::Op(exprs) = expr else {
-        return;
-    };
-    let mut acc = M::IDENTITY;
-    let mut syms = Vec::new();
-
-    // Worklist instead of recursion: nested ops are spliced in, so no child
-    // needs its own normalization pass. Visiting order is irrelevant under
-    // commutativity.
-    let mut work = std::mem::take(exprs);
-    while let Some(e) = work.pop() {
-        match e {
-            MonoidExpr::Const(c) => acc = M::apply(acc, c),
-            MonoidExpr::Symbol(s) => syms.push(s),
-            MonoidExpr::Op(inner) => work.extend(inner),
-        }
-    }
-
-    syms.sort();
-
-    // `work` is drained; reuse its buffer for the output.
-    let mut out = work;
-    if syms.is_empty() || acc != M::IDENTITY {
-        out.push(MonoidExpr::Const(acc));
-    }
-    out.extend(syms.into_iter().map(MonoidExpr::Symbol));
-
-    *expr = finish(out);
 }
 
 #[cfg(test)]
