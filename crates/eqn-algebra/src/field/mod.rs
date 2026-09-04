@@ -1,5 +1,5 @@
 use crate::op::{Associative, BinaryOperator, Commutative, Inverse};
-use crate::ring::{Ring, SemiRing};
+use crate::ring::{Element, Ring, SemiRing};
 use crate::set::Set;
 
 // ================================================================================
@@ -10,7 +10,7 @@ use crate::set::Set;
 /// element except `ZERO`. `invert(ZERO)` is a contract violation, not an
 /// error; the operator's `Inverse` impl is only consulted for non-zero input.
 pub trait Field: Ring<Multiplication: Commutative + Inverse> {
-    fn invert(a: <Self::Domain as Set>::Element) -> <Self::Domain as Set>::Element {
+    fn invert(a: Element<Self>) -> Element<Self> {
         <Self::Multiplication as Inverse>::inverse(a)
     }
 }

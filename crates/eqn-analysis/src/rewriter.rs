@@ -1,12 +1,9 @@
 use eqn_algebra::field::Field;
-use eqn_algebra::ring::SemiRing;
+use eqn_algebra::ring::Element;
 use eqn_core::rewriter::Rewriter;
-use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
 use crate::{Elementary, ElementaryExpr};
-
-type Elem<F> = <<F as SemiRing>::Domain as Set>::Element;
 
 // ================================================================================
 // Normalization engine
@@ -34,7 +31,7 @@ impl<F: Field> Atom<F> {
 
 /// `coeff · Π atomᵢ^eᵢ`.
 struct Term<F: Field> {
-    coeff: Elem<F>,
+    coeff: Element<F>,
     factors: Vec<(Atom<F>, isize)>,
 }
 
