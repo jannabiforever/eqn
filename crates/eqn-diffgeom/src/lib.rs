@@ -26,7 +26,8 @@ pub trait Manifold {
 pub type ZeroForm<M> = Element<<M as Manifold>::Functions>;
 
 /// A coordinate on the manifold `M`: names one of `M::Functions`'s
-/// derivations.
+/// derivations. Only a diffgeom name for that ring's `Index`, not a
+/// distinct type.
 pub type Coordinate<M> = <<M as Manifold>::Functions as DifferentialRing>::Index;
 
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq; ZeroForm<M>)]
