@@ -5,6 +5,8 @@ use std::ops::{Add, Mul, Neg};
 
 use eqn_algebra::differential::DifferentialAlgebra;
 use eqn_algebra::field::Field;
+use eqn_algebra::ring::SemiRing;
+use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
@@ -123,17 +125,55 @@ impl<F: Field> Neg for ElementaryExpr<F> {
 mod rewriter;
 pub use rewriter::ElementaryRewriter;
 
-impl<F: Field> DifferentialAlgebra for ElementaryExpr<F> {
-    type Constants = F;
-    type Normalizer = ElementaryRewriter<F>;
+// ================================================================================
+// ElementaryFunctionAlgebra: the differential field of elementary functions
+// ================================================================================
 
-    fn constant(c: <Self::Domain as Set>::Element) -> Self {
-        Self::Const(c)
+/// The set of elementary-function expressions over `F`, represented by
+/// [`ElementaryExpr`] trees.
+#[derive(Set)]
+#[set(element = ElementaryExpr<F>)]
+pub struct ElementaryFunctions<F: Field>(std::marker::PhantomData<F>);
+
+/// Symbolic addition: builds the tree, does not normalize.
+#[derive(Associative, BinaryOperator, Commutative)]
+#[operator(
+    domain = ElementaryFunctions<F>,
+    apply = |a, b| ElementaryExpr::Add(vec![a, b]),
+    identity = ElementaryExpr::Const(F::ZERO),
+    inverse = |a| ElementaryExpr::Neg(Box::new(a))
+)]
+pub struct ElementaryAdd<F: Field>(std::marker::PhantomData<F>);
+
+/// Symbolic multiplication: builds the tree, does not normalize.
+#[derive(Associative, BinaryOperator, Commutative)]
+#[operator(
+    domain = ElementaryFunctions<F>,
+    apply = |a, b| ElementaryExpr::Mul(vec![a, b]),
+    identity = ElementaryExpr::Const(F::ONE)
+)]
+pub struct ElementaryMul<F: Field>(std::marker::PhantomData<F>);
+
+/// The differential field of elementary functions over `F`, represented by
+/// [`ElementaryExpr`] trees.
+pub struct ElementaryFunctionAlgebra<F: Field>(std::marker::PhantomData<F>);
+
+impl<F: Field> SemiRing for ElementaryFunctionAlgebra<F> {
+    type Domain = ElementaryFunctions<F>;
+    type Addition = ElementaryAdd<F>;
+    type Multiplication = ElementaryMul<F>;
+}
+
+impl<F: Field> DifferentialAlgebra for ElementaryFunctionAlgebra<F> {
+    type Constants = F;
+
+    fn constant(c: <F::Domain as Set>::Element) -> ElementaryExpr<F> {
+        ElementaryExpr::Const(c)
     }
 
-    fn as_constant(&self) -> Option<&<Self::Domain as Set>::Element> {
-        match self {
-            Self::Const(c) => Some(c),
+    fn as_constant(a: &ElementaryExpr<F>) -> Option<&<F::Domain as Set>::Element> {
+        match a {
+            ElementaryExpr::Const(c) => Some(c),
             _ => None,
         }
     }
@@ -141,7 +181,7 @@ impl<F: Field> DifferentialAlgebra for ElementaryExpr<F> {
     /// The eager form of [`ElementaryExpr::D`]: both funnel through
     /// [`rewriter::derivative`], the same symbolic differentiation the
     /// rewriter uses to eliminate `D` nodes.
-    fn partial(self, wrt: &Symbol<Self::Domain>) -> Self {
-        rewriter::derivative(self, wrt)
+    fn partial(a: ElementaryExpr<F>, wrt: &Symbol<F::Domain>) -> ElementaryExpr<F> {
+        rewriter::derivative(a, wrt)
     }
 }

@@ -550,9 +550,11 @@ mod tests {
     fn partial_agrees_with_the_d_route() {
         use eqn_algebra::differential::DifferentialAlgebra;
 
-        assert_eq!(fmt(x().partial(&xs())), c(1));
+        type Alg = crate::ElementaryFunctionAlgebra<RationalField>;
+
+        assert_eq!(fmt(Alg::partial(x(), &xs())), c(1));
         assert_eq!(
-            fmt(fnc(Elementary::Sin, x()).partial(&xs())),
+            fmt(Alg::partial(fnc(Elementary::Sin, x()), &xs())),
             fmt(d(xs(), fnc(Elementary::Sin, x())))
         );
     }

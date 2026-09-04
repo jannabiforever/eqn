@@ -1,10 +1,11 @@
-// mgca: lets `Chart` carry `[_; M::DIM]` with `DIM` an associated const.
+// mgca: `Chart<M>` hold `M::DIM` coordinates.
 #![feature(min_generic_const_args, macroless_generic_const_args)]
 #![allow(incomplete_features)]
 
 use std::collections::HashSet;
 
 use eqn_algebra::differential::DifferentialAlgebra;
+use eqn_algebra::ring::SemiRing;
 use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
@@ -14,28 +15,25 @@ pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
 
 /// A manifold is known to the library through its ring of functions.
 pub trait Manifold {
-    /// The 0-forms `A`: a commutative `k`-algebra with partial derivatives
-    /// along its coordinate symbols. Polynomials (`RingExpr`) give the
-    /// algebraic de Rham complex over any commutative ring; elementary
-    /// expressions (`eqn_analysis::ElementaryExpr`) give the smooth one
-    /// over a field.
+    /// The 0-forms
     type Functions: DifferentialAlgebra;
 
     type const DIM: usize;
 }
 
-/// A 0-form on `M`: any element of its ring of functions.
-pub type ZeroForm<M> = <M as Manifold>::Functions;
+/// A 0-form on the manifold `M`: an element of `M::Functions`, represented
+/// by an expression tree.
+pub type ZeroForm<M> = <<<M as Manifold>::Functions as SemiRing>::Domain as Set>::Element;
 
-/// A coordinate symbol on `M`, i.e. a name a 0-form can be built from.
-pub type Coordinate<M> = Symbol<<ZeroForm<M> as Expression>::Domain>;
+/// The constants of the manifold `M`'s ring of functions.
+pub type Constants<M> = <<M as Manifold>::Functions as DifferentialAlgebra>::Constants;
 
-/// An element of the scalar ring of `M`.
-pub type Scalar<M> = <<ZeroForm<M> as Expression>::Domain as Set>::Element;
+/// A coordinate symbol on the manifold `M`.
+pub type Coordinate<M> = Symbol<<Constants<M> as SemiRing>::Domain>;
 
-/// `d` on a 0-form `e` is `Σ_i (∂e/∂xⁱ) dxⁱ` over a chart's coordinates
-/// `xⁱ`; any other symbol appearing in `e` is a parameter, constant under
-/// `d`. The rewriters in [`rewriter`] carry the chart that scopes the sum.
+/// An element of the scalar ring of the manifold `M`.
+pub type Scalar<M> = <<Constants<M> as SemiRing>::Domain as Set>::Element;
+
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq; ZeroForm<M>)]
 pub enum DifferentialForm<M: Manifold> {
     /// A 0-form: any element of `M`'s ring of functions.
@@ -48,7 +46,7 @@ pub enum DifferentialForm<M: Manifold> {
 
 impl<M: Manifold> DifferentialForm<M> {
     pub fn constant(c: Scalar<M>) -> Self {
-        Self::Scalar(ZeroForm::<M>::constant(c))
+        Self::Scalar(M::Functions::constant(c))
     }
 }
 
@@ -149,8 +147,8 @@ pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
 #[cfg(test)]
 mod tests {
     use eqn_algebra::field::{Rational, RationalField};
-    use eqn_algebra::ring::{IntegerRing, RingExpr};
-    use eqn_analysis::ElementaryExpr;
+    use eqn_algebra::ring::{IntegerRing, PolynomialRing};
+    use eqn_analysis::{ElementaryExpr, ElementaryFunctionAlgebra, ElementaryRewriter};
     use eqn_core::rewriter::Rewriter;
 
     use super::*;
@@ -158,14 +156,14 @@ mod tests {
     #[derive(Debug)]
     pub(super) struct Plane;
     impl Manifold for Plane {
-        type Functions = ElementaryExpr<RationalField>;
+        type Functions = ElementaryFunctionAlgebra<RationalField>;
         type const DIM: usize = 2;
     }
 
     #[derive(Debug)]
     pub(super) struct IntPlane;
     impl Manifold for IntPlane {
-        type Functions = RingExpr<IntegerRing>;
+        type Functions = PolynomialRing<IntegerRing>;
         type const DIM: usize = 2;
     }
 
@@ -249,7 +247,7 @@ mod tests {
         ]);
 
         // `substitute` does not normalize; compare after normalizing both sides.
-        let f = GradedCommutativeRewriter::<Plane>::new(xy.clone());
+        let f = GradedCommutativeRewriter::<Plane, _>::new(xy.clone(), ElementaryRewriter::new());
         assert_eq!(f.rewrited_expr(omega), f.rewrited_expr(expected));
     }
 }
