@@ -33,10 +33,9 @@ pub type Coordinate<M> = Symbol<<ZeroForm<M> as Expression>::Domain>;
 /// An element of the scalar ring of `M`.
 pub type Scalar<M> = <<ZeroForm<M> as Expression>::Domain as Set>::Element;
 
-/// `d` on a 0-form `e` is `Σ_s (∂e/∂s) ds` over the free symbols of `e`, so
-/// every symbol is treated as a coordinate and no chart is needed to
-/// differentiate.
-// ponytail: any symbol is a coordinate; a chart-scoped d can restrict the sum later
+/// `d` on a 0-form `e` is `Σ_i (∂e/∂xⁱ) dxⁱ` over a chart's coordinates
+/// `xⁱ`; any other symbol appearing in `e` is a parameter, constant under
+/// `d`. The rewriters in [`rewriter`] carry the chart that scopes the sum.
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq; ZeroForm<M>)]
 pub enum DifferentialForm<M: Manifold> {
     /// A 0-form: any element of `M`'s ring of functions.
@@ -118,6 +117,7 @@ impl<M: Manifold> Expression for DifferentialForm<M> {
 }
 
 /// A coordinate chart
+#[derive_where::derive_where(Clone, Debug, Eq, PartialEq; Coordinate<M>)]
 pub struct Chart<M: Manifold> {
     coordinates: [Coordinate<M>; M::DIM],
 }
@@ -249,7 +249,7 @@ mod tests {
         ]);
 
         // `substitute` does not normalize; compare after normalizing both sides.
-        let f = GradedCommutativeRewriter::<Plane>::new();
+        let f = GradedCommutativeRewriter::<Plane>::new(xy.clone());
         assert_eq!(f.rewrited_expr(omega), f.rewrited_expr(expected));
     }
 }
