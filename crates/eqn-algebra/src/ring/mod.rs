@@ -159,5 +159,40 @@ impl<R: Ring> From<Symbol<R::Domain>> for RingExpr<R> {
     }
 }
 
+/// Lowers to the semi-ring tree by encoding `Neg(x)` as `(-1) * x`
+/// (`-1` = the additive inverse of one, which is central in every ring).
+impl<R: Ring> From<RingExpr<R>> for SemiRingExpr<R> {
+    fn from(expr: RingExpr<R>) -> Self {
+        match expr {
+            RingExpr::Const(c) => Self::Const(c),
+            RingExpr::Symbol(s) => Self::Symbol(s),
+            RingExpr::Neg(inner) => {
+                Self::Mul(vec![Self::Const(R::negate(R::ONE)), (*inner).into()])
+            }
+            RingExpr::Add(v) => Self::Add(v.into_iter().map(Into::into).collect()),
+            RingExpr::Mul(v) => Self::Mul(v.into_iter().map(Into::into).collect()),
+            RingExpr::Pow { base, exponent } => Self::Pow {
+                base: Box::new((*base).into()),
+                exponent,
+            },
+        }
+    }
+}
+
+impl<R: Ring> From<SemiRingExpr<R>> for RingExpr<R> {
+    fn from(expr: SemiRingExpr<R>) -> Self {
+        match expr {
+            SemiRingExpr::Const(c) => Self::Const(c),
+            SemiRingExpr::Symbol(s) => Self::Symbol(s),
+            SemiRingExpr::Add(v) => Self::Add(v.into_iter().map(Into::into).collect()),
+            SemiRingExpr::Mul(v) => Self::Mul(v.into_iter().map(Into::into).collect()),
+            SemiRingExpr::Pow { base, exponent } => Self::Pow {
+                base: Box::new((*base).into()),
+                exponent,
+            },
+        }
+    }
+}
+
 mod rewriter;
 pub use rewriter::{CommutativeRingRewriter, RingRewriter, SemiRingRewriter};
