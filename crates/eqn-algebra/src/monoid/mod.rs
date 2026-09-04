@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::op::{Associative, BinaryOperator, Identity};
 use crate::rewriter::Expression;
 use crate::set::Set;
@@ -44,37 +42,24 @@ pub enum MonoidExpr<M: Monoid> {
 impl<M: Monoid> Expression for MonoidExpr<M> {
     type Domain = M::Domain;
 
-    fn degrees_of_freedom(&self) -> usize {
-        let mut visited = HashSet::new();
-        let mut to_visit = vec![self];
-
-        while let Some(e) = to_visit.pop() {
-            match e {
-                Self::Const(_) => continue,
-                Self::Symbol(s) => {
-                    visited.insert(s);
-                }
-                Self::Op(v) => {
-                    to_visit.extend(v.iter());
-                }
-            }
+    fn children(&self) -> &[Self] {
+        match self {
+            Self::Const(_) | Self::Symbol(_) => &[],
+            Self::Op(v) => v,
         }
-        visited.len()
     }
 
-    fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
-        let mut to_visit = vec![self];
-        while let Some(e) = to_visit.pop() {
-            match e {
-                Self::Const(_) => continue,
-                Self::Symbol(s) if *s == sym => {
-                    *e = expr.clone();
-                }
-                Self::Symbol(_) => continue,
-                Self::Op(v) => {
-                    to_visit.extend(v.iter_mut());
-                }
-            }
+    fn children_mut(&mut self) -> &mut [Self] {
+        match self {
+            Self::Const(_) | Self::Symbol(_) => &mut [],
+            Self::Op(v) => v,
+        }
+    }
+
+    fn as_symbol(&self) -> Option<&Symbol<Self::Domain>> {
+        match self {
+            Self::Symbol(s) => Some(s),
+            _ => None,
         }
     }
 }

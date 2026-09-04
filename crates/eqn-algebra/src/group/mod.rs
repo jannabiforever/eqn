@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::monoid::Monoid;
 use crate::op::{BinaryOperator, Commutative, Inverse};
 use crate::rewriter::Expression;
@@ -66,34 +64,26 @@ impl<D: Set, G: Group<Domain = D>> From<Symbol<D>> for GroupExpr<G> {
 impl<G: Group> Expression for GroupExpr<G> {
     type Domain = G::Domain;
 
-    fn degrees_of_freedom(&self) -> usize {
-        let mut symbols = HashSet::new();
-        let mut expressions = vec![self];
-
-        while let Some(expr) = expressions.pop() {
-            match expr {
-                Self::Const(_) => {}
-                Self::Symbol(symbol) => {
-                    symbols.insert(symbol);
-                }
-                Self::Inv(expr) | Self::Pow { base: expr, .. } => expressions.push(expr),
-                Self::Op(exprs) => expressions.extend(exprs),
-            }
+    fn children(&self) -> &[Self] {
+        match self {
+            Self::Const(_) | Self::Symbol(_) => &[],
+            Self::Inv(inner) | Self::Pow { base: inner, .. } => std::slice::from_ref(inner),
+            Self::Op(v) => v,
         }
-        symbols.len()
     }
 
-    fn substitute(&mut self, symbol: Symbol<Self::Domain>, replacement: &Self) {
-        let mut expressions = vec![self];
+    fn children_mut(&mut self) -> &mut [Self] {
+        match self {
+            Self::Const(_) | Self::Symbol(_) => &mut [],
+            Self::Inv(inner) | Self::Pow { base: inner, .. } => std::slice::from_mut(inner),
+            Self::Op(v) => v,
+        }
+    }
 
-        while let Some(expr) = expressions.pop() {
-            match expr {
-                Self::Const(_) => {}
-                Self::Symbol(candidate) if *candidate == symbol => *expr = replacement.clone(),
-                Self::Symbol(_) => {}
-                Self::Inv(expr) | Self::Pow { base: expr, .. } => expressions.push(expr),
-                Self::Op(exprs) => expressions.extend(exprs),
-            }
+    fn as_symbol(&self) -> Option<&Symbol<Self::Domain>> {
+        match self {
+            Self::Symbol(s) => Some(s),
+            _ => None,
         }
     }
 }
@@ -150,6 +140,33 @@ mod tests {
     }
 
     pub(super) type Expr = GroupExpr<IntegerAdditionGroup>;
+
+    #[test]
+    fn descendants_are_preorder_left_to_right() {
+        let x = Expr::Symbol(Symbol::new("x"));
+        let y = Expr::Symbol(Symbol::new("y"));
+        let inv = Expr::Inv(Box::new(x.clone()));
+        let pow = Expr::Pow {
+            base: Box::new(y.clone()),
+            exponent: 2,
+        };
+        let expr = Expr::Op(vec![inv.clone(), pow.clone()]);
+
+        assert_eq!(expr.children(), [inv.clone(), pow.clone()]);
+        assert_eq!(expr.descendants().collect::<Vec<_>>(), [&inv, &x, &pow, &y]);
+        assert_eq!(expr.degrees_of_freedom(), 2);
+
+        let mut expr = expr;
+        let mut seen = vec![];
+        let mut walk = expr.descendants_mut();
+        while let Some(e) = walk.next() {
+            seen.push(e.clone());
+            if matches!(e, Expr::Pow { .. }) {
+                walk.skip_children();
+            }
+        }
+        assert_eq!(seen, [inv, x, pow]);
+    }
 
     #[test]
     fn group_expression_supports_substitution() {

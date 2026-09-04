@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
 use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
@@ -78,34 +77,26 @@ pub enum SemiRingExpr<SR: SemiRing> {
 impl<SR: SemiRing> Expression for SemiRingExpr<SR> {
     type Domain = SR::Domain;
 
-    fn degrees_of_freedom(&self) -> usize {
-        let mut visited = HashSet::new();
-        let mut to_visit = vec![self];
-        while let Some(e) = to_visit.pop() {
-            match e {
-                SemiRingExpr::Const(_) => continue,
-                SemiRingExpr::Symbol(symbol) => {
-                    visited.insert(symbol);
-                }
-                SemiRingExpr::Add(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter()),
-                SemiRingExpr::Mul(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter()),
-                SemiRingExpr::Pow { base, .. } => to_visit.push(base),
-            }
+    fn children(&self) -> &[Self] {
+        match self {
+            Self::Const(_) | Self::Symbol(_) => &[],
+            Self::Pow { base, .. } => std::slice::from_ref(base),
+            Self::Add(v) | Self::Mul(v) => v,
         }
-        visited.len()
     }
 
-    fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
-        let mut to_visit = vec![self];
-        while let Some(e) = to_visit.pop() {
-            match e {
-                SemiRingExpr::Const(_) => continue,
-                SemiRingExpr::Symbol(symbol) if *symbol == sym => *e = expr.clone(),
-                SemiRingExpr::Symbol(_) => continue,
-                SemiRingExpr::Add(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter_mut()),
-                SemiRingExpr::Mul(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter_mut()),
-                SemiRingExpr::Pow { base, .. } => to_visit.push(base),
-            }
+    fn children_mut(&mut self) -> &mut [Self] {
+        match self {
+            Self::Const(_) | Self::Symbol(_) => &mut [],
+            Self::Pow { base, .. } => std::slice::from_mut(base),
+            Self::Add(v) | Self::Mul(v) => v,
+        }
+    }
+
+    fn as_symbol(&self) -> Option<&Symbol<Self::Domain>> {
+        match self {
+            Self::Symbol(s) => Some(s),
+            _ => None,
         }
     }
 }
@@ -138,36 +129,26 @@ pub enum RingExpr<R: Ring> {
 impl<R: Ring> Expression for RingExpr<R> {
     type Domain = R::Domain;
 
-    fn degrees_of_freedom(&self) -> usize {
-        let mut visited = HashSet::new();
-        let mut to_visit = vec![self];
-        while let Some(e) = to_visit.pop() {
-            match e {
-                RingExpr::Const(_) => continue,
-                RingExpr::Symbol(symbol) => {
-                    visited.insert(symbol);
-                }
-                RingExpr::Neg(e) => to_visit.push(e),
-                RingExpr::Add(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter()),
-                RingExpr::Mul(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter()),
-                RingExpr::Pow { base, .. } => to_visit.push(base),
-            }
+    fn children(&self) -> &[Self] {
+        match self {
+            Self::Const(_) | Self::Symbol(_) => &[],
+            Self::Neg(inner) | Self::Pow { base: inner, .. } => std::slice::from_ref(inner),
+            Self::Add(v) | Self::Mul(v) => v,
         }
-        visited.len()
     }
 
-    fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
-        let mut to_visit = vec![self];
-        while let Some(e) = to_visit.pop() {
-            match e {
-                RingExpr::Const(_) => continue,
-                RingExpr::Symbol(symbol) if *symbol == sym => *e = expr.clone(),
-                RingExpr::Symbol(_) => continue,
-                RingExpr::Neg(e) => to_visit.push(e),
-                RingExpr::Add(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter_mut()),
-                RingExpr::Mul(semi_ring_exprs) => to_visit.extend(semi_ring_exprs.iter_mut()),
-                RingExpr::Pow { base, .. } => to_visit.push(base),
-            }
+    fn children_mut(&mut self) -> &mut [Self] {
+        match self {
+            Self::Const(_) | Self::Symbol(_) => &mut [],
+            Self::Neg(inner) | Self::Pow { base: inner, .. } => std::slice::from_mut(inner),
+            Self::Add(v) | Self::Mul(v) => v,
+        }
+    }
+
+    fn as_symbol(&self) -> Option<&Symbol<Self::Domain>> {
+        match self {
+            Self::Symbol(s) => Some(s),
+            _ => None,
         }
     }
 }

@@ -2,8 +2,6 @@
 #![feature(min_generic_const_args, macroless_generic_const_args)]
 #![allow(incomplete_features)]
 
-use std::collections::HashSet;
-
 use eqn_algebra::ring::{Ring, SemiRing};
 use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
@@ -48,46 +46,29 @@ impl<M: Manifold> From<Symbol<ZeroForms<M>>> for DifferentialForm<M> {
     }
 }
 
-impl<M: Manifold> DifferentialForm<M> {
-    fn children(&self) -> Vec<&Self> {
-        match self {
-            Self::Const(_) | Self::Function(_) => vec![],
-            Self::Neg(inner) | Self::Differential(inner) => vec![inner],
-            Self::Add(forms) | Self::Wedged(forms) => forms.iter().collect(),
-        }
-    }
-
-    fn children_mut(&mut self) -> Vec<&mut Self> {
-        match self {
-            Self::Const(_) | Self::Function(_) => vec![],
-            Self::Neg(inner) | Self::Differential(inner) => vec![inner],
-            Self::Add(forms) | Self::Wedged(forms) => forms.iter_mut().collect(),
-        }
-    }
-}
-
 impl<M: Manifold> Expression for DifferentialForm<M> {
     type Domain = ZeroForms<M>;
 
-    fn degrees_of_freedom(&self) -> usize {
-        let mut visited = HashSet::new();
-        let mut to_visit = vec![self];
-        while let Some(e) = to_visit.pop() {
-            if let Self::Function(f) = e {
-                visited.insert(f);
-            }
-            to_visit.extend(e.children());
+    fn children(&self) -> &[Self] {
+        match self {
+            Self::Const(_) | Self::Function(_) => &[],
+            Self::Neg(inner) | Self::Differential(inner) => std::slice::from_ref(inner),
+            Self::Add(v) | Self::Wedged(v) => v,
         }
-        visited.len()
     }
 
-    fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
-        let mut to_visit = vec![self];
-        while let Some(e) = to_visit.pop() {
-            match e {
-                Self::Function(f) if *f == sym => *e = expr.clone(),
-                _ => to_visit.extend(e.children_mut()),
-            }
+    fn children_mut(&mut self) -> &mut [Self] {
+        match self {
+            Self::Const(_) | Self::Function(_) => &mut [],
+            Self::Neg(inner) | Self::Differential(inner) => std::slice::from_mut(inner),
+            Self::Add(v) | Self::Wedged(v) => v,
+        }
+    }
+
+    fn as_symbol(&self) -> Option<&Symbol<Self::Domain>> {
+        match self {
+            Self::Function(f) => Some(f),
+            _ => None,
         }
     }
 }
