@@ -214,7 +214,7 @@ mod tests {
 
     fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
     where
-        R::Expr: PartialEq + std::fmt::Debug,
+        R::Expr: PartialEq + std::fmt::Debug + Clone,
     {
         let once = rewriter.rewrited_expr(expr);
         assert_eq!(rewriter.rewrited_expr(once.clone()), once);

@@ -5,7 +5,7 @@ use crate::symbol::Symbol;
 
 /// AST rewriter - a strategy pattern
 pub trait Rewriter {
-    type Expr: Expression;
+    type Expr;
 
     // ================================================================================
     // Required methods
@@ -29,17 +29,17 @@ pub trait Rewriter {
 
 /// A simple formatter for expressions. Returns identical one.
 #[derive_where::derive_where(Default)]
-pub struct TrivialRewriter<E: Expression> {
+pub struct TrivialRewriter<E> {
     _marker: std::marker::PhantomData<E>,
 }
 
-impl<E: Expression> TrivialRewriter<E> {
+impl<E> TrivialRewriter<E> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<E: Expression> Rewriter for TrivialRewriter<E> {
+impl<E> Rewriter for TrivialRewriter<E> {
     type Expr = E;
 
     fn rewrite_expr(&self, _: &mut Self::Expr) {}
