@@ -117,399 +117,6 @@ impl<D: Set, SR: SemiRing<Domain = D>> From<Symbol<D>> for SemiRingExpr<SR> {
 }
 
 // ================================================================================
-// Normalization engine
-// ================================================================================
-
-/// Structural order used for canonical sorting under commutativity. Never
-/// compares domain elements: constants tie (at most one constant survives
-/// folding, so the tie is harmless), which keeps `Ord` off the domain.
-fn cmp_structural<SR: SemiRing>(a: &SemiRingExpr<SR>, b: &SemiRingExpr<SR>) -> std::cmp::Ordering {
-    use std::cmp::Ordering;
-
-    const fn rank<SR: SemiRing>(e: &SemiRingExpr<SR>) -> u8 {
-        match e {
-            SemiRingExpr::Const(_) => 0,
-            SemiRingExpr::Symbol(_) => 1,
-            SemiRingExpr::Pow { .. } => 2,
-            SemiRingExpr::Mul(_) => 3,
-            SemiRingExpr::Add(_) => 4,
-        }
-    }
-
-    match (a, b) {
-        (SemiRingExpr::Const(_), SemiRingExpr::Const(_)) => Ordering::Equal,
-        (SemiRingExpr::Symbol(s), SemiRingExpr::Symbol(o)) => s.cmp(o),
-        (
-            SemiRingExpr::Pow {
-                base: sb,
-                exponent: se,
-            },
-            SemiRingExpr::Pow {
-                base: ob,
-                exponent: oe,
-            },
-        ) => cmp_structural(sb, ob).then(se.cmp(oe)),
-        (SemiRingExpr::Mul(s), SemiRingExpr::Mul(o))
-        | (SemiRingExpr::Add(s), SemiRingExpr::Add(o)) => s
-            .iter()
-            .zip(o)
-            .map(|(i, j)| cmp_structural(i, j))
-            .find(|c| *c != Ordering::Equal)
-            .unwrap_or(s.len().cmp(&o.len())),
-        (a, b) => rank(a).cmp(&rank(b)),
-    }
-}
-
-/// Moves the expression out, leaving an allocation-free placeholder behind.
-fn take<SR: SemiRing>(expr: &mut SemiRingExpr<SR>) -> SemiRingExpr<SR> {
-    std::mem::replace(expr, SemiRingExpr::Add(Vec::new()))
-}
-
-/// The normalization engine shared by every formatter, using the semi-ring
-/// laws; `commutative` additionally assumes commutative multiplication.
-///
-/// - `Add` (commutative monoid): flattens, folds *all* constants into one
-///   leading constant, drops zeros, and collects structurally equal terms into
-///   left coefficients summed in the domain (`x + x -> 2 * x`, `2*x + 3*x ->
-///   5*x`, a zero coefficient cancels the term). Terms keep first-appearance
-///   order, or sort structurally when `commutative`.
-/// - `Mul` (monoid): flattens, folds *adjacent* constants, drops ones,
-///   annihilates the whole product on a zero factor, and distributes over `Add`
-///   factors. When `commutative`: folds *all* constants into one leading
-///   constant and collects repeated factors into sorted powers (`x * y * x ->
-///   x^2 * y`).
-/// - `Pow`: folds constant bases, collapses exponent 1 and nested powers. Bases
-///   are formatted but not expanded (`(x + y)^2` stays a power).
-///
-/// Works in place: leaves are untouched, children are normalized where they
-/// sit, and only nodes whose shape changes are replaced.
-fn normalize<SR: SemiRing>(expr: &mut SemiRingExpr<SR>, commutative: bool) {
-    match expr {
-        SemiRingExpr::Const(_) | SemiRingExpr::Symbol(_) => {}
-        SemiRingExpr::Add(exprs) => {
-            exprs.iter_mut().for_each(|e| normalize(e, commutative));
-            let split = |e| match e {
-                SemiRingExpr::Add(inner) => Ok(inner),
-                e => Err(e),
-            };
-
-            let mut acc = SR::ZERO;
-            // Like terms keyed by structural Eq with a linear scan; needs
-            // neither Ord nor Hash on elements. Coefficients are summed as
-            // domain elements, so cancellation (`x + (-1)*x = 0`) works.
-            // ponytail: O(n^2) in term count; fine for expression trees.
-            let mut coeffs: Vec<(SemiRingExpr<SR>, <SR::Domain as Set>::Element)> = Vec::new();
-
-            for item in flatten(std::mem::take(exprs), split) {
-                // Split a leading constant off a product as the term's
-                // coefficient (left coefficient; needs no commutativity).
-                let (coeff, core) = match item {
-                    SemiRingExpr::Const(c) => {
-                        acc = SR::add(acc, c);
-                        continue;
-                    }
-                    SemiRingExpr::Mul(mut factors)
-                        if matches!(factors.first(), Some(SemiRingExpr::Const(_))) =>
-                    {
-                        let SemiRingExpr::Const(c) = factors.remove(0) else {
-                            unreachable!()
-                        };
-                        let core = if factors.len() == 1 {
-                            factors.pop().unwrap()
-                        } else {
-                            SemiRingExpr::Mul(factors)
-                        };
-                        (c, core)
-                    }
-                    item => (SR::ONE, item),
-                };
-                match coeffs.iter_mut().find(|(t, _)| *t == core) {
-                    Some((_, c)) => *c = SR::add(c.clone(), coeff),
-                    None => coeffs.push((core, coeff)),
-                }
-            }
-
-            if commutative {
-                coeffs.sort_by(|a, b| cmp_structural(&a.0, &b.0));
-            }
-
-            let mut out = Vec::new();
-            if coeffs.is_empty() || acc != SR::ZERO {
-                out.push(SemiRingExpr::Const(acc));
-            }
-            for (core, coeff) in coeffs {
-                // The coefficient can degenerate to zero (cancellation, or
-                // finite characteristic like 2x = 0 in Z/2), hence the checks.
-                if coeff == SR::ZERO {
-                    continue;
-                }
-                if coeff == SR::ONE {
-                    out.push(core);
-                } else {
-                    let mut factors = vec![SemiRingExpr::Const(coeff)];
-                    match core {
-                        SemiRingExpr::Mul(inner) => factors.extend(inner),
-                        core => factors.push(core),
-                    }
-                    out.push(SemiRingExpr::Mul(factors));
-                }
-            }
-
-            *expr = match out.len() {
-                // NOTE: everything cancelled; keep the interface total.
-                0 => SemiRingExpr::Const(SR::ZERO),
-                1 => out.pop().unwrap(),
-                _ => SemiRingExpr::Add(out),
-            };
-        }
-        SemiRingExpr::Mul(exprs) => {
-            exprs.iter_mut().for_each(|e| normalize(e, commutative));
-            let split = |e| match e {
-                SemiRingExpr::Mul(inner) => Ok(inner),
-                e => Err(e),
-            };
-
-            let mut stack: Vec<SemiRingExpr<SR>> = Vec::with_capacity(exprs.len());
-            for item in flatten(std::mem::take(exprs), split) {
-                if item == SemiRingExpr::Const(SR::ONE) {
-                    continue;
-                }
-                // Annihilation: a zero factor kills the whole product.
-                if item == SemiRingExpr::Const(SR::ZERO) {
-                    *expr = SemiRingExpr::Const(SR::ZERO);
-                    return;
-                }
-                match (item, stack.pop()) {
-                    (SemiRingExpr::Const(s), Some(SemiRingExpr::Const(t))) => {
-                        let c = SR::multiply(t, s);
-                        // Re-check identities on the folded constant:
-                        // 2 * 3 = 6 == 0 (mod 6) annihilates, and
-                        // (-1) * (-1) = 1 drops out.
-                        if c == SR::ZERO {
-                            *expr = SemiRingExpr::Const(SR::ZERO);
-                            return;
-                        }
-                        if c != SR::ONE {
-                            stack.push(SemiRingExpr::Const(c));
-                        }
-                    }
-                    (item, popped) => {
-                        stack.extend(popped);
-                        stack.push(item);
-                    }
-                }
-            }
-
-            // Distribute over Add factors: expand the cartesian product of
-            // terms, keeping factor order (no commutativity assumed), then
-            // re-format the resulting sum. Terms of a formatted Add are
-            // never Add themselves, so this recursion terminates.
-            if stack.iter().any(|f| matches!(f, SemiRingExpr::Add(_))) {
-                let mut products: Vec<Vec<SemiRingExpr<SR>>> = vec![Vec::new()];
-                for factor in stack {
-                    match factor {
-                        SemiRingExpr::Add(terms) => {
-                            products = products
-                                .into_iter()
-                                .flat_map(|p| {
-                                    terms
-                                        .iter()
-                                        .map(|t| {
-                                            let mut q = p.clone();
-                                            q.push(t.clone());
-                                            q
-                                        })
-                                        .collect::<Vec<_>>()
-                                })
-                                .collect();
-                        }
-                        f => {
-                            for p in &mut products {
-                                p.push(f.clone());
-                            }
-                        }
-                    }
-                }
-                *expr = SemiRingExpr::Add(products.into_iter().map(SemiRingExpr::Mul).collect());
-                normalize(expr, commutative);
-                return;
-            }
-
-            if commutative {
-                // Commute all constants to the front and fold them into one.
-                let (consts, factors): (Vec<_>, Vec<_>) = stack
-                    .into_iter()
-                    .partition(|f| matches!(f, SemiRingExpr::Const(_)));
-                let mut c_acc = SR::ONE;
-                for c in consts {
-                    let SemiRingExpr::Const(c) = c else {
-                        unreachable!()
-                    };
-                    c_acc = SR::multiply(c_acc, c);
-                }
-                if c_acc == SR::ZERO {
-                    *expr = SemiRingExpr::Const(SR::ZERO);
-                    return;
-                }
-
-                // Collect repeated factors into powers: x * x^2 -> x^3.
-                // ponytail: exponents summed with plain +; overflow is not a
-                // realistic concern for expression trees.
-                let mut pows: Vec<(SemiRingExpr<SR>, usize)> = Vec::new();
-                for factor in factors {
-                    let (base, exp) = match factor {
-                        SemiRingExpr::Pow { base, exponent } => (*base, exponent.get()),
-                        factor => (factor, 1),
-                    };
-                    match pows.iter_mut().find(|(b, _)| *b == base) {
-                        Some((_, e)) => *e += exp,
-                        None => pows.push((base, exp)),
-                    }
-                }
-                pows.sort_by(|a, b| cmp_structural(&a.0, &b.0));
-
-                let mut out = Vec::new();
-                if c_acc != SR::ONE {
-                    out.push(SemiRingExpr::Const(c_acc));
-                }
-                for (base, exp) in pows {
-                    out.push(if exp == 1 {
-                        base
-                    } else {
-                        SemiRingExpr::Pow {
-                            base: Box::new(base),
-                            exponent: NonZeroUsize::new(exp).unwrap(),
-                        }
-                    });
-                }
-                stack = out;
-            }
-
-            *expr = match stack.len() {
-                // NOTE: empty product simplifies to one to keep the interface total.
-                0 => SemiRingExpr::Const(SR::ONE),
-                1 => stack.pop().unwrap(),
-                _ => SemiRingExpr::Mul(stack),
-            };
-        }
-        SemiRingExpr::Pow { base, exponent } => {
-            let n = *exponent;
-            normalize(base, commutative);
-            match take(base) {
-                SemiRingExpr::Const(c) => {
-                    let mut acc = c.clone();
-                    for _ in 1..n.get() {
-                        acc = SR::multiply(acc, c.clone());
-                    }
-                    *expr = SemiRingExpr::Const(acc);
-                }
-                b if n.get() == 1 => *expr = b,
-                SemiRingExpr::Pow {
-                    base: inner_base,
-                    exponent: inner,
-                } => match inner.checked_mul(n) {
-                    // (b^m)^n = b^(m*n), by associativity of multiplication.
-                    Some(mn) => {
-                        *expr = SemiRingExpr::Pow {
-                            base: inner_base,
-                            exponent: mn,
-                        }
-                    }
-                    None => {
-                        **base = SemiRingExpr::Pow {
-                            base: inner_base,
-                            exponent: inner,
-                        }
-                    }
-                },
-                b => **base = b,
-            }
-        }
-    }
-}
-
-// ================================================================================
-// Formatters
-// ================================================================================
-
-/// Canonicalizes [`SemiRingExpr`]s using the semi-ring laws (see
-/// [`normalize`]).
-#[derive_where::derive_where(Default)]
-pub struct SemiRingFormatter<SR: SemiRing> {
-    _semi_ring_marker: std::marker::PhantomData<SR>,
-}
-
-impl<SR: SemiRing> SemiRingFormatter<SR> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl<SR: SemiRing> Rewriter for SemiRingFormatter<SR> {
-    type Expr = SemiRingExpr<SR>;
-
-    fn rewrite_expr(&self, expr: &mut Self::Expr) {
-        normalize(expr, false);
-    }
-}
-
-/// Canonicalizes [`RingExpr`]s: lowers `Neg` to a `-1` coefficient, runs the
-/// semi-ring normalization, and lifts back. The canonical form contains no
-/// `Neg` (a negated term shows up as a constant coefficient), and every Neg
-/// rule (`--x = x`, `-c` folding, `x + (-x) = 0`) falls out of the ordinary
-/// constant folding and coefficient collection.
-#[derive_where::derive_where(Default)]
-pub struct RingFormatter<R: Ring> {
-    _ring_marker: std::marker::PhantomData<R>,
-}
-
-impl<R: Ring> RingFormatter<R> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl<R: Ring> Rewriter for RingFormatter<R> {
-    type Expr = RingExpr<R>;
-
-    fn rewrite_expr(&self, expr: &mut Self::Expr) {
-        // ponytail: lowering to SemiRingExpr rebuilds the tree once each way;
-        // make `normalize` generic over both trees if that ever shows up.
-        let mut lowered = SemiRingExpr::from(std::mem::replace(expr, RingExpr::Add(Vec::new())));
-        normalize(&mut lowered, false);
-        *expr = lowered.into();
-    }
-}
-
-/// [`RingFormatter`] for rings whose multiplication is also commutative:
-/// additionally folds all constants of a product into one leading constant,
-/// collects repeated factors into powers (`x * y * x -> x^2 * y`), and sorts
-/// factors and terms into a canonical order.
-#[derive_where::derive_where(Default)]
-pub struct CommutativeRingFormatter<R: Ring> {
-    _ring_marker: std::marker::PhantomData<R>,
-}
-
-impl<R: Ring> CommutativeRingFormatter<R> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl<R: Ring> Rewriter for CommutativeRingFormatter<R>
-where
-    R::Multiplication: Commutative,
-{
-    type Expr = RingExpr<R>;
-
-    fn rewrite_expr(&self, expr: &mut Self::Expr) {
-        let mut lowered = SemiRingExpr::from(std::mem::replace(expr, RingExpr::Add(Vec::new())));
-        normalize(&mut lowered, true);
-        *expr = lowered.into();
-    }
-}
-
-// ================================================================================
 // Ring expressions
 // ================================================================================
 
@@ -571,44 +178,528 @@ impl<R: Ring> From<Symbol<R::Domain>> for RingExpr<R> {
     }
 }
 
-/// Lowers to the semi-ring tree by encoding `Neg(x)` as `(-1) * x`
-/// (`-1` = the additive inverse of one, which is central in every ring).
-impl<R: Ring> From<RingExpr<R>> for SemiRingExpr<R> {
-    fn from(expr: RingExpr<R>) -> Self {
-        match expr {
-            RingExpr::Const(c) => Self::Const(c),
-            RingExpr::Symbol(s) => Self::Symbol(s),
-            RingExpr::Neg(inner) => {
-                Self::Mul(vec![Self::Const(R::negate(R::ONE)), (*inner).into()])
-            }
-            RingExpr::Add(v) => Self::Add(v.into_iter().map(Into::into).collect()),
-            RingExpr::Mul(v) => Self::Mul(v.into_iter().map(Into::into).collect()),
-            RingExpr::Pow { base, exponent } => Self::Pow {
-                base: Box::new((*base).into()),
-                exponent,
-            },
+// ================================================================================
+// Normalization engine
+// ================================================================================
+
+/// One level of an expression tree as the engine sees it. `Neg` only appears
+/// in the borrowed view; the owned and mutable views lower it to a `-1`
+/// coefficient first (see [`SemiRingTree`]).
+enum Node<C, S, L, P> {
+    Const(C),
+    Symbol(S),
+    Add(L),
+    Mul(L),
+    Pow(P, NonZeroUsize),
+    Neg(P),
+}
+
+type Elem<E> = <<<E as SemiRingTree>::SR as SemiRing>::Domain as Set>::Element;
+type Sym<E> = Symbol<<<E as SemiRingTree>::SR as SemiRing>::Domain>;
+type Owned<E> = Node<Elem<E>, Sym<E>, Vec<E>, Box<E>>;
+type Ref<'a, E> = Node<&'a Elem<E>, &'a Sym<E>, &'a [E], &'a E>;
+type Mut<'a, E> = Node<&'a mut Elem<E>, &'a mut Sym<E>, &'a mut Vec<E>, &'a mut Box<E>>;
+
+/// The tree shape shared by [`SemiRingExpr`] and [`RingExpr`], so that one
+/// engine serves both without converting between them. Ring trees lower
+/// `Neg(x)` to `(-1) * x` (`-1` = the additive inverse of one, central in
+/// every ring) as they are viewed, so the engine only ever handles the five
+/// semi-ring node kinds.
+trait SemiRingTree: Clone + PartialEq + Sized {
+    type SR: SemiRing;
+
+    fn node(&self) -> Ref<'_, Self>;
+    fn node_mut(&mut self) -> Mut<'_, Self>;
+    fn into_node(self) -> Owned<Self>;
+    fn from_node(node: Owned<Self>) -> Self;
+}
+
+impl<SR: SemiRing> SemiRingTree for SemiRingExpr<SR> {
+    type SR = SR;
+
+    fn node(&self) -> Ref<'_, Self> {
+        match self {
+            Self::Const(c) => Node::Const(c),
+            Self::Symbol(s) => Node::Symbol(s),
+            Self::Add(v) => Node::Add(v),
+            Self::Mul(v) => Node::Mul(v),
+            Self::Pow { base, exponent } => Node::Pow(base, *exponent),
+        }
+    }
+
+    fn node_mut(&mut self) -> Mut<'_, Self> {
+        match self {
+            Self::Const(c) => Node::Const(c),
+            Self::Symbol(s) => Node::Symbol(s),
+            Self::Add(v) => Node::Add(v),
+            Self::Mul(v) => Node::Mul(v),
+            Self::Pow { base, exponent } => Node::Pow(base, *exponent),
+        }
+    }
+
+    fn into_node(self) -> Owned<Self> {
+        match self {
+            Self::Const(c) => Node::Const(c),
+            Self::Symbol(s) => Node::Symbol(s),
+            Self::Add(v) => Node::Add(v),
+            Self::Mul(v) => Node::Mul(v),
+            Self::Pow { base, exponent } => Node::Pow(base, exponent),
+        }
+    }
+
+    fn from_node(node: Owned<Self>) -> Self {
+        match node {
+            Node::Const(c) => Self::Const(c),
+            Node::Symbol(s) => Self::Symbol(s),
+            Node::Add(v) => Self::Add(v),
+            Node::Mul(v) => Self::Mul(v),
+            Node::Pow(base, exponent) => Self::Pow { base, exponent },
+            Node::Neg(_) => unreachable!("semi-rings have no negation"),
         }
     }
 }
 
-impl<R: Ring> From<SemiRingExpr<R>> for RingExpr<R> {
-    fn from(expr: SemiRingExpr<R>) -> Self {
-        match expr {
-            SemiRingExpr::Const(c) => Self::Const(c),
-            SemiRingExpr::Symbol(s) => Self::Symbol(s),
-            SemiRingExpr::Add(v) => Self::Add(v.into_iter().map(Into::into).collect()),
-            SemiRingExpr::Mul(v) => Self::Mul(v.into_iter().map(Into::into).collect()),
-            SemiRingExpr::Pow { base, exponent } => Self::Pow {
-                base: Box::new((*base).into()),
-                exponent,
-            },
+impl<R: Ring> SemiRingTree for RingExpr<R> {
+    type SR = R;
+
+    fn node(&self) -> Ref<'_, Self> {
+        match self {
+            Self::Const(c) => Node::Const(c),
+            Self::Symbol(s) => Node::Symbol(s),
+            Self::Neg(x) => Node::Neg(x),
+            Self::Add(v) => Node::Add(v),
+            Self::Mul(v) => Node::Mul(v),
+            Self::Pow { base, exponent } => Node::Pow(base, *exponent),
         }
+    }
+
+    fn node_mut(&mut self) -> Mut<'_, Self> {
+        if let Self::Neg(_) = self {
+            let Self::Neg(inner) = std::mem::replace(self, Self::Add(Vec::new())) else {
+                unreachable!()
+            };
+            *self = Self::Mul(vec![Self::Const(R::negate(R::ONE)), *inner]);
+        }
+        match self {
+            Self::Const(c) => Node::Const(c),
+            Self::Symbol(s) => Node::Symbol(s),
+            Self::Neg(_) => unreachable!("lowered above"),
+            Self::Add(v) => Node::Add(v),
+            Self::Mul(v) => Node::Mul(v),
+            Self::Pow { base, exponent } => Node::Pow(base, *exponent),
+        }
+    }
+
+    fn into_node(self) -> Owned<Self> {
+        match self {
+            Self::Const(c) => Node::Const(c),
+            Self::Symbol(s) => Node::Symbol(s),
+            Self::Neg(x) => Node::Mul(vec![Self::Const(R::negate(R::ONE)), *x]),
+            Self::Add(v) => Node::Add(v),
+            Self::Mul(v) => Node::Mul(v),
+            Self::Pow { base, exponent } => Node::Pow(base, exponent),
+        }
+    }
+
+    fn from_node(node: Owned<Self>) -> Self {
+        match node {
+            Node::Const(c) => Self::Const(c),
+            Node::Symbol(s) => Self::Symbol(s),
+            Node::Neg(x) => Self::Neg(x),
+            Node::Add(v) => Self::Add(v),
+            Node::Mul(v) => Self::Mul(v),
+            Node::Pow(base, exponent) => Self::Pow { base, exponent },
+        }
+    }
+}
+
+fn constant<E: SemiRingTree>(c: Elem<E>) -> E {
+    E::from_node(Node::Const(c))
+}
+
+fn is_const<E: SemiRingTree>(e: &E, c: &Elem<E>) -> bool {
+    matches!(e.node(), Node::Const(x) if x == c)
+}
+
+/// Moves the expression out, leaving an allocation-free placeholder behind.
+fn take<E: SemiRingTree>(expr: &mut E) -> E {
+    std::mem::replace(expr, E::from_node(Node::Add(Vec::new())))
+}
+
+fn split_add<E: SemiRingTree>(e: E) -> Result<Vec<E>, E> {
+    match e.into_node() {
+        Node::Add(inner) => Ok(inner),
+        n => Err(E::from_node(n)),
+    }
+}
+
+fn split_mul<E: SemiRingTree>(e: E) -> Result<Vec<E>, E> {
+    match e.into_node() {
+        Node::Mul(inner) => Ok(inner),
+        n => Err(E::from_node(n)),
+    }
+}
+
+/// Structural order used for canonical sorting under commutativity. Never
+/// compares domain elements: constants tie (at most one constant survives
+/// folding, so the tie is harmless), which keeps `Ord` off the domain.
+fn cmp_structural<E: SemiRingTree>(a: &E, b: &E) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+
+    const fn rank<C, S, L, P>(n: &Node<C, S, L, P>) -> u8 {
+        match n {
+            Node::Const(_) => 0,
+            Node::Symbol(_) => 1,
+            Node::Pow(..) => 2,
+            Node::Mul(_) => 3,
+            Node::Add(_) => 4,
+            Node::Neg(_) => 5,
+        }
+    }
+
+    match (a.node(), b.node()) {
+        (Node::Const(_), Node::Const(_)) => Ordering::Equal,
+        (Node::Symbol(s), Node::Symbol(o)) => s.cmp(o),
+        (Node::Pow(sb, se), Node::Pow(ob, oe)) => cmp_structural(sb, ob).then(se.cmp(&oe)),
+        (Node::Neg(s), Node::Neg(o)) => cmp_structural(s, o),
+        (Node::Mul(s), Node::Mul(o)) | (Node::Add(s), Node::Add(o)) => s
+            .iter()
+            .zip(o)
+            .map(|(i, j)| cmp_structural(i, j))
+            .find(|c| *c != Ordering::Equal)
+            .unwrap_or(s.len().cmp(&o.len())),
+        (a, b) => rank(&a).cmp(&rank(&b)),
+    }
+}
+
+/// The normalization engine shared by every formatter, using the semi-ring
+/// laws; `commutative` additionally assumes commutative multiplication.
+///
+/// - `Add` (commutative monoid): flattens, folds *all* constants into one
+///   leading constant, drops zeros, and collects structurally equal terms into
+///   left coefficients summed in the domain (`x + x -> 2 * x`, `2*x + 3*x ->
+///   5*x`, a zero coefficient cancels the term). Terms keep first-appearance
+///   order, or sort structurally when `commutative`.
+/// - `Mul` (monoid): flattens, folds *adjacent* constants, drops ones,
+///   annihilates the whole product on a zero factor, and distributes over `Add`
+///   factors. When `commutative`: folds *all* constants into one leading
+///   constant and collects repeated factors into sorted powers (`x * y * x ->
+///   x^2 * y`).
+/// - `Pow`: folds constant bases, collapses exponent 1 and nested powers. Bases
+///   are formatted but not expanded (`(x + y)^2` stays a power).
+/// - `Neg` (rings only): lowered to a `-1` coefficient on the way in, so every
+///   Neg rule (`--x = x`, `-c` folding, `x + (-x) = 0`) falls out of constant
+///   folding and coefficient collection. The canonical form contains no `Neg`.
+///
+/// Works in place: leaves are untouched, children are normalized where they
+/// sit, and only nodes whose shape changes are replaced.
+fn normalize<E: SemiRingTree>(expr: &mut E, commutative: bool) {
+    match expr.node_mut() {
+        Node::Const(_) | Node::Symbol(_) | Node::Neg(_) => {}
+        Node::Add(exprs) => {
+            exprs.iter_mut().for_each(|e| normalize(e, commutative));
+
+            let mut acc = <E::SR>::ZERO;
+            // Like terms keyed by structural Eq with a linear scan; needs
+            // neither Ord nor Hash on elements. Coefficients are summed as
+            // domain elements, so cancellation (`x + (-1)*x = 0`) works.
+            // ponytail: O(n^2) in term count; fine for expression trees.
+            let mut coeffs: Vec<(E, Elem<E>)> = Vec::new();
+
+            for item in flatten(std::mem::take(exprs), split_add) {
+                // Split a leading constant off a product as the term's
+                // coefficient (left coefficient; needs no commutativity).
+                let (coeff, core) = match item.into_node() {
+                    Node::Const(c) => {
+                        acc = <E::SR>::add(acc, c);
+                        continue;
+                    }
+                    Node::Mul(mut factors)
+                        if matches!(factors.first().map(E::node), Some(Node::Const(_))) =>
+                    {
+                        let Node::Const(c) = factors.remove(0).into_node() else {
+                            unreachable!()
+                        };
+                        let core = if factors.len() == 1 {
+                            factors.pop().unwrap()
+                        } else {
+                            E::from_node(Node::Mul(factors))
+                        };
+                        (c, core)
+                    }
+                    n => (<E::SR>::ONE, E::from_node(n)),
+                };
+                match coeffs.iter_mut().find(|(t, _)| *t == core) {
+                    Some((_, c)) => *c = <E::SR>::add(c.clone(), coeff),
+                    None => coeffs.push((core, coeff)),
+                }
+            }
+
+            if commutative {
+                coeffs.sort_by(|a, b| cmp_structural(&a.0, &b.0));
+            }
+
+            let mut out = Vec::new();
+            if coeffs.is_empty() || acc != <E::SR>::ZERO {
+                out.push(constant(acc));
+            }
+            for (core, coeff) in coeffs {
+                // The coefficient can degenerate to zero (cancellation, or
+                // finite characteristic like 2x = 0 in Z/2), hence the checks.
+                if coeff == <E::SR>::ZERO {
+                    continue;
+                }
+                if coeff == <E::SR>::ONE {
+                    out.push(core);
+                } else {
+                    let mut factors = vec![constant(coeff)];
+                    match core.into_node() {
+                        Node::Mul(inner) => factors.extend(inner),
+                        n => factors.push(E::from_node(n)),
+                    }
+                    out.push(E::from_node(Node::Mul(factors)));
+                }
+            }
+
+            *expr = match out.len() {
+                // NOTE: everything cancelled; keep the interface total.
+                0 => constant(<E::SR>::ZERO),
+                1 => out.pop().unwrap(),
+                _ => E::from_node(Node::Add(out)),
+            };
+        }
+        Node::Mul(exprs) => {
+            exprs.iter_mut().for_each(|e| normalize(e, commutative));
+
+            let mut stack: Vec<E> = Vec::with_capacity(exprs.len());
+            for item in flatten(std::mem::take(exprs), split_mul) {
+                if is_const(&item, &<E::SR>::ONE) {
+                    continue;
+                }
+                // Annihilation: a zero factor kills the whole product.
+                if is_const(&item, &<E::SR>::ZERO) {
+                    *expr = constant(<E::SR>::ZERO);
+                    return;
+                }
+                match (item.into_node(), stack.pop()) {
+                    (Node::Const(s), Some(t)) if matches!(t.node(), Node::Const(_)) => {
+                        let Node::Const(t) = t.into_node() else {
+                            unreachable!()
+                        };
+                        let c = <E::SR>::multiply(t, s);
+                        // Re-check identities on the folded constant:
+                        // 2 * 3 = 6 == 0 (mod 6) annihilates, and
+                        // (-1) * (-1) = 1 drops out.
+                        if c == <E::SR>::ZERO {
+                            *expr = constant(<E::SR>::ZERO);
+                            return;
+                        }
+                        if c != <E::SR>::ONE {
+                            stack.push(constant(c));
+                        }
+                    }
+                    (n, popped) => {
+                        stack.extend(popped);
+                        stack.push(E::from_node(n));
+                    }
+                }
+            }
+
+            // Distribute over Add factors: expand the cartesian product of
+            // terms, keeping factor order (no commutativity assumed), then
+            // re-format the resulting sum. Terms of a formatted Add are
+            // never Add themselves, so this recursion terminates.
+            if stack.iter().any(|f| matches!(f.node(), Node::Add(_))) {
+                let mut products: Vec<Vec<E>> = vec![Vec::new()];
+                for factor in stack {
+                    match factor.into_node() {
+                        Node::Add(terms) => {
+                            products = products
+                                .into_iter()
+                                .flat_map(|p| {
+                                    terms
+                                        .iter()
+                                        .map(|t| {
+                                            let mut q = p.clone();
+                                            q.push(t.clone());
+                                            q
+                                        })
+                                        .collect::<Vec<_>>()
+                                })
+                                .collect();
+                        }
+                        n => {
+                            let f = E::from_node(n);
+                            for p in &mut products {
+                                p.push(f.clone());
+                            }
+                        }
+                    }
+                }
+                *expr = E::from_node(Node::Add(
+                    products
+                        .into_iter()
+                        .map(|p| E::from_node(Node::Mul(p)))
+                        .collect(),
+                ));
+                normalize(expr, commutative);
+                return;
+            }
+
+            if commutative {
+                // Commute all constants to the front and fold them into one.
+                let (consts, factors): (Vec<_>, Vec<_>) = stack
+                    .into_iter()
+                    .partition(|f| matches!(f.node(), Node::Const(_)));
+                let mut c_acc = <E::SR>::ONE;
+                for c in consts {
+                    let Node::Const(c) = c.into_node() else {
+                        unreachable!()
+                    };
+                    c_acc = <E::SR>::multiply(c_acc, c);
+                }
+                if c_acc == <E::SR>::ZERO {
+                    *expr = constant(<E::SR>::ZERO);
+                    return;
+                }
+
+                // Collect repeated factors into powers: x * x^2 -> x^3.
+                // ponytail: exponents summed with plain +; overflow is not a
+                // realistic concern for expression trees.
+                let mut pows: Vec<(E, usize)> = Vec::new();
+                for factor in factors {
+                    let (base, exp) = match factor.into_node() {
+                        Node::Pow(base, exponent) => (*base, exponent.get()),
+                        n => (E::from_node(n), 1),
+                    };
+                    match pows.iter_mut().find(|(b, _)| *b == base) {
+                        Some((_, e)) => *e += exp,
+                        None => pows.push((base, exp)),
+                    }
+                }
+                pows.sort_by(|a, b| cmp_structural(&a.0, &b.0));
+
+                let mut out = Vec::new();
+                if c_acc != <E::SR>::ONE {
+                    out.push(constant(c_acc));
+                }
+                for (base, exp) in pows {
+                    out.push(if exp == 1 {
+                        base
+                    } else {
+                        E::from_node(Node::Pow(Box::new(base), NonZeroUsize::new(exp).unwrap()))
+                    });
+                }
+                stack = out;
+            }
+
+            *expr = match stack.len() {
+                // NOTE: empty product simplifies to one to keep the interface total.
+                0 => constant(<E::SR>::ONE),
+                1 => stack.pop().unwrap(),
+                _ => E::from_node(Node::Mul(stack)),
+            };
+        }
+        Node::Pow(base, n) => {
+            let base: &mut E = base;
+            normalize(base, commutative);
+            match take(base).into_node() {
+                Node::Const(c) => {
+                    let mut acc = c.clone();
+                    for _ in 1..n.get() {
+                        acc = <E::SR>::multiply(acc, c.clone());
+                    }
+                    *expr = constant(acc);
+                }
+                node if n.get() == 1 => *expr = E::from_node(node),
+                Node::Pow(inner_base, inner) => match inner.checked_mul(n) {
+                    // (b^m)^n = b^(m*n), by associativity of multiplication.
+                    Some(mn) => *expr = E::from_node(Node::Pow(inner_base, mn)),
+                    None => *base = E::from_node(Node::Pow(inner_base, inner)),
+                },
+                node => *base = E::from_node(node),
+            }
+        }
+    }
+}
+
+// ================================================================================
+// Formatters
+// ================================================================================
+
+/// Canonicalizes [`SemiRingExpr`]s using the semi-ring laws (see
+/// [`normalize`]).
+#[derive_where::derive_where(Default)]
+pub struct SemiRingFormatter<SR: SemiRing> {
+    _semi_ring_marker: std::marker::PhantomData<SR>,
+}
+
+impl<SR: SemiRing> SemiRingFormatter<SR> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<SR: SemiRing> Rewriter for SemiRingFormatter<SR> {
+    type Expr = SemiRingExpr<SR>;
+
+    fn rewrite_expr(&self, expr: &mut Self::Expr) {
+        normalize(expr, false);
+    }
+}
+
+/// Canonicalizes [`RingExpr`]s using the ring laws (see [`normalize`]). The
+/// canonical form contains no `Neg`: a negated term shows up as a constant
+/// coefficient.
+#[derive_where::derive_where(Default)]
+pub struct RingFormatter<R: Ring> {
+    _ring_marker: std::marker::PhantomData<R>,
+}
+
+impl<R: Ring> RingFormatter<R> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<R: Ring> Rewriter for RingFormatter<R> {
+    type Expr = RingExpr<R>;
+
+    fn rewrite_expr(&self, expr: &mut Self::Expr) {
+        normalize(expr, false);
+    }
+}
+
+/// [`RingFormatter`] for rings whose multiplication is also commutative:
+/// additionally folds all constants of a product into one leading constant,
+/// collects repeated factors into powers (`x * y * x -> x^2 * y`), and sorts
+/// factors and terms into a canonical order.
+#[derive_where::derive_where(Default)]
+pub struct CommutativeRingFormatter<R: Ring> {
+    _ring_marker: std::marker::PhantomData<R>,
+}
+
+impl<R: Ring> CommutativeRingFormatter<R> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<R: Ring> Rewriter for CommutativeRingFormatter<R>
+where
+    R::Multiplication: Commutative,
+{
+    type Expr = RingExpr<R>;
+
+    fn rewrite_expr(&self, expr: &mut Self::Expr) {
+        normalize(expr, true);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::op::{Associative, BinaryOperator};
 
     #[derive(Set)]
     #[set(element = i64)]
@@ -751,7 +842,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ring_formatter_neg() {
+    fn test_ring_rewriter_neg() {
         let f = RingFormatter::new();
         let x = Symbol::new("x");
 
@@ -781,7 +872,7 @@ mod tests {
     }
 
     #[test]
-    fn test_commutative_ring_formatter() {
+    fn test_commutative_ring_rewriter() {
         let f = CommutativeRingFormatter::new();
         let x = Symbol::new("x");
         let y = Symbol::new("y");
