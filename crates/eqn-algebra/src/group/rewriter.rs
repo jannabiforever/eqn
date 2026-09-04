@@ -641,4 +641,44 @@ mod tests {
                 ])
         );
     }
+
+    fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
+    where
+        R::Expr: PartialEq + std::fmt::Debug,
+    {
+        let once = rewriter.rewrited_expr(expr);
+        assert_eq!(rewriter.rewrited_expr(once.clone()), once);
+    }
+
+    #[test]
+    fn normalize_is_idempotent() {
+        let x = Expr::Symbol(Symbol::new("x"));
+        let y = Expr::Symbol(Symbol::new("y"));
+        let pow = |base: Expr, exponent| Expr::Pow {
+            base: Box::new(base),
+            exponent,
+        };
+        let inv = |e: Expr| Expr::Inv(Box::new(e));
+        let inputs = [
+            Expr::Const(0),
+            Expr::Op(vec![]),
+            pow(x.clone(), 0),
+            inv(inv(x.clone())),
+            pow(Expr::Op(vec![x.clone(), y.clone()]), 2),
+            Expr::Op(vec![
+                x.clone(),
+                inv(x.clone()),
+                Expr::Const(3),
+                Expr::Const(-3),
+                pow(x.clone(), -2),
+                inv(pow(x.clone(), 2)),
+                y,
+                x,
+            ]),
+        ];
+        for expr in inputs {
+            assert_idempotent(&GroupRewriter::new(), expr.clone());
+            assert_idempotent(&AbelianGroupRewriter::new(), expr);
+        }
+    }
 }

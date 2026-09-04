@@ -367,4 +367,43 @@ mod tests {
             DifferentialForm::Const(0)
         );
     }
+
+    fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
+    where
+        R::Expr: PartialEq + std::fmt::Debug,
+    {
+        let once = rewriter.rewrited_expr(expr);
+        assert_eq!(rewriter.rewrited_expr(once.clone()), once);
+    }
+
+    #[test]
+    fn normalize_is_idempotent() {
+        let chart = xy();
+        let (x, dx, dy) = (
+            chart.coordinate(0).unwrap(),
+            chart.differential(0).unwrap(),
+            chart.differential(1).unwrap(),
+        );
+        let inputs = [
+            DifferentialForm::Const(0),
+            DifferentialForm::Add(vec![]),
+            DifferentialForm::Neg(Box::new(DifferentialForm::Neg(Box::new(x.clone())))),
+            d(wedge(vec![x.clone(), dy.clone()])),
+            wedge(vec![dy.clone(), dx.clone()]),
+            DifferentialForm::Add(vec![
+                wedge(vec![dx.clone(), dy.clone()]),
+                wedge(vec![dy.clone(), dx.clone()]),
+            ]),
+            wedge(vec![
+                DifferentialForm::Const(2),
+                DifferentialForm::Add(vec![x, dy.clone()]),
+                dx.clone(),
+            ]),
+            wedge(vec![dx.clone(), dy, dx]),
+        ];
+        for expr in inputs {
+            assert_idempotent(&ExteriorRewriter::<Plane>::new(), expr.clone());
+            assert_idempotent(&GradedCommutativeRewriter::<Plane>::new(), expr);
+        }
+    }
 }

@@ -211,4 +211,35 @@ mod tests {
                 ])
         );
     }
+
+    fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
+    where
+        R::Expr: PartialEq + std::fmt::Debug,
+    {
+        let once = rewriter.rewrited_expr(expr);
+        assert_eq!(rewriter.rewrited_expr(once.clone()), once);
+    }
+
+    #[test]
+    fn normalize_is_idempotent() {
+        type Expr = MonoidExpr<(TestDomain, TestOperator)>;
+        let x = Symbol::new("x");
+        let y = Symbol::new("y");
+        let inputs = [
+            Expr::Const(0),
+            Expr::Symbol(x.clone()),
+            Expr::Op(vec![]),
+            Expr::Op(vec![
+                Expr::Const(1),
+                Expr::Op(vec![Expr::Const(2), Expr::Symbol(y)]),
+                Expr::Const(0),
+                Expr::Op(vec![Expr::Symbol(x.clone()), Expr::Const(3)]),
+                Expr::Symbol(x),
+            ]),
+        ];
+        for expr in inputs {
+            assert_idempotent(&NonCommutativeMonoidRewriter::new(), expr.clone());
+            assert_idempotent(&CommutativeMonoidRewriter::new(), expr);
+        }
+    }
 }

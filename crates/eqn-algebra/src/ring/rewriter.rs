@@ -682,4 +682,58 @@ mod tests {
                 ])
         );
     }
+
+    fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
+    where
+        R::Expr: PartialEq + std::fmt::Debug,
+    {
+        let once = rewriter.rewrited_expr(expr);
+        assert_eq!(rewriter.rewrited_expr(once.clone()), once);
+    }
+
+    #[test]
+    fn normalize_is_idempotent() {
+        let two = NonZeroUsize::new(2).unwrap();
+        let x = Expr::Symbol(Symbol::new("x"));
+        let y = Expr::Symbol(Symbol::new("y"));
+        let semi_ring_inputs = [
+            Expr::Const(0),
+            Expr::Add(vec![]),
+            Expr::Add(vec![x.clone(), x.clone(), Expr::Const(2)]),
+            Expr::Mul(vec![
+                Expr::Const(2),
+                Expr::Add(vec![x.clone(), y.clone()]),
+                x.clone(),
+            ]),
+            Expr::Pow {
+                base: Box::new(Expr::Add(vec![x.clone(), y])),
+                exponent: two,
+            },
+            Expr::Mul(vec![x, Expr::Const(0)]),
+        ];
+        for expr in semi_ring_inputs {
+            assert_idempotent(&SemiRingRewriter::new(), expr);
+        }
+
+        let x = RExpr::Symbol(Symbol::new("x"));
+        let y = RExpr::Symbol(Symbol::new("y"));
+        let neg = |e: RExpr| RExpr::Neg(Box::new(e));
+        let ring_inputs = [
+            RExpr::Add(vec![x.clone(), neg(x.clone())]),
+            neg(neg(x.clone())),
+            RExpr::Mul(vec![
+                neg(RExpr::Const(3)),
+                RExpr::Add(vec![x.clone(), neg(y.clone())]),
+                y,
+            ]),
+            RExpr::Pow {
+                base: Box::new(neg(x)),
+                exponent: two,
+            },
+        ];
+        for expr in ring_inputs {
+            assert_idempotent(&RingRewriter::new(), expr.clone());
+            assert_idempotent(&CommutativeRingRewriter::new(), expr);
+        }
+    }
 }
