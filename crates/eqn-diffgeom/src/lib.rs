@@ -14,8 +14,9 @@ pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
 /// A manifold is known to the library through its ring of functions.
 pub trait Manifold {
     /// The ring of 0-forms, with `∂/∂xⁱ` along the coordinates a [`Chart`]
-    /// names.
-    type Functions: DifferentialRing;
+    /// names. A coordinate names a derivation *and* is a 0-form itself; the
+    /// contract is `∂_i xʲ = δ_ij`.
+    type Functions: DifferentialRing<Index: Clone + Into<Element<Self::Functions>>>;
 
     type const DIM: usize;
 }
@@ -126,19 +127,13 @@ impl<M: Manifold> Chart<M> {
     pub fn coordinates(&self) -> &[Coordinate<M>; M::DIM] {
         &self.coordinates
     }
-}
 
-impl<M: Manifold> Chart<M>
-where
-    ZeroForm<M>: From<Coordinate<M>>,
-    Coordinate<M>: Clone,
-{
     /// `x^i` as a 0-form.
     pub fn coordinate(&self, i: usize) -> Option<DifferentialForm<M>> {
         self.coordinates
             .get(i)
             .cloned()
-            .map(|c| DifferentialForm::Scalar(ZeroForm::<M>::from(c)))
+            .map(|c| DifferentialForm::Scalar(c.into()))
     }
 
     /// `dx^i`.

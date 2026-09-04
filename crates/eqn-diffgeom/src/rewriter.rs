@@ -1,7 +1,7 @@
 use eqn_algebra::ring::{DifferentialRing, Ring, SemiRing};
-use eqn_core::rewriter::{Expression, Rewriter};
+use eqn_core::rewriter::Rewriter;
 
-use crate::{Chart, Coordinate, DifferentialForm, Manifold, ZeroForm};
+use crate::{Chart, DifferentialForm, Manifold, ZeroForm};
 
 // ================================================================================
 // Normalization engine
@@ -72,17 +72,13 @@ impl<M: Manifold> Term<M> {
 
     /// The coefficient is dropped when it *is* the constant `ONE` and there
     /// is at least one wedge factor to carry the term.
-    fn into_form(self, chart: &Chart<M>) -> DifferentialForm<M>
-    where
-        ZeroForm<M>: From<Coordinate<M>>,
-        Coordinate<M>: Clone,
-    {
+    fn into_form(self, chart: &Chart<M>) -> DifferentialForm<M> {
         let mut factors: Vec<DifferentialForm<M>> = self
             .atoms
             .into_iter()
             .map(|i| {
                 DifferentialForm::Differential(Box::new(DifferentialForm::Scalar(
-                    ZeroForm::<M>::from(chart.coordinates()[i].clone()),
+                    chart.coordinates()[i].clone().into(),
                 )))
             })
             .collect();
@@ -156,11 +152,7 @@ fn build_sum<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>>(
     mut ts: Vec<Term<M>>,
     chart: &Chart<M>,
     functions: &N,
-) -> DifferentialForm<M>
-where
-    ZeroForm<M>: From<Coordinate<M>>,
-    Coordinate<M>: Clone,
-{
+) -> DifferentialForm<M> {
     for t in &mut ts {
         functions.rewrite_expr(&mut t.coeff);
     }
@@ -178,10 +170,7 @@ fn normalize<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>>(
     expr: &mut DifferentialForm<M>,
     chart: &Chart<M>,
     functions: &N,
-) where
-    ZeroForm<M>: From<Coordinate<M>>,
-    Coordinate<M>: Clone,
-{
+) {
     *expr = build_sum(terms_of(expr, chart), chart, functions);
 }
 
@@ -191,10 +180,7 @@ fn normalize_graded<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>>(
     expr: &mut DifferentialForm<M>,
     chart: &Chart<M>,
     functions: &N,
-) where
-    ZeroForm<M>: From<Coordinate<M>>,
-    Coordinate<M>: Clone,
-{
+) {
     *expr = build_sum(canonicalize(terms_of(expr, chart)), chart, functions);
 }
 
@@ -219,11 +205,7 @@ impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> ExteriorRewriter<M, N> {
     }
 }
 
-impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for ExteriorRewriter<M, N>
-where
-    ZeroForm<M>: From<Coordinate<M>> + Expression,
-    Coordinate<M>: Clone,
-{
+impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for ExteriorRewriter<M, N> {
     type Expr = DifferentialForm<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
@@ -246,11 +228,7 @@ impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> GradedCommutativeRewriter<M, 
     }
 }
 
-impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for GradedCommutativeRewriter<M, N>
-where
-    ZeroForm<M>: From<Coordinate<M>> + Expression,
-    Coordinate<M>: Clone,
-{
+impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for GradedCommutativeRewriter<M, N> {
     type Expr = DifferentialForm<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
