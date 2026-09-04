@@ -44,9 +44,20 @@ pub trait SemiRing {
     }
 
     /// `n · ONE`: the image of `n` under the unique semi-ring map from the
-    /// naturals. ponytail: O(n) repeated addition.
-    fn from_usize(n: usize) -> <Self::Domain as Set>::Element {
-        (0..n).fold(Self::ZERO, |acc, _| Self::add(acc, Self::ONE))
+    /// naturals, computed by double-and-add in `O(log n)` additions.
+    fn from_usize(mut n: usize) -> <Self::Domain as Set>::Element {
+        let mut acc = Self::ZERO;
+        let mut power = Self::ONE;
+        while n > 0 {
+            if n & 1 == 1 {
+                acc = Self::add(acc, power.clone());
+            }
+            n >>= 1;
+            if n > 0 {
+                power = Self::add(power.clone(), power);
+            }
+        }
+        acc
     }
 }
 
@@ -268,4 +279,16 @@ impl SemiRing for IntegerRing {
     type Domain = Integers;
     type Addition = IntegerAdd;
     type Multiplication = IntegerMul;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_usize_is_the_natural_map() {
+        for n in [0usize, 1, 2, 3, 7, 8, 1000] {
+            assert_eq!(IntegerRing::from_usize(n), n as i64);
+        }
+    }
 }

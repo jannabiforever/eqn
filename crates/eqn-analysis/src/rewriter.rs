@@ -291,8 +291,8 @@ pub(crate) fn derivative<F: Field>(
         Neg(u) => Neg(Box::new(derivative(*u, wrt))),
         Add(v) => Add(v.into_iter().map(|u| derivative(u, wrt)).collect()),
         // Leibniz: d(a_1 * ... * a_n) = sum_i a_1 * ... * (d a_i) * ... * a_n.
-        // ponytail: clones the factor list once per factor; fine for the
-        // small products expression trees carry.
+        // Every summand is its own product, so the factor list is cloned
+        // once per summand; that is the size of the output.
         Mul(v) => Add((0..v.len())
             .map(|i| {
                 let mut factors = v.clone();

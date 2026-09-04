@@ -93,8 +93,8 @@ impl<R: CommutativeRing> DifferentialAlgebra for RingExpr<R> {
             Self::Neg(inner) => Self::Neg(Box::new((*inner).partial(wrt))),
             Self::Add(v) => Self::Add(v.into_iter().map(|u| u.partial(wrt)).collect()),
             // Leibniz: d(a_1 * ... * a_n) = sum_i a_1 * ... * (d a_i) * ... * a_n.
-            // ponytail: clones the factor list once per factor; fine for the
-            // small products expression trees carry.
+            // Every summand is its own product, so the factor list is cloned
+            // once per summand; that is the size of the output.
             Self::Mul(v) => Self::Add(
                 (0..v.len())
                     .map(|i| {
