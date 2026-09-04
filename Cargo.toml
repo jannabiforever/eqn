@@ -10,4 +10,5 @@ edition = "2024"
 eqn-core = { path = "crates/eqn-core" }
 eqn-macros = { path = "crates/eqn-macros" }
 eqn-algebra = { path = "crates/eqn-algebra" }
+eqn-analysis = { path = "crates/eqn-analysis" }
 derive-where = "1.6.1"
