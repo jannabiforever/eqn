@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use crate::formatter::{Expression, Formatter};
 use crate::op::{Associative, BinaryOperator, Commutative, Identity};
+use crate::rewriter::{Expression, Rewriter};
 use crate::set::Set;
 use crate::symbol::Symbol;
 
@@ -104,7 +104,7 @@ impl<M: Monoid> NonCommutativeMonoidFormatter<M> {
     }
 }
 
-impl<M: Monoid> Formatter for NonCommutativeMonoidFormatter<M> {
+impl<M: Monoid> Rewriter for NonCommutativeMonoidFormatter<M> {
     type Expr = MonoidExpr<M>;
 
     fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
@@ -169,7 +169,7 @@ where
     }
 }
 
-impl<M> Formatter for CommutativeMonoidFormatter<M>
+impl<M> Rewriter for CommutativeMonoidFormatter<M>
 where
     M: Monoid,
     M::Operator: Commutative,

@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
-use crate::formatter::{Expression, Formatter};
 use crate::monoid::Monoid;
 use crate::op::{BinaryOperator, Commutative, Inverse};
+use crate::rewriter::{Expression, Rewriter};
 use crate::set::Set;
 use crate::symbol::Symbol;
 
@@ -360,7 +360,7 @@ impl<G: Group> GroupFormatter<G> {
     }
 }
 
-impl<G: Group> Formatter for GroupFormatter<G> {
+impl<G: Group> Rewriter for GroupFormatter<G> {
     type Expr = GroupExpr<G>;
 
     fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
@@ -381,7 +381,7 @@ impl<G: AbelianGroup> AbelianGroupFormatter<G> {
     }
 }
 
-impl<G: AbelianGroup> Formatter for AbelianGroupFormatter<G> {
+impl<G: AbelianGroup> Rewriter for AbelianGroupFormatter<G> {
     type Expr = GroupExpr<G>;
 
     fn format_expr(&self, expr: Self::Expr) -> Self::Expr {

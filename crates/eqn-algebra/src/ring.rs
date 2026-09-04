@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
-use crate::formatter::{Expression, Formatter};
 use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
+use crate::rewriter::{Expression, Rewriter};
 use crate::set::Set;
 use crate::symbol::Symbol;
 
@@ -441,7 +441,7 @@ impl<SR: SemiRing> SemiRingFormatter<SR> {
     }
 }
 
-impl<SR: SemiRing> Formatter for SemiRingFormatter<SR> {
+impl<SR: SemiRing> Rewriter for SemiRingFormatter<SR> {
     type Expr = SemiRingExpr<SR>;
 
     fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
@@ -465,7 +465,7 @@ impl<R: Ring> RingFormatter<R> {
     }
 }
 
-impl<R: Ring> Formatter for RingFormatter<R> {
+impl<R: Ring> Rewriter for RingFormatter<R> {
     type Expr = RingExpr<R>;
 
     fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
@@ -488,7 +488,7 @@ impl<R: Ring> CommutativeRingFormatter<R> {
     }
 }
 
-impl<R: Ring> Formatter for CommutativeRingFormatter<R>
+impl<R: Ring> Rewriter for CommutativeRingFormatter<R>
 where
     R::Multiplication: Commutative,
 {

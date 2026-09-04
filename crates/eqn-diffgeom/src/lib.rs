@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use eqn_algebra::ring::{Ring, SemiRing};
-use eqn_core::formatter::{Expression, Formatter};
+use eqn_core::rewriter::{Expression, Rewriter};
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
@@ -307,7 +307,7 @@ impl<M: Manifold> ExteriorFormatter<M> {
     }
 }
 
-impl<M: Manifold> Formatter for ExteriorFormatter<M> {
+impl<M: Manifold> Rewriter for ExteriorFormatter<M> {
     type Expr = DifferentialForm<M>;
 
     fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
@@ -329,7 +329,7 @@ impl<M: Manifold> GradedCommutativeFormatter<M> {
     }
 }
 
-impl<M: Manifold> Formatter for GradedCommutativeFormatter<M> {
+impl<M: Manifold> Rewriter for GradedCommutativeFormatter<M> {
     type Expr = DifferentialForm<M>;
 
     fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
