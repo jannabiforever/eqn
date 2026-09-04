@@ -1,101 +1,76 @@
-use eqn_algebra::ring::{Ring, SemiRing};
-use eqn_core::rewriter::Rewriter;
-use eqn_core::symbol::Symbol;
+use std::collections::BTreeSet;
 
-use crate::{DifferentialForm, Manifold, Scalar, ZeroForms};
+use eqn_algebra::ring::SemiRing;
+use eqn_analysis::{ElementaryExpr, ElementaryRewriter};
+use eqn_core::rewriter::{Expression, Rewriter};
+
+use crate::{Coordinate, DifferentialForm, Manifold, ZeroForm};
 
 // ================================================================================
 // Normalization engine
 // ================================================================================
 
-/// A wedge factor after normalization: a function `f` (degree 0) or its
-/// differential `df` (degree 1). Nothing else survives: `dc = 0`, `d(df) = 0`.
-#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
-enum Atom<S> {
-    F(S),
-    D(S),
-}
-
-impl<S> Atom<S> {
-    fn degree(&self) -> usize {
-        match self {
-            Atom::F(_) => 0,
-            Atom::D(_) => 1,
-        }
-    }
-}
-
-/// `coeff · a_1 ∧ … ∧ a_n`.
+/// `coeff · dx_1 ∧ ... ∧ dx_n`; the coefficient is a 0-form.
 #[derive_where::derive_where(Clone)]
 struct Term<M: Manifold> {
-    coeff: Scalar<M>,
-    atoms: Vec<Atom<Symbol<ZeroForms<M>>>>,
+    coeff: ZeroForm<M>,
+    atoms: Vec<Coordinate<M>>,
 }
 
 impl<M: Manifold> Term<M> {
-    const fn one() -> Self {
+    fn one() -> Self {
         Self {
-            coeff: <M::Scalar as SemiRing>::ONE,
+            coeff: ElementaryExpr::Const(<M::Scalar as SemiRing>::ONE),
             atoms: vec![],
         }
     }
 
     fn negated(mut self) -> Self {
-        self.coeff = M::Scalar::negate(self.coeff);
+        self.coeff = ElementaryExpr::Neg(Box::new(self.coeff));
         self
     }
 
     fn wedge(&self, other: &Self) -> Self {
         Self {
-            coeff: M::Scalar::multiply(self.coeff.clone(), other.coeff.clone()),
+            coeff: ElementaryExpr::Mul(vec![self.coeff.clone(), other.coeff.clone()]),
             atoms: self.atoms.iter().chain(&other.atoms).cloned().collect(),
         }
     }
 
-    fn degree(&self) -> usize {
-        self.atoms.iter().map(Atom::degree).sum()
-    }
-
-    /// Leibniz: `d(a_1 ∧ … ∧ a_n) = Σ_i (-1)^{deg(a_1 … a_{i-1})} a_1 ∧ … ∧ d
-    /// a_i ∧ … ∧ a_n`.
+    /// `d(c · dx_I) = Σ_{s ∈ free symbols of c} (∂c/∂s) ds ∧ dx_I`. No sign:
+    /// `dc` is placed in front. `d(dx) = 0` is automatic: atoms carry no
+    /// coefficient of their own to differentiate.
     fn differential(self) -> Vec<Self> {
-        let mut out = vec![];
-        let mut odd = false;
-        for (i, a) in self.atoms.iter().enumerate() {
-            if let Atom::F(f) = a {
-                let mut atoms = self.atoms.clone();
-                atoms[i] = Atom::D(f.clone());
-                let t = Self {
-                    coeff: self.coeff.clone(),
-                    atoms,
-                };
-                out.push(if odd { t.negated() } else { t });
-            }
-            odd ^= a.degree() % 2 == 1;
-        }
-        out
+        let free: BTreeSet<Coordinate<M>> = std::iter::once(&self.coeff)
+            .chain(self.coeff.descendants())
+            .filter_map(Expression::as_symbol)
+            .cloned()
+            .collect();
+        free.into_iter()
+            .map(|s| Self {
+                coeff: ElementaryExpr::d(s.clone(), self.coeff.clone()),
+                atoms: std::iter::once(s)
+                    .chain(self.atoms.iter().cloned())
+                    .collect(),
+            })
+            .collect()
     }
 
+    /// Sorts `atoms` with the permutation parity, dropping the term if two
+    /// atoms are equal (`dx ∧ dx = 0`).
     fn canonical(mut self) -> Option<Self> {
-        let (mut fs, mut ds): (Vec<_>, Vec<_>) = self
-            .atoms
-            .into_iter()
-            .partition(|a| matches!(a, Atom::F(_)));
-        fs.sort();
         let mut odd = false;
-        for i in 1..ds.len() {
+        for i in 1..self.atoms.len() {
             let mut j = i;
-            while j > 0 && ds[j - 1] > ds[j] {
-                ds.swap(j - 1, j);
+            while j > 0 && self.atoms[j - 1] > self.atoms[j] {
+                self.atoms.swap(j - 1, j);
                 odd = !odd;
                 j -= 1;
             }
         }
-        if ds.windows(2).any(|w| w[0] == w[1]) {
+        if self.atoms.windows(2).any(|w| w[0] == w[1]) {
             return None;
         }
-        fs.extend(ds);
-        self.atoms = fs;
         Some(if odd { self.negated() } else { self })
     }
 
@@ -103,15 +78,15 @@ impl<M: Manifold> Term<M> {
         let mut factors: Vec<DifferentialForm<M>> = self
             .atoms
             .into_iter()
-            .map(|a| match a {
-                Atom::F(f) => DifferentialForm::Function(f),
-                Atom::D(f) => {
-                    DifferentialForm::Differential(Box::new(DifferentialForm::Function(f)))
-                }
+            .map(|s| {
+                DifferentialForm::Differential(Box::new(DifferentialForm::Scalar(
+                    ElementaryExpr::Symbol(s),
+                )))
             })
             .collect();
-        if factors.is_empty() || self.coeff != <M::Scalar as SemiRing>::ONE {
-            factors.insert(0, DifferentialForm::Const(self.coeff));
+        let coeff_is_one = matches!(&self.coeff, ElementaryExpr::Const(c) if c.clone() == <M::Scalar as SemiRing>::ONE);
+        if factors.is_empty() || !coeff_is_one {
+            factors.insert(0, DifferentialForm::Scalar(self.coeff));
         }
         match factors.len() {
             1 => factors.pop().unwrap(),
@@ -122,13 +97,9 @@ impl<M: Manifold> Term<M> {
 
 fn terms<M: Manifold>(expr: DifferentialForm<M>) -> Vec<Term<M>> {
     match expr {
-        DifferentialForm::Const(c) => vec![Term {
-            coeff: c,
+        DifferentialForm::Scalar(e) => vec![Term {
+            coeff: e,
             atoms: vec![],
-        }],
-        DifferentialForm::Function(f) => vec![Term {
-            coeff: <M::Scalar as SemiRing>::ONE,
-            atoms: vec![Atom::F(f)],
         }],
         DifferentialForm::Neg(x) => terms(*x).into_iter().map(Term::negated).collect(),
         DifferentialForm::Add(xs) => xs.into_iter().flat_map(terms).collect(),
@@ -145,20 +116,20 @@ fn terms<M: Manifold>(expr: DifferentialForm<M>) -> Vec<Term<M>> {
 }
 
 /// Expands the tree into its term list by linearity, distributing `∧` over
-/// `+`, Leibniz, `dc = 0` and `d² = 0`; terms of degree above `M::DIM`
-/// vanish. The canonical form is a flat term list, so the tree is consumed
-/// rather than edited in place.
+/// `+` and real differentiation of each coefficient; terms of degree above
+/// `M::DIM` vanish. The canonical form is a flat term list, so the tree is
+/// consumed rather than edited in place.
 fn terms_of<M: Manifold>(expr: &mut DifferentialForm<M>) -> Vec<Term<M>> {
     let taken = std::mem::replace(expr, DifferentialForm::Add(Vec::new()));
     terms(taken)
         .into_iter()
-        .filter(|t| t.degree() <= M::DIM)
+        .filter(|t| t.atoms.len() <= M::DIM)
         .collect()
 }
 
-/// Graded commutativity: sorts each term's wedge factors with the permutation
-/// sign (`df ∧ df = 0` drops the term), then sorts terms and merges equal
-/// ones into a single coefficient.
+/// Graded commutativity: sorts each term's wedge factors with the
+/// permutation sign (`dx ∧ dx = 0` drops the term), then sorts terms by
+/// their atoms and merges equal ones into a single coefficient.
 fn canonicalize<M: Manifold>(ts: Vec<Term<M>>) -> Vec<Term<M>> {
     let mut ts: Vec<Term<M>> = ts.into_iter().filter_map(Term::canonical).collect();
     ts.sort_by(|a, b| a.atoms.cmp(&b.atoms));
@@ -166,7 +137,7 @@ fn canonicalize<M: Manifold>(ts: Vec<Term<M>>) -> Vec<Term<M>> {
     for t in ts {
         match merged.last_mut() {
             Some(last) if last.atoms == t.atoms => {
-                last.coeff = M::Scalar::add(last.coeff.clone(), t.coeff);
+                last.coeff = ElementaryExpr::Add(vec![last.coeff.clone(), t.coeff]);
             }
             _ => merged.push(t),
         }
@@ -174,11 +145,20 @@ fn canonicalize<M: Manifold>(ts: Vec<Term<M>>) -> Vec<Term<M>> {
     merged
 }
 
-/// Rebuilds a form from its terms, dropping zero coefficients.
+/// Rebuilds a form from its terms: normalizes each coefficient (this is
+/// where `D` nodes actually differentiate, and where `d² = 0` / `dc = 0`
+/// fall out as real derivatives evaluating to zero), then drops terms whose
+/// coefficient normalizes to zero.
 fn build_sum<M: Manifold>(mut ts: Vec<Term<M>>) -> DifferentialForm<M> {
-    ts.retain(|t| t.coeff != <M::Scalar as SemiRing>::ZERO);
+    let elementary = ElementaryRewriter::<M::Scalar>::new();
+    for t in &mut ts {
+        elementary.rewrite_expr(&mut t.coeff);
+    }
+    ts.retain(|t| {
+        !matches!(&t.coeff, ElementaryExpr::Const(c) if c.clone() == <M::Scalar as SemiRing>::ZERO)
+    });
     match ts.len() {
-        0 => DifferentialForm::Const(<M::Scalar as SemiRing>::ZERO),
+        0 => DifferentialForm::Scalar(ElementaryExpr::Const(<M::Scalar as SemiRing>::ZERO)),
         1 => ts.pop().unwrap().into_form(),
         _ => DifferentialForm::Add(ts.into_iter().map(Term::into_form).collect()),
     }
@@ -201,8 +181,9 @@ fn normalize_graded<M: Manifold>(expr: &mut DifferentialForm<M>) {
 // ================================================================================
 
 /// Normalizes by the exterior-algebra laws that need no ordering: linearity,
-/// `∧` distributing over `+`, `dc = 0`, `d² = 0`, Leibniz, constant folding,
-/// and vanishing above degree `M::DIM`. Wedge factors keep their written order.
+/// `∧` distributing over `+`, Leibniz via real differentiation of
+/// coefficients (`d² = 0` and `dc = 0` follow from that), and vanishing
+/// above degree `M::DIM`. Wedge factors keep their written order.
 #[derive_where::derive_where(Default)]
 pub struct ExteriorRewriter<M: Manifold> {
     _marker: std::marker::PhantomData<M>,
@@ -223,7 +204,7 @@ impl<M: Manifold> Rewriter for ExteriorRewriter<M> {
 }
 
 /// [`ExteriorRewriter`] plus graded commutativity: wedge factors sort into
-/// a canonical order with the permutation sign, `df ∧ df = 0`, and like
+/// a canonical order with the permutation sign, `dx ∧ dx = 0`, and like
 /// terms collect into one coefficient.
 #[derive_where::derive_where(Default)]
 pub struct GradedCommutativeRewriter<M: Manifold> {
@@ -246,12 +227,39 @@ impl<M: Manifold> Rewriter for GradedCommutativeRewriter<M> {
 
 #[cfg(test)]
 mod tests {
+    use eqn_algebra::field::Rational;
+    use eqn_core::symbol::Symbol;
+
     use super::*;
     use crate::Chart;
     use crate::tests::*;
 
     fn xy() -> Chart<Plane> {
         Chart::new([Symbol::new("x"), Symbol::new("y")])
+    }
+
+    fn x() -> ZeroForm<Plane> {
+        ElementaryExpr::Symbol(Symbol::new("x"))
+    }
+
+    fn y() -> ZeroForm<Plane> {
+        ElementaryExpr::Symbol(Symbol::new("y"))
+    }
+
+    fn c(i: i64) -> ZeroForm<Plane> {
+        ElementaryExpr::Const(Rational::from(i))
+    }
+
+    fn sc(e: ZeroForm<Plane>) -> DifferentialForm<Plane> {
+        DifferentialForm::Scalar(e)
+    }
+
+    fn dx() -> DifferentialForm<Plane> {
+        xy().differential(0).unwrap()
+    }
+
+    fn dy() -> DifferentialForm<Plane> {
+        xy().differential(1).unwrap()
     }
 
     fn wedge(xs: Vec<DifferentialForm<Plane>>) -> DifferentialForm<Plane> {
@@ -262,109 +270,82 @@ mod tests {
         DifferentialForm::Differential(Box::new(x))
     }
 
-    #[test]
-    fn d_squared_and_d_const_vanish() {
-        let f = ExteriorRewriter::<Plane>::new();
-        assert_eq!(
-            f.rewrited_expr(d(xy().differential(0).unwrap())),
-            DifferentialForm::Const(0)
-        );
-        assert_eq!(
-            f.rewrited_expr(d(DifferentialForm::Const(7))),
-            DifferentialForm::Const(0)
-        );
+    fn pow(base: ZeroForm<Plane>, exponent: isize) -> ZeroForm<Plane> {
+        ElementaryExpr::Pow {
+            base: Box::new(base),
+            exponent,
+        }
     }
 
     #[test]
-    fn leibniz_picks_up_sign() {
-        let c = xy();
-        let (x, y, dx, dy) = (
-            c.coordinate(0).unwrap(),
-            c.coordinate(1).unwrap(),
-            c.differential(0).unwrap(),
-            c.differential(1).unwrap(),
-        );
+    fn d_squared_and_d_const_vanish() {
         let f = ExteriorRewriter::<Plane>::new();
-        // d(x ∧ dy) = dx ∧ dy
+        assert_eq!(f.rewrited_expr(d(dx())), sc(c(0)));
+        assert_eq!(f.rewrited_expr(d(sc(c(7)))), sc(c(0)));
+    }
+
+    #[test]
+    fn leibniz_differentiates_a_product() {
+        let f = ExteriorRewriter::<Plane>::new();
+        // d(x*y) = y dx + x dy
         assert_eq!(
-            f.rewrited_expr(d(wedge(vec![x, dy.clone()]))),
-            wedge(vec![dx.clone(), dy.clone()])
-        );
-        // d(dx ∧ y) = -(dx ∧ dy), no reordering in the plain formatter
-        assert_eq!(
-            f.rewrited_expr(d(wedge(vec![dx.clone(), y]))),
-            wedge(vec![DifferentialForm::Const(-1), dx, dy])
+            f.rewrited_expr(d(sc(ElementaryExpr::Mul(vec![x(), y()])))),
+            DifferentialForm::Add(vec![wedge(vec![sc(y()), dx()]), wedge(vec![sc(x()), dy()])])
         );
     }
 
     #[test]
     fn exterior_keeps_order_and_distributes() {
-        let c = xy();
-        let (x, dx, dy) = (
-            c.coordinate(0).unwrap(),
-            c.differential(0).unwrap(),
-            c.differential(1).unwrap(),
-        );
         let f = ExteriorRewriter::<Plane>::new();
         assert_eq!(
-            f.rewrited_expr(wedge(vec![dy.clone(), dx.clone()])),
-            wedge(vec![dy.clone(), dx.clone()])
+            f.rewrited_expr(wedge(vec![dy(), dx()])),
+            wedge(vec![dy(), dx()])
         );
-        // 2 ∧ (x + dy) ∧ dx = 2 x ∧ dx + 2 dy ∧ dx
+        // 2 ∧ (x + dy) ∧ dx = 2x ∧ dx + 2 dy ∧ dx
         let e = wedge(vec![
-            DifferentialForm::Const(2),
-            DifferentialForm::Add(vec![x.clone(), dy.clone()]),
-            dx.clone(),
+            sc(c(2)),
+            DifferentialForm::Add(vec![sc(x()), dy()]),
+            dx(),
         ]);
         assert_eq!(
             f.rewrited_expr(e),
             DifferentialForm::Add(vec![
-                wedge(vec![DifferentialForm::Const(2), x, dx.clone()]),
-                wedge(vec![DifferentialForm::Const(2), dy, dx]),
+                wedge(vec![sc(ElementaryExpr::Mul(vec![c(2), x()])), dx()]),
+                wedge(vec![sc(c(2)), dy(), dx()]),
             ])
         );
     }
 
     #[test]
     fn graded_commutative_sorts_with_sign() {
-        let c = xy();
-        let (dx, dy) = (c.differential(0).unwrap(), c.differential(1).unwrap());
         let f = GradedCommutativeRewriter::<Plane>::new();
         // dy ∧ dx = -(dx ∧ dy)
         assert_eq!(
-            f.rewrited_expr(wedge(vec![dy.clone(), dx.clone()])),
-            wedge(vec![DifferentialForm::Const(-1), dx.clone(), dy.clone()])
+            f.rewrited_expr(wedge(vec![dy(), dx()])),
+            wedge(vec![sc(c(-1)), dx(), dy()])
         );
         // dx ∧ dx = 0
-        assert_eq!(
-            f.rewrited_expr(wedge(vec![dx.clone(), dx.clone()])),
-            DifferentialForm::Const(0)
-        );
+        assert_eq!(f.rewrited_expr(wedge(vec![dx(), dx()])), sc(c(0)));
         // dx ∧ dy + dy ∧ dx = 0 ; dx ∧ dy + dx ∧ dy = 2 dx ∧ dy
-        let a = wedge(vec![dx.clone(), dy.clone()]);
-        let b = wedge(vec![dy.clone(), dx.clone()]);
+        let a = wedge(vec![dx(), dy()]);
+        let b = wedge(vec![dy(), dx()]);
         assert_eq!(
             f.rewrited_expr(DifferentialForm::Add(vec![a.clone(), b])),
-            DifferentialForm::Const(0)
+            sc(c(0))
         );
         assert_eq!(
             f.rewrited_expr(DifferentialForm::Add(vec![a.clone(), a])),
-            wedge(vec![DifferentialForm::Const(2), dx, dy])
+            wedge(vec![sc(c(2)), dx(), dy()])
         );
     }
 
     #[test]
     fn forms_above_dim_vanish() {
-        let c = xy();
-        let dz = d(DifferentialForm::Function(Symbol::new("z")));
-        let top = wedge(vec![
-            c.differential(0).unwrap(),
-            c.differential(1).unwrap(),
-            dz,
-        ]);
+        let dz = d(sc(ElementaryExpr::Symbol(Symbol::new("z"))));
+        let top = wedge(vec![dx(), dy(), dz]);
         assert_eq!(
             ExteriorRewriter::<Plane>::new().rewrited_expr(top),
-            DifferentialForm::Const(0)
+            sc(c(0))
         );
     }
 
@@ -378,32 +359,101 @@ mod tests {
 
     #[test]
     fn normalize_is_idempotent() {
-        let chart = xy();
-        let (x, dx, dy) = (
-            chart.coordinate(0).unwrap(),
-            chart.differential(0).unwrap(),
-            chart.differential(1).unwrap(),
-        );
         let inputs = [
-            DifferentialForm::Const(0),
+            sc(c(0)),
             DifferentialForm::Add(vec![]),
-            DifferentialForm::Neg(Box::new(DifferentialForm::Neg(Box::new(x.clone())))),
-            d(wedge(vec![x.clone(), dy.clone()])),
-            wedge(vec![dy.clone(), dx.clone()]),
-            DifferentialForm::Add(vec![
-                wedge(vec![dx.clone(), dy.clone()]),
-                wedge(vec![dy.clone(), dx.clone()]),
-            ]),
+            DifferentialForm::Neg(Box::new(DifferentialForm::Neg(Box::new(sc(x()))))),
+            d(wedge(vec![sc(x()), dy()])),
+            wedge(vec![dy(), dx()]),
+            DifferentialForm::Add(vec![wedge(vec![dx(), dy()]), wedge(vec![dy(), dx()])]),
             wedge(vec![
-                DifferentialForm::Const(2),
-                DifferentialForm::Add(vec![x, dy.clone()]),
-                dx.clone(),
+                sc(c(2)),
+                DifferentialForm::Add(vec![sc(x()), dy()]),
+                dx(),
             ]),
-            wedge(vec![dx.clone(), dy, dx]),
+            wedge(vec![dx(), dy(), dx()]),
+            d(sc(pow(x(), 2))),
+            d(d(sc(ElementaryExpr::Mul(vec![pow(x(), 2), y()])))),
         ];
         for expr in inputs {
             assert_idempotent(&ExteriorRewriter::<Plane>::new(), expr.clone());
             assert_idempotent(&GradedCommutativeRewriter::<Plane>::new(), expr);
         }
+    }
+
+    // --------------------------------------------------------------------------
+    // `d` differentiates in coordinates
+    // --------------------------------------------------------------------------
+
+    #[test]
+    fn d_of_a_square() {
+        // d(x^2) = 2x dx
+        let f = GradedCommutativeRewriter::<Plane>::new();
+        assert_eq!(
+            f.rewrited_expr(d(sc(pow(x(), 2)))),
+            wedge(vec![sc(ElementaryExpr::Mul(vec![c(2), x()])), dx()])
+        );
+    }
+
+    #[test]
+    fn d_of_a_square_plus_sin() {
+        // d(x^2 + sin y) = 2x dx + cos(y) dy
+        let f = GradedCommutativeRewriter::<Plane>::new();
+        let expr = sc(ElementaryExpr::Add(vec![
+            pow(x(), 2),
+            ElementaryExpr::elementary(eqn_analysis::Elementary::Sin, y()),
+        ]));
+        assert_eq!(
+            f.rewrited_expr(d(expr)),
+            DifferentialForm::Add(vec![
+                wedge(vec![sc(ElementaryExpr::Mul(vec![c(2), x()])), dx()]),
+                wedge(vec![
+                    sc(ElementaryExpr::elementary(
+                        eqn_analysis::Elementary::Cos,
+                        y()
+                    )),
+                    dy()
+                ]),
+            ])
+        );
+    }
+
+    #[test]
+    fn d_of_a_product() {
+        // d(x*y) = y dx + x dy
+        let f = GradedCommutativeRewriter::<Plane>::new();
+        assert_eq!(
+            f.rewrited_expr(d(sc(ElementaryExpr::Mul(vec![x(), y()])))),
+            DifferentialForm::Add(vec![wedge(vec![sc(y()), dx()]), wedge(vec![sc(x()), dy()])])
+        );
+    }
+
+    #[test]
+    fn d_of_wedged_product_form() {
+        // d(xy ∧ dx) = -x dx∧dy
+        let f = GradedCommutativeRewriter::<Plane>::new();
+        let xy_dx = wedge(vec![sc(ElementaryExpr::Mul(vec![x(), y()])), dx()]);
+        assert_eq!(
+            f.rewrited_expr(d(xy_dx)),
+            wedge(vec![sc(ElementaryExpr::Mul(vec![c(-1), x()])), dx(), dy()])
+        );
+    }
+
+    #[test]
+    fn d_squared_via_real_differentiation() {
+        // d(d(x^2 y)) = 0
+        let f = GradedCommutativeRewriter::<Plane>::new();
+        let expr = sc(ElementaryExpr::Mul(vec![pow(x(), 2), y()]));
+        assert_eq!(f.rewrited_expr(d(d(expr))), sc(c(0)));
+    }
+
+    #[test]
+    fn repeated_atom_and_degree_above_dim_vanish() {
+        let f = GradedCommutativeRewriter::<Plane>::new();
+        assert_eq!(f.rewrited_expr(wedge(vec![dx(), dy(), dx()])), sc(c(0)));
+
+        let dz = d(sc(ElementaryExpr::Symbol(Symbol::new("z"))));
+        let top = wedge(vec![dx(), dy(), dz]);
+        assert_eq!(f.rewrited_expr(top), sc(c(0)));
     }
 }

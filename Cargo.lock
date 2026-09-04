@@ -44,6 +44,7 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "eqn-algebra",
+ "eqn-analysis",
  "eqn-core",
 ]
 
