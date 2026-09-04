@@ -394,11 +394,9 @@ mod tests {
     use super::*;
     use crate::op::{Associative, BinaryOperator, Identity};
 
+    #[derive(Set)]
+    #[set(element = i64)]
     struct IntegerSet;
-
-    impl Set for IntegerSet {
-        type Element = i64;
-    }
 
     #[derive(Associative, Commutative)]
     struct Addition;

@@ -217,11 +217,9 @@ mod tests {
     use super::*;
     use crate::op::BinaryOperator;
 
+    #[derive(Set)]
+    #[set(element = i64)]
     struct TestDomain;
-
-    impl Set for TestDomain {
-        type Element = i64;
-    }
 
     #[derive(Associative, Commutative)]
     struct TestOperator;

@@ -1,10 +1,9 @@
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::set::Set;
 
+#[derive(Set)]
+#[set(element = i64)]
 struct Ints;
-impl Set for Ints {
-    type Element = i64;
-}
 
 #[derive(Associative, Commutative)]
 struct Add;
@@ -20,4 +19,5 @@ fn requires<Op: Associative + Commutative>() {}
 #[test]
 fn derives_marker_traits() {
     requires::<Add>();
+    let _: <Ints as Set>::Element = 1i64;
 }

@@ -600,11 +600,9 @@ impl<R: Ring> From<SemiRingExpr<R>> for RingExpr<R> {
 mod tests {
     use super::*;
 
+    #[derive(Set)]
+    #[set(element = i64)]
     struct TestDomain;
-
-    impl Set for TestDomain {
-        type Element = i64;
-    }
 
     #[derive(Associative, Commutative)]
     struct TestAdd;

@@ -343,10 +343,9 @@ mod tests {
 
     use super::*;
 
+    #[derive(Set)]
+    #[set(element = i64)] // ponytail: i64 stands in for R; swap for a real type when evaluation lands
     struct Reals;
-    impl Set for Reals {
-        type Element = i64; // ponytail: i64 stands in for R; swap for a real type when evaluation lands
-    }
 
     #[derive(Associative, Commutative)]
     struct Add;
