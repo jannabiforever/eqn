@@ -1,0 +1,7 @@
+[package]
+name = "eqn-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+derive-where.workspace = true

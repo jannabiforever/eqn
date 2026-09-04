@@ -2,12 +2,9 @@
 #![feature(min_generic_const_args, macroless_generic_const_args)]
 #![allow(incomplete_features)]
 
+pub use eqn_core::{formatter, map, op, set, symbol};
+
 pub mod differential;
-pub mod formatter;
 pub mod group;
-pub mod map;
 pub mod monoid;
-pub mod op;
 pub mod ring;
-pub mod set;
-pub mod symbol;
