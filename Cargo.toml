@@ -1,8 +1,3 @@
-[package]
-name = "eqn"
-version.workspace = true
-edition.workspace = true
-
 [workspace]
 resolver = "3"
 members = ["crates/*"]
@@ -11,6 +6,8 @@ members = ["crates/*"]
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
-anyhow = "1.0.104"
-thiserror = "2.0.20"
+[workspace.dependencies]
+eqn-core = { path = "crates/eqn-core" }
+eqn-macros = { path = "crates/eqn-macros" }
+eqn-algebra = { path = "crates/eqn-algebra" }
+derive-where = "1.6.1"
