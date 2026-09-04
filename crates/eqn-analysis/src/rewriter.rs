@@ -167,18 +167,6 @@ fn cmp_term<F: Field>(a: &Term<F>, b: &Term<F>) -> std::cmp::Ordering {
         .unwrap_or(a.factors.len().cmp(&b.factors.len()))
 }
 
-/// `n` as an element of the field, by repeated addition of `ONE`.
-///
-/// ponytail: O(|n|); fine for the small integer exponents expression trees
-/// carry.
-fn from_isize<F: Field>(n: isize) -> Elem<F> {
-    let mut acc = F::ZERO;
-    for _ in 0..n.unsigned_abs() {
-        acc = F::add(acc, F::ONE);
-    }
-    if n < 0 { F::negate(acc) } else { acc }
-}
-
 /// Expands the tree into its term list: linearity, `Mul` cartesian product,
 /// integer powers, elementary-function constant folding and `exp∘log`
 /// cancellation, and `D` via [`derivative`]. The result is not yet sorted or
@@ -291,7 +279,10 @@ fn fn_terms<F: Field>(kind: Elementary, arg: ElementaryExpr<F>) -> Vec<Term<F>> 
 /// Symbolic differentiation on the raw tree (no normalization -- `terms`
 /// normalizes the result afterwards). Symbols are independent variables:
 /// `d(other symbol)/dx = 0`.
-fn derivative<F: Field>(expr: ElementaryExpr<F>, wrt: &Symbol<F::Domain>) -> ElementaryExpr<F> {
+pub(crate) fn derivative<F: Field>(
+    expr: ElementaryExpr<F>,
+    wrt: &Symbol<F::Domain>,
+) -> ElementaryExpr<F> {
     use ElementaryExpr::*;
 
     match expr {
@@ -311,8 +302,13 @@ fn derivative<F: Field>(expr: ElementaryExpr<F>, wrt: &Symbol<F::Domain>) -> Ele
             .collect()),
         Pow { base, exponent } => {
             let d_base = derivative(*base.clone(), wrt);
+            let coeff = if exponent < 0 {
+                F::negate(F::from_usize(exponent.unsigned_abs()))
+            } else {
+                F::from_usize(exponent.unsigned_abs())
+            };
             Mul(vec![
-                Const(from_isize::<F>(exponent)),
+                Const(coeff),
                 Pow {
                     base,
                     exponent: exponent - 1,
@@ -548,6 +544,17 @@ mod tests {
             Expr::Mul(vec![c(6), x()])
         );
         assert_eq!(fmt(d(xs(), c(5))), c(0));
+    }
+
+    #[test]
+    fn partial_agrees_with_the_d_route() {
+        use eqn_algebra::differential::DifferentialAlgebra;
+
+        assert_eq!(fmt(x().partial(&xs())), c(1));
+        assert_eq!(
+            fmt(fnc(Elementary::Sin, x()).partial(&xs())),
+            fmt(d(xs(), fnc(Elementary::Sin, x())))
+        );
     }
 
     fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)

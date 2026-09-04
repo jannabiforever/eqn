@@ -1,6 +1,9 @@
 // NOTE: `eqn_core::rewriter` is not re-exported here (unlike `set`/`symbol`)
 // because it would collide with this crate's own private `rewriter` module
 // below.
+use std::ops::{Add, Mul, Neg};
+
+use eqn_algebra::differential::DifferentialAlgebra;
 use eqn_algebra::field::Field;
 use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
@@ -90,5 +93,55 @@ impl<F: Field> From<Symbol<F::Domain>> for ElementaryExpr<F> {
     }
 }
 
+/// Symbolic; builds the tree, does not normalize.
+impl<F: Field> Add for ElementaryExpr<F> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self::Add(vec![self, rhs])
+    }
+}
+
+/// Symbolic; builds the tree, does not normalize.
+impl<F: Field> Mul for ElementaryExpr<F> {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        Self::Mul(vec![self, rhs])
+    }
+}
+
+/// Symbolic; builds the tree, does not normalize.
+impl<F: Field> Neg for ElementaryExpr<F> {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Self::Neg(Box::new(self))
+    }
+}
+
 mod rewriter;
 pub use rewriter::ElementaryRewriter;
+
+impl<F: Field> DifferentialAlgebra for ElementaryExpr<F> {
+    type Constants = F;
+    type Normalizer = ElementaryRewriter<F>;
+
+    fn constant(c: <Self::Domain as Set>::Element) -> Self {
+        Self::Const(c)
+    }
+
+    fn as_constant(&self) -> Option<&<Self::Domain as Set>::Element> {
+        match self {
+            Self::Const(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    /// The eager form of [`ElementaryExpr::D`]: both funnel through
+    /// [`rewriter::derivative`], the same symbolic differentiation the
+    /// rewriter uses to eliminate `D` nodes.
+    fn partial(self, wrt: &Symbol<Self::Domain>) -> Self {
+        rewriter::derivative(self, wrt)
+    }
+}
