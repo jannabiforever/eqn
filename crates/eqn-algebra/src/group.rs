@@ -392,32 +392,15 @@ impl<G: AbelianGroup> Rewriter for AbelianGroupFormatter<G> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::op::{Associative, BinaryOperator, Identity};
+    use crate::op::{Associative, BinaryOperator};
 
     #[derive(Set)]
     #[set(element = i64)]
     struct IntegerSet;
 
-    #[derive(Associative, Commutative)]
+    #[derive(Associative, BinaryOperator, Commutative)]
+    #[operator(domain = IntegerSet, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
     struct Addition;
-
-    impl BinaryOperator for Addition {
-        type Domain = IntegerSet;
-
-        fn apply(a: i64, b: i64) -> i64 {
-            a + b
-        }
-    }
-
-    impl Identity for Addition {
-        const IDENTITY: i64 = 0;
-    }
-
-    impl Inverse for Addition {
-        fn inverse(a: i64) -> i64 {
-            -a
-        }
-    }
 
     type IntegerAdditionGroup = (IntegerSet, Addition);
 

@@ -221,23 +221,9 @@ mod tests {
     #[set(element = i64)]
     struct TestDomain;
 
-    #[derive(Associative, Commutative)]
+    #[derive(Associative, BinaryOperator, Commutative)]
+    #[operator(domain = TestDomain, apply = |a, b| a + b, identity = 0)]
     struct TestOperator;
-
-    impl BinaryOperator for TestOperator {
-        type Domain = TestDomain;
-
-        fn apply(
-            a: <TestDomain as Set>::Element,
-            b: <TestDomain as Set>::Element,
-        ) -> <TestDomain as Set>::Element {
-            a + b
-        }
-    }
-
-    impl Identity for TestOperator {
-        const IDENTITY: <TestDomain as Set>::Element = 0;
-    }
 
     #[test]
     fn test_simplify_op() {

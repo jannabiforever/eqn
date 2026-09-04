@@ -1,4 +1,4 @@
-pub use eqn_macros::{Associative, Commutative};
+pub use eqn_macros::{Associative, BinaryOperator, Commutative};
 
 use crate::set::Set;
 

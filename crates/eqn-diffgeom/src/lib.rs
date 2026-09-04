@@ -339,7 +339,7 @@ impl<M: Manifold> Rewriter for GradedCommutativeFormatter<M> {
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
+    use eqn_core::op::{Associative, BinaryOperator, Commutative};
 
     use super::*;
 
@@ -347,34 +347,13 @@ mod tests {
     #[set(element = i64)] // ponytail: i64 stands in for R; swap for a real type when evaluation lands
     struct Reals;
 
-    #[derive(Associative, Commutative)]
+    #[derive(Associative, BinaryOperator, Commutative)]
+    #[operator(domain = Reals, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
     struct Add;
-    impl BinaryOperator for Add {
-        type Domain = Reals;
-        fn apply(a: i64, b: i64) -> i64 {
-            a + b
-        }
-    }
-    impl Identity for Add {
-        const IDENTITY: i64 = 0;
-    }
-    impl Inverse for Add {
-        fn inverse(a: i64) -> i64 {
-            -a
-        }
-    }
 
-    #[derive(Associative)]
+    #[derive(Associative, BinaryOperator)]
+    #[operator(domain = Reals, apply = |a, b| a * b, identity = 1)]
     struct Mul;
-    impl BinaryOperator for Mul {
-        type Domain = Reals;
-        fn apply(a: i64, b: i64) -> i64 {
-            a * b
-        }
-    }
-    impl Identity for Mul {
-        const IDENTITY: i64 = 1;
-    }
 
     struct RealRing;
     impl SemiRing for RealRing {

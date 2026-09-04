@@ -604,40 +604,13 @@ mod tests {
     #[set(element = i64)]
     struct TestDomain;
 
-    #[derive(Associative, Commutative)]
+    #[derive(Associative, BinaryOperator, Commutative)]
+    #[operator(domain = TestDomain, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
     struct TestAdd;
 
-    impl BinaryOperator for TestAdd {
-        type Domain = TestDomain;
-
-        fn apply(a: i64, b: i64) -> i64 {
-            a + b
-        }
-    }
-
-    impl Identity for TestAdd {
-        const IDENTITY: i64 = 0;
-    }
-    impl Inverse for TestAdd {
-        fn inverse(a: i64) -> i64 {
-            -a
-        }
-    }
-
-    #[derive(Associative, Commutative)]
+    #[derive(Associative, BinaryOperator, Commutative)]
+    #[operator(domain = TestDomain, apply = |a, b| a * b, identity = 1)]
     struct TestMul;
-
-    impl BinaryOperator for TestMul {
-        type Domain = TestDomain;
-
-        fn apply(a: i64, b: i64) -> i64 {
-            a * b
-        }
-    }
-
-    impl Identity for TestMul {
-        const IDENTITY: i64 = 1;
-    }
 
     struct TestSemiRing;
 
