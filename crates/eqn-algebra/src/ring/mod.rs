@@ -42,6 +42,12 @@ pub trait SemiRing {
     ) -> <Self::Domain as Set>::Element {
         <Self::Multiplication as BinaryOperator>::apply(a, b)
     }
+
+    /// `n · ONE`: the image of `n` under the unique semi-ring map from the
+    /// naturals. ponytail: O(n) repeated addition.
+    fn from_usize(n: usize) -> <Self::Domain as Set>::Element {
+        (0..n).fold(Self::ZERO, |acc, _| Self::add(acc, Self::ONE))
+    }
 }
 
 /// A ring: a semi-ring whose addition also has inverses.
@@ -58,6 +64,21 @@ where
     fn negate(a: <Self::Domain as Set>::Element) -> <Self::Domain as Set>::Element {
         <SR::Addition as Inverse>::inverse(a)
     }
+}
+
+/// A ring whose multiplication is also commutative.
+///
+/// In addition to the ring laws, `a * b` must equal `b * a` for every pair of
+/// elements in the domain. [`Commutative`] declares this law.
+pub trait CommutativeRing: Ring<Multiplication: Commutative> {}
+
+/// Classifies every ring with a commutative multiplication as a commutative
+/// ring.
+impl<R> CommutativeRing for R
+where
+    R: Ring,
+    R::Multiplication: Commutative,
+{
 }
 
 /// An expression tree over a semi-ring: constants, named symbols, n-ary sums
@@ -194,5 +215,57 @@ impl<R: Ring> From<SemiRingExpr<R>> for RingExpr<R> {
     }
 }
 
+/// Symbolic; builds the tree, does not normalize.
+impl<R: Ring> std::ops::Add for RingExpr<R> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self::Add(vec![self, rhs])
+    }
+}
+
+/// Symbolic; builds the tree, does not normalize.
+impl<R: Ring> std::ops::Mul for RingExpr<R> {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        Self::Mul(vec![self, rhs])
+    }
+}
+
+/// Symbolic; builds the tree, does not normalize.
+impl<R: Ring> std::ops::Neg for RingExpr<R> {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Self::Neg(Box::new(self))
+    }
+}
+
 mod rewriter;
 pub use rewriter::{CommutativeRingRewriter, RingRewriter, SemiRingRewriter};
+
+// ================================================================================
+// Integers: the canonical test ring
+// ================================================================================
+
+#[derive(Set)]
+#[set(element = i64)]
+pub struct Integers;
+
+#[derive(Associative, BinaryOperator, Commutative)]
+#[operator(domain = Integers, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
+pub struct IntegerAdd;
+
+#[derive(Associative, BinaryOperator, Commutative)]
+#[operator(domain = Integers, apply = |a, b| a * b, identity = 1)]
+pub struct IntegerMul;
+
+/// The canonical test ring. Not a field: `IntegerMul` has no `Inverse`.
+pub struct IntegerRing;
+
+impl SemiRing for IntegerRing {
+    type Domain = Integers;
+    type Addition = IntegerAdd;
+    type Multiplication = IntegerMul;
+}
