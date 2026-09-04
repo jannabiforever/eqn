@@ -227,33 +227,6 @@ impl<R: Ring> From<SemiRingExpr<R>> for RingExpr<R> {
     }
 }
 
-/// Symbolic; builds the tree, does not normalize.
-impl<R: Ring> std::ops::Add for RingExpr<R> {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self {
-        Self::Add(vec![self, rhs])
-    }
-}
-
-/// Symbolic; builds the tree, does not normalize.
-impl<R: Ring> std::ops::Mul for RingExpr<R> {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self {
-        Self::Mul(vec![self, rhs])
-    }
-}
-
-/// Symbolic; builds the tree, does not normalize.
-impl<R: Ring> std::ops::Neg for RingExpr<R> {
-    type Output = Self;
-
-    fn neg(self) -> Self {
-        Self::Neg(Box::new(self))
-    }
-}
-
 // ================================================================================
 // PolynomialRing: the ring formed by RingExpr trees
 // ================================================================================

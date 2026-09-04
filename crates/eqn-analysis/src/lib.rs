@@ -1,8 +1,6 @@
 // NOTE: `eqn_core::rewriter` is not re-exported here (unlike `set`/`symbol`)
 // because it would collide with this crate's own private `rewriter` module
 // below.
-use std::ops::{Add, Mul, Neg};
-
 use eqn_algebra::differential::DifferentialAlgebra;
 use eqn_algebra::field::Field;
 use eqn_algebra::ring::SemiRing;
@@ -92,33 +90,6 @@ impl<F: Field> Expression for ElementaryExpr<F> {
 impl<F: Field> From<Symbol<F::Domain>> for ElementaryExpr<F> {
     fn from(value: Symbol<F::Domain>) -> Self {
         Self::Symbol(value)
-    }
-}
-
-/// Symbolic; builds the tree, does not normalize.
-impl<F: Field> Add for ElementaryExpr<F> {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self {
-        Self::Add(vec![self, rhs])
-    }
-}
-
-/// Symbolic; builds the tree, does not normalize.
-impl<F: Field> Mul for ElementaryExpr<F> {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self {
-        Self::Mul(vec![self, rhs])
-    }
-}
-
-/// Symbolic; builds the tree, does not normalize.
-impl<F: Field> Neg for ElementaryExpr<F> {
-    type Output = Self;
-
-    fn neg(self) -> Self {
-        Self::Neg(Box::new(self))
     }
 }
 
