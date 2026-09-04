@@ -1,6 +1,7 @@
 use super::{Monoid, MonoidExpr};
+use crate::flatten;
 use crate::op::Commutative;
-use crate::rewriter::{Rewriter, flatten};
+use crate::rewriter::Rewriter;
 
 #[derive_where::derive_where(Clone, Copy, Default)]
 pub struct NonCommutativeMonoidRewriter<M> {

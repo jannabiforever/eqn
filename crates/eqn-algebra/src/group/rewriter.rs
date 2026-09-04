@@ -1,5 +1,6 @@
 use super::{AbelianGroup, Group, GroupExpr};
-use crate::rewriter::{Rewriter, flatten};
+use crate::flatten;
+use crate::rewriter::Rewriter;
 use crate::set::Set;
 
 fn cmp_structural<G: Group>(lhs: &GroupExpr<G>, rhs: &GroupExpr<G>) -> std::cmp::Ordering {

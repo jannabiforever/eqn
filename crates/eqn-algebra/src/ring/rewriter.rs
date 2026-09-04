@@ -1,8 +1,9 @@
 use std::num::NonZeroUsize;
 
 use super::{Ring, RingExpr, SemiRing, SemiRingExpr};
+use crate::flatten;
 use crate::op::Commutative;
-use crate::rewriter::{Rewriter, flatten};
+use crate::rewriter::Rewriter;
 use crate::set::Set;
 use crate::symbol::Symbol;
 
