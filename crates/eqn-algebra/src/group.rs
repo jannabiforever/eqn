@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::monoid::Monoid;
 use crate::op::{BinaryOperator, Commutative, Inverse};
-use crate::rewriter::{Expression, Rewriter};
+use crate::rewriter::{Expression, Rewriter, flatten};
 use crate::set::Set;
 use crate::symbol::Symbol;
 
@@ -180,46 +180,58 @@ fn finish<G: Group>(mut exprs: Vec<GroupExpr<G>>) -> GroupExpr<G> {
     }
 }
 
-fn normalize<G: Group>(expr: GroupExpr<G>, commutative: bool) -> GroupExpr<G> {
+/// Moves the expression out, leaving an allocation-free placeholder behind.
+fn take<G: Group>(expr: &mut GroupExpr<G>) -> GroupExpr<G> {
+    std::mem::replace(expr, GroupExpr::Op(Vec::new()))
+}
+
+/// Normalizes in place: leaves are untouched, children are normalized where
+/// they sit, and only nodes whose shape changes are replaced.
+fn normalize<G: Group>(expr: &mut GroupExpr<G>, commutative: bool) {
     match expr {
-        GroupExpr::Const(_) | GroupExpr::Symbol(_) => expr,
-        GroupExpr::Inv(expr) => match normalize(*expr, commutative) {
-            GroupExpr::Const(value) => GroupExpr::Const(G::inverse(value)),
-            GroupExpr::Inv(expr) => *expr,
-            GroupExpr::Pow { base, exponent } => match exponent.checked_neg() {
-                Some(exponent) => normalize(GroupExpr::Pow { base, exponent }, commutative),
-                None => GroupExpr::Inv(Box::new(GroupExpr::Pow { base, exponent })),
-            },
-            GroupExpr::Op(exprs) => normalize(
-                GroupExpr::Op(
-                    exprs
-                        .into_iter()
-                        .rev()
-                        .map(|expr| GroupExpr::Inv(Box::new(expr)))
-                        .collect(),
-                ),
-                commutative,
-            ),
-            expr => GroupExpr::Inv(Box::new(expr)),
-        },
-        GroupExpr::Op(exprs) => {
-            let mut flat = Vec::new();
-            for expr in exprs {
-                match normalize(expr, commutative) {
-                    GroupExpr::Op(inner) => flat.extend(inner),
-                    expr => flat.push(expr),
+        GroupExpr::Const(_) | GroupExpr::Symbol(_) => {}
+        GroupExpr::Inv(inner) => {
+            normalize(inner, commutative);
+            match take(inner) {
+                GroupExpr::Const(value) => *expr = GroupExpr::Const(G::inverse(value)),
+                GroupExpr::Inv(e) => *expr = *e,
+                GroupExpr::Pow { base, exponent } => match exponent.checked_neg() {
+                    Some(exponent) => {
+                        *expr = GroupExpr::Pow { base, exponent };
+                        normalize(expr, commutative);
+                    }
+                    None => **inner = GroupExpr::Pow { base, exponent },
+                },
+                GroupExpr::Op(exprs) => {
+                    *expr = GroupExpr::Op(
+                        exprs
+                            .into_iter()
+                            .rev()
+                            .map(|e| GroupExpr::Inv(Box::new(e)))
+                            .collect(),
+                    );
+                    normalize(expr, commutative);
                 }
+                e => **inner = e,
             }
+        }
+        GroupExpr::Op(exprs) => {
+            exprs.iter_mut().for_each(|e| normalize(e, commutative));
+            let split = |e| match e {
+                GroupExpr::Op(inner) => Ok(inner),
+                e => Err(e),
+            };
+            let flat = flatten(std::mem::take(exprs), split);
 
             if commutative {
                 let mut constant = G::IDENTITY;
                 let mut powers: Vec<(GroupExpr<G>, isize)> = Vec::new();
 
-                for expr in flat {
-                    match expr {
+                for e in flat {
+                    match e {
                         GroupExpr::Const(value) => constant = G::apply(constant, value),
-                        expr => {
-                            let (base, exponent) = split_power(expr);
+                        e => {
+                            let (base, exponent) = split_power(e);
                             if let Some((_, current)) =
                                 powers.iter_mut().find(|(candidate, _)| *candidate == base)
                                 && let Some(exponent) = current.checked_add(exponent)
@@ -244,15 +256,15 @@ fn normalize<G: Group>(expr: GroupExpr<G>, commutative: bool) -> GroupExpr<G> {
                         .into_iter()
                         .map(|(base, exponent)| power(base, exponent)),
                 );
-                finish(out)
+                *expr = finish(out);
             } else {
                 let mut out = Vec::new();
 
-                for expr in flat {
-                    if expr == GroupExpr::Const(G::IDENTITY) {
+                for e in flat {
+                    if e == GroupExpr::Const(G::IDENTITY) {
                         continue;
                     }
-                    match (out.pop(), expr) {
+                    match (out.pop(), e) {
                         (Some(GroupExpr::Const(lhs)), GroupExpr::Const(rhs)) => {
                             let value = G::apply(lhs, rhs);
                             if value != G::IDENTITY {
@@ -287,62 +299,72 @@ fn normalize<G: Group>(expr: GroupExpr<G>, commutative: bool) -> GroupExpr<G> {
                                 out.push(power(rhs, rhs_exponent));
                             }
                         }
-                        (None, expr) => out.push(expr),
+                        (None, e) => out.push(e),
                     }
                 }
 
-                finish(out)
+                *expr = finish(out);
             }
         }
         GroupExpr::Pow { base, exponent } => {
+            let exponent = *exponent;
             if exponent == 0 {
-                return GroupExpr::Const(G::IDENTITY);
+                *expr = GroupExpr::Const(G::IDENTITY);
+                return;
             }
 
-            let base = normalize(*base, commutative);
-            match (base, exponent) {
-                (GroupExpr::Const(base), exponent) => pow_constant::<G>(base, exponent),
-                (base, 1) => base,
-                (base, -1) => normalize(GroupExpr::Inv(Box::new(base)), commutative),
+            normalize(base, commutative);
+            match (take(base), exponent) {
+                (GroupExpr::Const(base), exponent) => *expr = pow_constant::<G>(base, exponent),
+                (base, 1) => *expr = base,
+                (base, -1) => {
+                    *expr = GroupExpr::Inv(Box::new(base));
+                    normalize(expr, commutative);
+                }
                 (
                     GroupExpr::Pow {
-                        base,
+                        base: inner_base,
                         exponent: inner,
                     },
                     outer,
                 ) => match inner.checked_mul(outer) {
-                    Some(exponent) => normalize(GroupExpr::Pow { base, exponent }, commutative),
-                    None => GroupExpr::Pow {
-                        base: Box::new(GroupExpr::Pow {
-                            base,
+                    Some(exponent) => {
+                        *expr = GroupExpr::Pow {
+                            base: inner_base,
+                            exponent,
+                        };
+                        normalize(expr, commutative);
+                    }
+                    None => {
+                        **base = GroupExpr::Pow {
+                            base: inner_base,
                             exponent: inner,
-                        }),
-                        exponent: outer,
-                    },
+                        }
+                    }
                 },
-                (GroupExpr::Inv(base), exponent) => match exponent.checked_neg() {
-                    Some(exponent) => normalize(GroupExpr::Pow { base, exponent }, commutative),
-                    None => GroupExpr::Pow {
-                        base: Box::new(GroupExpr::Inv(base)),
-                        exponent,
-                    },
+                (GroupExpr::Inv(inner_base), exponent) => match exponent.checked_neg() {
+                    Some(exponent) => {
+                        *expr = GroupExpr::Pow {
+                            base: inner_base,
+                            exponent,
+                        };
+                        normalize(expr, commutative);
+                    }
+                    None => **base = GroupExpr::Inv(inner_base),
                 },
-                (GroupExpr::Op(exprs), exponent) if commutative => normalize(
-                    GroupExpr::Op(
+                (GroupExpr::Op(exprs), exponent) if commutative => {
+                    *expr = GroupExpr::Op(
                         exprs
                             .into_iter()
-                            .map(|base| GroupExpr::Pow {
-                                base: Box::new(base),
+                            .map(|b| GroupExpr::Pow {
+                                base: Box::new(b),
                                 exponent,
                             })
                             .collect(),
-                    ),
-                    true,
-                ),
-                (base, exponent) => GroupExpr::Pow {
-                    base: Box::new(base),
-                    exponent,
-                },
+                    );
+                    normalize(expr, true);
+                }
+                (b, _) => **base = b,
             }
         }
     }
@@ -363,8 +385,8 @@ impl<G: Group> GroupFormatter<G> {
 impl<G: Group> Rewriter for GroupFormatter<G> {
     type Expr = GroupExpr<G>;
 
-    fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
-        normalize(expr, false)
+    fn rewrite_expr(&self, expr: &mut Self::Expr) {
+        normalize(expr, false);
     }
 }
 
@@ -384,8 +406,8 @@ impl<G: AbelianGroup> AbelianGroupFormatter<G> {
 impl<G: AbelianGroup> Rewriter for AbelianGroupFormatter<G> {
     type Expr = GroupExpr<G>;
 
-    fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
-        normalize(expr, true)
+    fn rewrite_expr(&self, expr: &mut Self::Expr) {
+        normalize(expr, true);
     }
 }
 
@@ -440,80 +462,6 @@ mod tests {
     type Expr = GroupExpr<IntegerAdditionGroup>;
 
     #[test]
-    fn group_formatter_preserves_order_and_reduces_inverses() {
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
-        let expr = Expr::Op(vec![
-            Expr::Const(1),
-            Expr::Const(2),
-            Expr::Symbol(x.clone()),
-            Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
-            Expr::Inv(Box::new(Expr::Op(vec![
-                Expr::Symbol(x.clone()),
-                Expr::Symbol(y.clone()),
-            ]))),
-        ]);
-
-        assert!(
-            GroupFormatter::new().format_expr(expr)
-                == Expr::Op(vec![
-                    Expr::Const(3),
-                    Expr::Inv(Box::new(Expr::Symbol(y))),
-                    Expr::Inv(Box::new(Expr::Symbol(x))),
-                ])
-        );
-    }
-
-    #[test]
-    fn abelian_group_formatter_sorts_and_cancels_globally() {
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
-        let expr = Expr::Op(vec![
-            Expr::Symbol(y.clone()),
-            Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
-            Expr::Const(2),
-            Expr::Symbol(x.clone()),
-            Expr::Inv(Box::new(Expr::Symbol(y))),
-            Expr::Symbol(x.clone()),
-            Expr::Const(-2),
-        ]);
-
-        assert!(AbelianGroupFormatter::new().format_expr(expr) == Expr::Symbol(x));
-    }
-
-    #[test]
-    fn only_abelian_formatter_reduces_commutators() {
-        let a = Symbol::new("a");
-        let b = Symbol::new("b");
-        let commutator = Expr::Op(vec![
-            Expr::Symbol(a.clone()),
-            Expr::Symbol(b.clone()),
-            Expr::Pow {
-                base: Box::new(Expr::Symbol(a.clone())),
-                exponent: -1,
-            },
-            Expr::Pow {
-                base: Box::new(Expr::Symbol(b.clone())),
-                exponent: -1,
-            },
-        ]);
-
-        assert!(
-            GroupFormatter::new().format_expr(commutator.clone())
-                == Expr::Op(vec![
-                    Expr::Symbol(a.clone()),
-                    Expr::Symbol(b.clone()),
-                    Expr::Inv(Box::new(Expr::Symbol(a))),
-                    Expr::Inv(Box::new(Expr::Symbol(b))),
-                ])
-        );
-        assert!(
-            AbelianGroupFormatter::new().format_expr(commutator)
-                == Expr::Const(IntegerAdditionGroup::IDENTITY)
-        );
-    }
-
-    #[test]
     fn group_expression_supports_substitution() {
         let x = Symbol::new("x");
         let y = Symbol::new("y");
@@ -543,14 +491,91 @@ mod tests {
         );
     }
 
+    use crate::monoid::Monoid;
+    use crate::symbol::Symbol;
+
     #[test]
-    fn group_formatter_folds_constant_and_double_inverses() {
+    fn group_rewriter_preserves_order_and_reduces_inverses() {
+        let x = Symbol::new("x");
+        let y = Symbol::new("y");
+        let expr = Expr::Op(vec![
+            Expr::Const(1),
+            Expr::Const(2),
+            Expr::Symbol(x.clone()),
+            Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
+            Expr::Inv(Box::new(Expr::Op(vec![
+                Expr::Symbol(x.clone()),
+                Expr::Symbol(y.clone()),
+            ]))),
+        ]);
+
+        assert!(
+            GroupFormatter::new().rewrited_expr(expr)
+                == Expr::Op(vec![
+                    Expr::Const(3),
+                    Expr::Inv(Box::new(Expr::Symbol(y))),
+                    Expr::Inv(Box::new(Expr::Symbol(x))),
+                ])
+        );
+    }
+
+    #[test]
+    fn abelian_group_rewriter_sorts_and_cancels_globally() {
+        let x = Symbol::new("x");
+        let y = Symbol::new("y");
+        let expr = Expr::Op(vec![
+            Expr::Symbol(y.clone()),
+            Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
+            Expr::Const(2),
+            Expr::Symbol(x.clone()),
+            Expr::Inv(Box::new(Expr::Symbol(y))),
+            Expr::Symbol(x.clone()),
+            Expr::Const(-2),
+        ]);
+
+        assert!(AbelianGroupFormatter::new().rewrited_expr(expr) == Expr::Symbol(x));
+    }
+
+    #[test]
+    fn only_abelian_rewriter_reduces_commutators() {
+        let a = Symbol::new("a");
+        let b = Symbol::new("b");
+        let commutator = Expr::Op(vec![
+            Expr::Symbol(a.clone()),
+            Expr::Symbol(b.clone()),
+            Expr::Pow {
+                base: Box::new(Expr::Symbol(a.clone())),
+                exponent: -1,
+            },
+            Expr::Pow {
+                base: Box::new(Expr::Symbol(b.clone())),
+                exponent: -1,
+            },
+        ]);
+
+        assert!(
+            GroupFormatter::new().rewrited_expr(commutator.clone())
+                == Expr::Op(vec![
+                    Expr::Symbol(a.clone()),
+                    Expr::Symbol(b.clone()),
+                    Expr::Inv(Box::new(Expr::Symbol(a))),
+                    Expr::Inv(Box::new(Expr::Symbol(b))),
+                ])
+        );
+        assert!(
+            AbelianGroupFormatter::new().rewrited_expr(commutator)
+                == Expr::Const(IntegerAdditionGroup::IDENTITY)
+        );
+    }
+
+    #[test]
+    fn group_rewriter_folds_constant_and_double_inverses() {
         let x = Symbol::new("x");
         let formatter = GroupFormatter::new();
 
-        assert!(formatter.format_expr(Expr::Inv(Box::new(Expr::Const(3)))) == Expr::Const(-3));
+        assert!(formatter.rewrited_expr(Expr::Inv(Box::new(Expr::Const(3)))) == Expr::Const(-3));
         assert!(
-            formatter.format_expr(Expr::Inv(Box::new(Expr::Inv(Box::new(Expr::Symbol(
+            formatter.rewrited_expr(Expr::Inv(Box::new(Expr::Inv(Box::new(Expr::Symbol(
                 x.clone(),
             ))))))
                 == Expr::Symbol(x)
@@ -558,24 +583,24 @@ mod tests {
     }
 
     #[test]
-    fn group_formatter_normalizes_powers() {
+    fn group_rewriter_normalizes_powers() {
         let x = Symbol::new("x");
         let formatter = GroupFormatter::new();
 
         assert!(
-            formatter.format_expr(Expr::Pow {
+            formatter.rewrited_expr(Expr::Pow {
                 base: Box::new(Expr::Const(3)),
                 exponent: -3,
             }) == Expr::Const(-9)
         );
         assert!(
-            formatter.format_expr(Expr::Pow {
+            formatter.rewrited_expr(Expr::Pow {
                 base: Box::new(Expr::Symbol(x.clone())),
                 exponent: 0,
             }) == Expr::Const(0)
         );
         assert!(
-            formatter.format_expr(Expr::Pow {
+            formatter.rewrited_expr(Expr::Pow {
                 base: Box::new(Expr::Pow {
                     base: Box::new(Expr::Symbol(x.clone())),
                     exponent: 3,
@@ -587,7 +612,7 @@ mod tests {
             }
         );
         assert!(
-            formatter.format_expr(Expr::Inv(Box::new(Expr::Pow {
+            formatter.rewrited_expr(Expr::Inv(Box::new(Expr::Pow {
                 base: Box::new(Expr::Symbol(x.clone())),
                 exponent: 2,
             }))) == Expr::Pow {
@@ -598,7 +623,7 @@ mod tests {
     }
 
     #[test]
-    fn group_formatters_combine_powers_where_allowed() {
+    fn group_rewriters_combine_powers_where_allowed() {
         let x = Symbol::new("x");
         let y = Symbol::new("y");
 
@@ -615,7 +640,7 @@ mod tests {
             Expr::Symbol(x.clone()),
         ]);
         assert!(
-            GroupFormatter::new().format_expr(non_commutative)
+            GroupFormatter::new().rewrited_expr(non_commutative)
                 == Expr::Op(vec![
                     Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
                     Expr::Symbol(y.clone()),
@@ -636,7 +661,7 @@ mod tests {
             Expr::Symbol(y.clone()),
         ]);
         assert!(
-            AbelianGroupFormatter::new().format_expr(abelian)
+            AbelianGroupFormatter::new().rewrited_expr(abelian)
                 == Expr::Op(vec![
                     Expr::Pow {
                         base: Box::new(Expr::Symbol(x)),
@@ -651,7 +676,7 @@ mod tests {
     }
 
     #[test]
-    fn only_abelian_formatter_distributes_powers_over_products() {
+    fn only_abelian_rewriter_distributes_powers_over_products() {
         let x = Symbol::new("x");
         let y = Symbol::new("y");
         let expr = Expr::Pow {
@@ -664,7 +689,7 @@ mod tests {
         };
 
         assert!(
-            GroupFormatter::new().format_expr(expr.clone())
+            GroupFormatter::new().rewrited_expr(expr.clone())
                 == Expr::Pow {
                     base: Box::new(Expr::Op(vec![
                         Expr::Const(2),
@@ -675,7 +700,7 @@ mod tests {
                 }
         );
         assert!(
-            AbelianGroupFormatter::new().format_expr(expr)
+            AbelianGroupFormatter::new().rewrited_expr(expr)
                 == Expr::Op(vec![
                     Expr::Const(6),
                     Expr::Pow {

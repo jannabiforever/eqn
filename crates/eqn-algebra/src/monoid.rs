@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::op::{Associative, BinaryOperator, Commutative, Identity};
-use crate::rewriter::{Expression, Rewriter};
+use crate::rewriter::{Expression, Rewriter, flatten};
 use crate::set::Set;
 use crate::symbol::Symbol;
 
@@ -107,44 +107,47 @@ impl<M: Monoid> NonCommutativeMonoidFormatter<M> {
 impl<M: Monoid> Rewriter for NonCommutativeMonoidFormatter<M> {
     type Expr = MonoidExpr<M>;
 
-    fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
-        match expr {
-            MonoidExpr::Const(_) | MonoidExpr::Symbol(_) => expr,
-            MonoidExpr::Op(exprs) => {
-                let mut stack: Vec<MonoidExpr<M>> = Vec::new();
+    fn rewrite_expr(&self, expr: &mut Self::Expr) {
+        normalize_noncommutative(expr);
+    }
+}
 
-                for expr in exprs {
-                    let items = match self.format_expr(expr) {
-                        MonoidExpr::Op(inner) => inner,
-                        e => vec![e],
-                    };
-                    for item in items {
-                        if item == MonoidExpr::Const(M::IDENTITY) {
-                            continue;
-                        }
-                        match (item, stack.pop()) {
-                            (MonoidExpr::Const(s), Some(MonoidExpr::Const(t))) => {
-                                stack.push(MonoidExpr::Const(M::apply(t, s)))
-                            }
-                            (item, popped) => {
-                                if let Some(p) = popped {
-                                    stack.push(p);
-                                }
-                                stack.push(item);
-                            }
-                        }
-                    }
-                }
+fn finish<M: Monoid>(mut exprs: Vec<MonoidExpr<M>>) -> MonoidExpr<M> {
+    match exprs.len() {
+        // NOTE: empty op simplifies to identity to keep the interface total.
+        0 => MonoidExpr::Const(M::IDENTITY),
+        1 => exprs.pop().unwrap(),
+        _ => MonoidExpr::Op(exprs),
+    }
+}
 
-                match stack.len() {
-                    // NOTE: empty op simplifies to identity to keep the interface total.
-                    0 => MonoidExpr::Const(M::IDENTITY),
-                    1 => stack.pop().unwrap(),
-                    _ => MonoidExpr::Op(stack),
-                }
+fn normalize_noncommutative<M: Monoid>(expr: &mut MonoidExpr<M>) {
+    let MonoidExpr::Op(exprs) = expr else {
+        return;
+    };
+    exprs.iter_mut().for_each(normalize_noncommutative);
+
+    let mut stack: Vec<MonoidExpr<M>> = Vec::with_capacity(exprs.len());
+    let split = |e| match e {
+        MonoidExpr::Op(inner) => Ok(inner),
+        e => Err(e),
+    };
+    for item in flatten(std::mem::take(exprs), split) {
+        if item == MonoidExpr::Const(M::IDENTITY) {
+            continue;
+        }
+        match (item, stack.pop()) {
+            (MonoidExpr::Const(s), Some(MonoidExpr::Const(t))) => {
+                stack.push(MonoidExpr::Const(M::apply(t, s)))
+            }
+            (item, popped) => {
+                stack.extend(popped);
+                stack.push(item);
             }
         }
     }
+
+    *expr = finish(stack);
 }
 
 /// Simplifies to a canonical form, additionally using commutativity:
@@ -176,46 +179,52 @@ where
 {
     type Expr = MonoidExpr<M>;
 
-    fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
-        match expr {
-            MonoidExpr::Const(_) | MonoidExpr::Symbol(_) => expr,
-            MonoidExpr::Op(exprs) => {
-                let mut acc = M::IDENTITY;
-                let mut syms = Vec::new();
+    fn rewrite_expr(&self, expr: &mut Self::Expr) {
+        normalize_commutative(expr);
+    }
+}
 
-                // Worklist instead of recursion for nested ops; visiting
-                // order is irrelevant under commutativity.
-                let mut work = exprs;
-                while let Some(expr) = work.pop() {
-                    match self.format_expr(expr) {
-                        MonoidExpr::Const(c) => acc = M::apply(acc, c),
-                        MonoidExpr::Symbol(s) => syms.push(s),
-                        MonoidExpr::Op(inner) => work.extend(inner),
-                    }
-                }
+fn normalize_commutative<M>(expr: &mut MonoidExpr<M>)
+where
+    M: Monoid,
+    M::Operator: Commutative,
+{
+    let MonoidExpr::Op(exprs) = expr else {
+        return;
+    };
+    let mut acc = M::IDENTITY;
+    let mut syms = Vec::new();
 
-                syms.sort();
-
-                let mut out = Vec::new();
-                if syms.is_empty() || acc != M::IDENTITY {
-                    out.push(MonoidExpr::Const(acc));
-                }
-                out.extend(syms.into_iter().map(MonoidExpr::Symbol));
-
-                if out.len() == 1 {
-                    out.into_iter().next().unwrap()
-                } else {
-                    MonoidExpr::Op(out)
-                }
-            }
+    // Worklist instead of recursion: nested ops are spliced in, so no child
+    // needs its own normalization pass. Visiting order is irrelevant under
+    // commutativity.
+    let mut work = std::mem::take(exprs);
+    while let Some(e) = work.pop() {
+        match e {
+            MonoidExpr::Const(c) => acc = M::apply(acc, c),
+            MonoidExpr::Symbol(s) => syms.push(s),
+            MonoidExpr::Op(inner) => work.extend(inner),
         }
     }
+
+    syms.sort();
+
+    // `work` is drained; reuse its buffer for the output.
+    let mut out = work;
+    if syms.is_empty() || acc != M::IDENTITY {
+        out.push(MonoidExpr::Const(acc));
+    }
+    out.extend(syms.into_iter().map(MonoidExpr::Symbol));
+
+    *expr = finish(out);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::op::BinaryOperator;
+    use crate::op::{Associative, BinaryOperator};
+    use crate::set::Set;
+    use crate::symbol::Symbol;
 
     #[derive(Set)]
     #[set(element = i64)]
@@ -233,7 +242,7 @@ mod tests {
             MonoidExpr::Const(2),
             MonoidExpr::Symbol(x.clone()),
         ]);
-        let simplified = NonCommutativeMonoidFormatter::new().format_expr(expr);
+        let simplified = NonCommutativeMonoidFormatter::new().rewrited_expr(expr);
 
         assert!(simplified == MonoidExpr::Op(vec![MonoidExpr::Const(3), MonoidExpr::Symbol(x),]));
     }
@@ -250,7 +259,7 @@ mod tests {
             MonoidExpr::Const(4),
             MonoidExpr::Symbol(x.clone()),
         ]);
-        let simplified = CommutativeMonoidFormatter::new().format_expr(expr);
+        let simplified = CommutativeMonoidFormatter::new().rewrited_expr(expr);
 
         assert!(
             simplified

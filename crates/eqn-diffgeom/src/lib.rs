@@ -264,8 +264,11 @@ fn terms<M: Manifold>(expr: DifferentialForm<M>) -> Vec<Term<M>> {
 /// Canonical form: a sum of terms, each a scalar times a wedge of atoms.
 /// Terms of degree above `M::DIM` vanish. With `canonical`, wedge factors
 /// are sorted by graded commutativity and like terms are collected.
-fn normalize<M: Manifold>(expr: DifferentialForm<M>, canonical: bool) -> DifferentialForm<M> {
-    let mut ts: Vec<Term<M>> = terms(expr)
+fn normalize<M: Manifold>(expr: &mut DifferentialForm<M>, canonical: bool) {
+    // The canonical form is a flat term list, so the tree is consumed and
+    // rebuilt rather than edited in place.
+    let taken = std::mem::replace(expr, DifferentialForm::Add(Vec::new()));
+    let mut ts: Vec<Term<M>> = terms(taken)
         .into_iter()
         .filter(|t| t.degree() <= M::DIM)
         .collect();
@@ -286,11 +289,11 @@ fn normalize<M: Manifold>(expr: DifferentialForm<M>, canonical: bool) -> Differe
     }
 
     ts.retain(|t| t.coeff != <M::Scalar as SemiRing>::ZERO);
-    match ts.len() {
+    *expr = match ts.len() {
         0 => DifferentialForm::Const(<M::Scalar as SemiRing>::ZERO),
         1 => ts.pop().unwrap().into_form(),
         _ => DifferentialForm::Add(ts.into_iter().map(Term::into_form).collect()),
-    }
+    };
 }
 
 /// Normalizes by the exterior-algebra laws that need no ordering: linearity,
@@ -310,8 +313,8 @@ impl<M: Manifold> ExteriorFormatter<M> {
 impl<M: Manifold> Rewriter for ExteriorFormatter<M> {
     type Expr = DifferentialForm<M>;
 
-    fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
-        normalize(expr, false)
+    fn rewrite_expr(&self, expr: &mut Self::Expr) {
+        normalize(expr, false);
     }
 }
 
@@ -332,8 +335,8 @@ impl<M: Manifold> GradedCommutativeFormatter<M> {
 impl<M: Manifold> Rewriter for GradedCommutativeFormatter<M> {
     type Expr = DifferentialForm<M>;
 
-    fn format_expr(&self, expr: Self::Expr) -> Self::Expr {
-        normalize(expr, true)
+    fn rewrite_expr(&self, expr: &mut Self::Expr) {
+        normalize(expr, true);
     }
 }
 
@@ -402,6 +405,7 @@ mod tests {
         );
         assert_eq!(omega.degrees_of_freedom(), 1);
     }
+
     fn xy() -> Chart<Plane> {
         Chart::new([Symbol::new("x"), Symbol::new("y")])
     }
@@ -418,11 +422,11 @@ mod tests {
     fn d_squared_and_d_const_vanish() {
         let f = ExteriorFormatter::<Plane>::new();
         assert_eq!(
-            f.format_expr(d(xy().differential(0).unwrap())),
+            f.rewrited_expr(d(xy().differential(0).unwrap())),
             DifferentialForm::Const(0)
         );
         assert_eq!(
-            f.format_expr(d(DifferentialForm::Const(7))),
+            f.rewrited_expr(d(DifferentialForm::Const(7))),
             DifferentialForm::Const(0)
         );
     }
@@ -439,12 +443,12 @@ mod tests {
         let f = ExteriorFormatter::<Plane>::new();
         // d(x ∧ dy) = dx ∧ dy
         assert_eq!(
-            f.format_expr(d(wedge(vec![x, dy.clone()]))),
+            f.rewrited_expr(d(wedge(vec![x, dy.clone()]))),
             wedge(vec![dx.clone(), dy.clone()])
         );
         // d(dx ∧ y) = -(dx ∧ dy), no reordering in the plain formatter
         assert_eq!(
-            f.format_expr(d(wedge(vec![dx.clone(), y]))),
+            f.rewrited_expr(d(wedge(vec![dx.clone(), y]))),
             wedge(vec![DifferentialForm::Const(-1), dx, dy])
         );
     }
@@ -459,7 +463,7 @@ mod tests {
         );
         let f = ExteriorFormatter::<Plane>::new();
         assert_eq!(
-            f.format_expr(wedge(vec![dy.clone(), dx.clone()])),
+            f.rewrited_expr(wedge(vec![dy.clone(), dx.clone()])),
             wedge(vec![dy.clone(), dx.clone()])
         );
         // 2 ∧ (x + dy) ∧ dx = 2 x ∧ dx + 2 dy ∧ dx
@@ -469,7 +473,7 @@ mod tests {
             dx.clone(),
         ]);
         assert_eq!(
-            f.format_expr(e),
+            f.rewrited_expr(e),
             DifferentialForm::Add(vec![
                 wedge(vec![DifferentialForm::Const(2), x, dx.clone()]),
                 wedge(vec![DifferentialForm::Const(2), dy, dx]),
@@ -484,23 +488,23 @@ mod tests {
         let f = GradedCommutativeFormatter::<Plane>::new();
         // dy ∧ dx = -(dx ∧ dy)
         assert_eq!(
-            f.format_expr(wedge(vec![dy.clone(), dx.clone()])),
+            f.rewrited_expr(wedge(vec![dy.clone(), dx.clone()])),
             wedge(vec![DifferentialForm::Const(-1), dx.clone(), dy.clone()])
         );
         // dx ∧ dx = 0
         assert_eq!(
-            f.format_expr(wedge(vec![dx.clone(), dx.clone()])),
+            f.rewrited_expr(wedge(vec![dx.clone(), dx.clone()])),
             DifferentialForm::Const(0)
         );
         // dx ∧ dy + dy ∧ dx = 0 ; dx ∧ dy + dx ∧ dy = 2 dx ∧ dy
         let a = wedge(vec![dx.clone(), dy.clone()]);
         let b = wedge(vec![dy.clone(), dx.clone()]);
         assert_eq!(
-            f.format_expr(DifferentialForm::Add(vec![a.clone(), b])),
+            f.rewrited_expr(DifferentialForm::Add(vec![a.clone(), b])),
             DifferentialForm::Const(0)
         );
         assert_eq!(
-            f.format_expr(DifferentialForm::Add(vec![a.clone(), a])),
+            f.rewrited_expr(DifferentialForm::Add(vec![a.clone(), a])),
             wedge(vec![DifferentialForm::Const(2), dx, dy])
         );
     }
@@ -515,7 +519,7 @@ mod tests {
             dz,
         ]);
         assert_eq!(
-            ExteriorFormatter::<Plane>::new().format_expr(top),
+            ExteriorFormatter::<Plane>::new().rewrited_expr(top),
             DifferentialForm::Const(0)
         );
     }
