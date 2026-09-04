@@ -345,6 +345,7 @@ mod tests {
         type Element = i64; // ponytail: i64 stands in for R; swap for a real type when evaluation lands
     }
 
+    #[derive(AssociativeOperator, CommutativeOperator)]
     struct Add;
     impl BinaryOperator for Add {
         type Domain = Reals;
@@ -352,8 +353,6 @@ mod tests {
             a + b
         }
     }
-    impl AssociativeOperator for Add {}
-    impl CommutativeOperator for Add {}
     impl IdentityOperator for Add {
         const IDENTITY: i64 = 0;
     }
@@ -363,6 +362,7 @@ mod tests {
         }
     }
 
+    #[derive(AssociativeOperator)]
     struct Mul;
     impl BinaryOperator for Mul {
         type Domain = Reals;
@@ -370,7 +370,6 @@ mod tests {
             a * b
         }
     }
-    impl AssociativeOperator for Mul {}
     impl IdentityOperator for Mul {
         const IDENTITY: i64 = 1;
     }

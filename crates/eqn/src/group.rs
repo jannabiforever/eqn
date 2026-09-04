@@ -400,6 +400,7 @@ mod tests {
         type Element = i64;
     }
 
+    #[derive(AssociativeOperator, CommutativeOperator)]
     struct Addition;
 
     impl BinaryOperator for Addition {
@@ -409,10 +410,6 @@ mod tests {
             a + b
         }
     }
-
-    impl AssociativeOperator for Addition {}
-
-    impl CommutativeOperator for Addition {}
 
     impl IdentityOperator for Addition {
         const IDENTITY: i64 = 0;

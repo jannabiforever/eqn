@@ -26,6 +26,16 @@ name = "eqn-core"
 version = "0.1.0"
 dependencies = [
  "derive-where",
+ "eqn-macros",
+]
+
+[[package]]
+name = "eqn-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

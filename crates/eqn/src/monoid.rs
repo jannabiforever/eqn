@@ -223,6 +223,7 @@ mod tests {
         type Element = i64;
     }
 
+    #[derive(AssociativeOperator, CommutativeOperator)]
     struct TestOperator;
 
     impl BinaryOperator for TestOperator {
@@ -239,10 +240,6 @@ mod tests {
     impl IdentityOperator for TestOperator {
         const IDENTITY: <TestDomain as Set>::Element = 0;
     }
-
-    impl AssociativeOperator for TestOperator {}
-
-    impl CommutativeOperator for TestOperator {}
 
     #[test]
     fn test_simplify_op() {

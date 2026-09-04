@@ -5,3 +5,4 @@ edition.workspace = true
 
 [dependencies]
 derive-where.workspace = true
+eqn-macros.workspace = true

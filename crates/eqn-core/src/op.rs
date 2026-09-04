@@ -1,3 +1,5 @@
+pub use eqn_macros::{AssociativeOperator, CommutativeOperator};
+
 use crate::set::Set;
 
 // ================================================================================

@@ -614,6 +614,7 @@ mod tests {
         type Element = i64;
     }
 
+    #[derive(AssociativeOperator, CommutativeOperator)]
     struct TestAdd;
 
     impl BinaryOperator for TestAdd {
@@ -624,8 +625,6 @@ mod tests {
         }
     }
 
-    impl AssociativeOperator for TestAdd {}
-    impl CommutativeOperator for TestAdd {}
     impl IdentityOperator for TestAdd {
         const IDENTITY: i64 = 0;
     }
@@ -635,6 +634,7 @@ mod tests {
         }
     }
 
+    #[derive(AssociativeOperator, CommutativeOperator)]
     struct TestMul;
 
     impl BinaryOperator for TestMul {
@@ -645,8 +645,6 @@ mod tests {
         }
     }
 
-    impl AssociativeOperator for TestMul {}
-    impl CommutativeOperator for TestMul {}
     impl IdentityOperator for TestMul {
         const IDENTITY: i64 = 1;
     }
