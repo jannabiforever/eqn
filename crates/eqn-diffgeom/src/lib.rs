@@ -4,10 +4,8 @@
 
 use std::collections::HashSet;
 
-use eqn_algebra::differential::DifferentialAlgebra;
-use eqn_algebra::ring::SemiRing;
+use eqn_algebra::ring::{DifferentialRing, Element};
 use eqn_core::rewriter::Expression;
-use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
 pub const WEDGE_CHAR: char = '\u{2227}';
@@ -15,24 +13,20 @@ pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
 
 /// A manifold is known to the library through its ring of functions.
 pub trait Manifold {
-    /// The 0-forms
-    type Functions: DifferentialAlgebra;
+    /// The ring of 0-forms, with `∂/∂xⁱ` along the coordinates a [`Chart`]
+    /// names.
+    type Functions: DifferentialRing;
 
     type const DIM: usize;
 }
 
 /// A 0-form on the manifold `M`: an element of `M::Functions`, represented
 /// by an expression tree.
-pub type ZeroForm<M> = <<<M as Manifold>::Functions as SemiRing>::Domain as Set>::Element;
+pub type ZeroForm<M> = Element<<M as Manifold>::Functions>;
 
-/// The constants of the manifold `M`'s ring of functions.
-pub type Constants<M> = <<M as Manifold>::Functions as DifferentialAlgebra>::Constants;
-
-/// A coordinate symbol on the manifold `M`.
-pub type Coordinate<M> = Symbol<<Constants<M> as SemiRing>::Domain>;
-
-/// An element of the scalar ring of the manifold `M`.
-pub type Scalar<M> = <<Constants<M> as SemiRing>::Domain as Set>::Element;
+/// A coordinate on the manifold `M`: names one of `M::Functions`'s
+/// derivations.
+pub type Coordinate<M> = <<M as Manifold>::Functions as DifferentialRing>::Index;
 
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq; ZeroForm<M>)]
 pub enum DifferentialForm<M: Manifold> {
@@ -44,19 +38,13 @@ pub enum DifferentialForm<M: Manifold> {
     Differential(Box<Self>),
 }
 
-impl<M: Manifold> DifferentialForm<M> {
-    pub fn constant(c: Scalar<M>) -> Self {
-        Self::Scalar(M::Functions::constant(c))
-    }
-}
-
-impl<M: Manifold> From<Coordinate<M>> for DifferentialForm<M> {
-    fn from(value: Coordinate<M>) -> Self {
-        Self::Scalar(ZeroForm::<M>::from(value))
-    }
-}
-
-impl<M: Manifold> Expression for DifferentialForm<M> {
+/// Substitution is available whenever the 0-forms are themselves expression
+/// trees; `Expression` is implemented on `DifferentialForm<M>` under that
+/// condition.
+impl<M: Manifold> Expression for DifferentialForm<M>
+where
+    ZeroForm<M>: Expression,
+{
     type Domain = <ZeroForm<M> as Expression>::Domain;
 
     fn children(&self) -> &[Self] {
@@ -114,7 +102,17 @@ impl<M: Manifold> Expression for DifferentialForm<M> {
     }
 }
 
-/// A coordinate chart
+impl<M: Manifold> From<Symbol<<ZeroForm<M> as Expression>::Domain>> for DifferentialForm<M>
+where
+    ZeroForm<M>: Expression,
+{
+    fn from(value: Symbol<<ZeroForm<M> as Expression>::Domain>) -> Self {
+        Self::Scalar(ZeroForm::<M>::from(value))
+    }
+}
+
+/// A coordinate chart: names, for each position `i`, the derivation `∂_i`
+/// and the coordinate function `xⁱ`. The contract is `∂_i xʲ = δ_ij`.
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq; Coordinate<M>)]
 pub struct Chart<M: Manifold> {
     coordinates: [Coordinate<M>; M::DIM],
@@ -128,10 +126,19 @@ impl<M: Manifold> Chart<M> {
     pub fn coordinates(&self) -> &[Coordinate<M>; M::DIM] {
         &self.coordinates
     }
+}
 
+impl<M: Manifold> Chart<M>
+where
+    ZeroForm<M>: From<Coordinate<M>>,
+    Coordinate<M>: Clone,
+{
     /// `x^i` as a 0-form.
     pub fn coordinate(&self, i: usize) -> Option<DifferentialForm<M>> {
-        self.coordinates.get(i).cloned().map(DifferentialForm::from)
+        self.coordinates
+            .get(i)
+            .cloned()
+            .map(|c| DifferentialForm::Scalar(ZeroForm::<M>::from(c)))
     }
 
     /// `dx^i`.
@@ -148,7 +155,7 @@ pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
 mod tests {
     use eqn_algebra::field::{Rational, RationalField};
     use eqn_algebra::ring::{IntegerRing, PolynomialRing};
-    use eqn_analysis::{ElementaryExpr, ElementaryFunctionAlgebra, ElementaryRewriter};
+    use eqn_analysis::{ElementaryExpr, ElementaryFunctionRing, ElementaryRewriter};
     use eqn_core::rewriter::Rewriter;
 
     use super::*;
@@ -156,7 +163,7 @@ mod tests {
     #[derive(Debug)]
     pub(super) struct Plane;
     impl Manifold for Plane {
-        type Functions = ElementaryFunctionAlgebra<RationalField>;
+        type Functions = ElementaryFunctionRing<RationalField>;
         type const DIM: usize = 2;
     }
 
@@ -165,6 +172,10 @@ mod tests {
     impl Manifold for IntPlane {
         type Functions = PolynomialRing<IntegerRing>;
         type const DIM: usize = 2;
+    }
+
+    fn constant(c: Rational) -> DifferentialForm<Plane> {
+        DifferentialForm::Scalar(ElementaryExpr::Const(c))
     }
 
     #[test]
@@ -192,17 +203,12 @@ mod tests {
         assert_eq!(omega.degrees_of_freedom(), 2);
 
         // θ := 3  ⇒  r ∧ d3
-        omega.substitute(
-            Symbol::new("θ"),
-            &DifferentialForm::constant(Rational::from(3)),
-        );
+        omega.substitute(Symbol::new("θ"), &constant(Rational::from(3)));
         assert_eq!(
             omega,
             DifferentialForm::Wedged(vec![
                 polar.coordinate(0).unwrap(),
-                DifferentialForm::Differential(Box::new(DifferentialForm::constant(
-                    Rational::from(3)
-                ))),
+                DifferentialForm::Differential(Box::new(constant(Rational::from(3)))),
             ])
         );
         assert_eq!(omega.degrees_of_freedom(), 1);
@@ -229,10 +235,7 @@ mod tests {
         assert_eq!(omega.degrees_of_freedom(), 2);
 
         // y := 3  ⇒  (x^2 + 3) dx
-        omega.substitute(
-            Symbol::new("y"),
-            &DifferentialForm::constant(Rational::from(3)),
-        );
+        omega.substitute(Symbol::new("y"), &constant(Rational::from(3)));
         assert_eq!(omega.degrees_of_freedom(), 1);
 
         let expected = DifferentialForm::Wedged(vec![

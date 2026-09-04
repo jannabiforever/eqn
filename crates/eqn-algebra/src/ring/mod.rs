@@ -263,7 +263,9 @@ impl<R: CommutativeRing> SemiRing for PolynomialRing<R> {
     type Multiplication = PolynomialMul<R>;
 }
 
+mod differential;
 mod rewriter;
+pub use differential::DifferentialRing;
 pub use rewriter::{CommutativeRingRewriter, RingRewriter, SemiRingRewriter};
 
 // ================================================================================

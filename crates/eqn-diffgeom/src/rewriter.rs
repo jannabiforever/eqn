@@ -1,18 +1,19 @@
-use eqn_algebra::differential::DifferentialAlgebra;
-use eqn_algebra::ring::{Ring, SemiRing};
-use eqn_core::rewriter::Rewriter;
+use eqn_algebra::ring::{DifferentialRing, Ring, SemiRing};
+use eqn_core::rewriter::{Expression, Rewriter};
 
-use crate::{Chart, Constants, Coordinate, DifferentialForm, Manifold, ZeroForm};
+use crate::{Chart, Coordinate, DifferentialForm, Manifold, ZeroForm};
 
 // ================================================================================
 // Normalization engine
 // ================================================================================
 
-/// `coeff · dx_1 ∧ ... ∧ dx_n`; the coefficient is a 0-form.
+/// `coeff · dx_{i_1} ∧ ... ∧ dx_{i_n}`; the coefficient is a 0-form, the
+/// atoms are chart positions -- so the canonical order of `dx^I` is chart
+/// order, and [`Coordinate`] needs no `Ord`.
 #[derive_where::derive_where(Clone)]
 struct Term<M: Manifold> {
     coeff: ZeroForm<M>,
-    atoms: Vec<Coordinate<M>>,
+    atoms: Vec<usize>,
 }
 
 impl<M: Manifold> Term<M> {
@@ -31,23 +32,21 @@ impl<M: Manifold> Term<M> {
     fn wedge(&self, other: &Self) -> Self {
         Self {
             coeff: M::Functions::multiply(self.coeff.clone(), other.coeff.clone()),
-            atoms: self.atoms.iter().chain(&other.atoms).cloned().collect(),
+            atoms: self.atoms.iter().chain(&other.atoms).copied().collect(),
         }
     }
 
     /// `d(c · dx_I) = Σ_{i} (∂c/∂xⁱ) dxⁱ ∧ dx_I` over the chart's
     /// coordinates; any symbol outside the chart is a parameter, and
-    /// `partial` already returns zero for it. No sign: `dc` is placed in
+    /// `derive` already returns zero for it. No sign: `dc` is placed in
     /// front. `d(dx) = 0` is automatic: atoms carry no coefficient of their
     /// own to differentiate.
     fn differential(self, chart: &Chart<M>) -> Vec<Self> {
-        chart
-            .coordinates()
-            .iter()
-            .map(|x| Self {
-                coeff: M::Functions::partial(self.coeff.clone(), x),
-                atoms: std::iter::once(x.clone())
-                    .chain(self.atoms.iter().cloned())
+        (0..M::DIM)
+            .map(|i| Self {
+                coeff: M::Functions::derive(self.coeff.clone(), &chart.coordinates()[i]),
+                atoms: std::iter::once(i)
+                    .chain(self.atoms.iter().copied())
                     .collect(),
             })
             .collect()
@@ -73,18 +72,21 @@ impl<M: Manifold> Term<M> {
 
     /// The coefficient is dropped when it *is* the constant `ONE` and there
     /// is at least one wedge factor to carry the term.
-    fn into_form(self) -> DifferentialForm<M> {
+    fn into_form(self, chart: &Chart<M>) -> DifferentialForm<M>
+    where
+        ZeroForm<M>: From<Coordinate<M>>,
+        Coordinate<M>: Clone,
+    {
         let mut factors: Vec<DifferentialForm<M>> = self
             .atoms
             .into_iter()
-            .map(|s| {
+            .map(|i| {
                 DifferentialForm::Differential(Box::new(DifferentialForm::Scalar(
-                    ZeroForm::<M>::from(s),
+                    ZeroForm::<M>::from(chart.coordinates()[i].clone()),
                 )))
             })
             .collect();
-        let coeff_is_one =
-            M::Functions::as_constant(&self.coeff) == Some(&<Constants<M> as SemiRing>::ONE);
+        let coeff_is_one = self.coeff == M::Functions::ONE;
         if factors.is_empty() || !coeff_is_one {
             factors.insert(0, DifferentialForm::Scalar(self.coeff));
         }
@@ -148,20 +150,25 @@ fn canonicalize<M: Manifold>(ts: Vec<Term<M>>) -> Vec<Term<M>> {
 
 /// Rebuilds a form from its terms: normalizes each coefficient into the
 /// algebra's canonical form (this is where `d² = 0` / `dc = 0` fall out, as
-/// `partial` already produced a real zero for them), then drops terms whose
+/// `derive` already produced a real zero for them), then drops terms whose
 /// coefficient normalizes to zero.
 fn build_sum<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>>(
     mut ts: Vec<Term<M>>,
+    chart: &Chart<M>,
     functions: &N,
-) -> DifferentialForm<M> {
+) -> DifferentialForm<M>
+where
+    ZeroForm<M>: From<Coordinate<M>>,
+    Coordinate<M>: Clone,
+{
     for t in &mut ts {
         functions.rewrite_expr(&mut t.coeff);
     }
-    ts.retain(|t| M::Functions::as_constant(&t.coeff) != Some(&<Constants<M> as SemiRing>::ZERO));
+    ts.retain(|t| t.coeff != M::Functions::ZERO);
     match ts.len() {
-        0 => DifferentialForm::Scalar(M::Functions::constant(<Constants<M> as SemiRing>::ZERO)),
-        1 => ts.pop().unwrap().into_form(),
-        _ => DifferentialForm::Add(ts.into_iter().map(Term::into_form).collect()),
+        0 => DifferentialForm::Scalar(M::Functions::ZERO),
+        1 => ts.pop().unwrap().into_form(chart),
+        _ => DifferentialForm::Add(ts.into_iter().map(|t| t.into_form(chart)).collect()),
     }
 }
 
@@ -171,8 +178,11 @@ fn normalize<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>>(
     expr: &mut DifferentialForm<M>,
     chart: &Chart<M>,
     functions: &N,
-) {
-    *expr = build_sum(terms_of(expr, chart), functions);
+) where
+    ZeroForm<M>: From<Coordinate<M>>,
+    Coordinate<M>: Clone,
+{
+    *expr = build_sum(terms_of(expr, chart), chart, functions);
 }
 
 /// [`normalize`] plus graded commutativity: wedge factors sort into a
@@ -181,8 +191,11 @@ fn normalize_graded<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>>(
     expr: &mut DifferentialForm<M>,
     chart: &Chart<M>,
     functions: &N,
-) {
-    *expr = build_sum(canonicalize(terms_of(expr, chart)), functions);
+) where
+    ZeroForm<M>: From<Coordinate<M>>,
+    Coordinate<M>: Clone,
+{
+    *expr = build_sum(canonicalize(terms_of(expr, chart)), chart, functions);
 }
 
 // ================================================================================
@@ -191,7 +204,7 @@ fn normalize_graded<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>>(
 
 /// Normalizes by the exterior-algebra laws that need no ordering: linearity,
 /// `∧` distributing over `+`, Leibniz via real differentiation of
-/// coefficients (`d² = 0` and `dc = 0` come from the algebra's `partial`),
+/// coefficients (`d² = 0` and `dc = 0` come from the algebra's `derive`),
 /// and vanishing above degree `M::DIM` -- the exterior derivative in
 /// `chart`, with 0-forms canonicalized by `functions`. Wedge factors keep
 /// their written order.
@@ -206,7 +219,11 @@ impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> ExteriorRewriter<M, N> {
     }
 }
 
-impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for ExteriorRewriter<M, N> {
+impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for ExteriorRewriter<M, N>
+where
+    ZeroForm<M>: From<Coordinate<M>> + Expression,
+    Coordinate<M>: Clone,
+{
     type Expr = DifferentialForm<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
@@ -229,7 +246,11 @@ impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> GradedCommutativeRewriter<M, 
     }
 }
 
-impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for GradedCommutativeRewriter<M, N> {
+impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for GradedCommutativeRewriter<M, N>
+where
+    ZeroForm<M>: From<Coordinate<M>> + Expression,
+    Coordinate<M>: Clone,
+{
     type Expr = DifferentialForm<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
@@ -645,6 +666,30 @@ mod tests {
         assert_eq!(
             xz_chart.rewrited_expr(d(expr())),
             wedge(vec![sc(ElementaryExpr::Mul(vec![c(2), x()])), dx()])
+        );
+    }
+
+    #[test]
+    fn chart_order_governs_canonical_order_and_sign() {
+        // chart (y, x): position 0 is y, position 1 is x -- differential(0)
+        // is "dy", differential(1) is "dx", by chart position, not name.
+        let yx = || Chart::<Plane>::new([Symbol::new("y"), Symbol::new("x")]);
+        let dy = || yx().differential(0).unwrap();
+        let dx = || yx().differential(1).unwrap();
+        let f = GradedCommutativeRewriter::new(yx(), ElementaryRewriter::<RationalField>::new());
+
+        // d(x*y) = x dy + y dx: term order follows chart position, unlike
+        // the (x, y) chart used everywhere else in this file, where
+        // position order and alphabetical order coincide.
+        assert_eq!(
+            f.rewrited_expr(d(sc(ElementaryExpr::Mul(vec![x(), y()])))),
+            DifferentialForm::Add(vec![wedge(vec![sc(x()), dy()]), wedge(vec![sc(y()), dx()])])
+        );
+
+        // dx ∧ dy = -(dy ∧ dx): position 1 sorts after position 0.
+        assert_eq!(
+            f.rewrited_expr(wedge(vec![dx(), dy()])),
+            wedge(vec![sc(c(-1)), dy(), dx()])
         );
     }
 }

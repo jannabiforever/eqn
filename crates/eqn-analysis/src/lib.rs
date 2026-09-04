@@ -1,9 +1,8 @@
 // NOTE: `eqn_core::rewriter` is not re-exported here (unlike `set`/`symbol`)
 // because it would collide with this crate's own private `rewriter` module
 // below.
-use eqn_algebra::differential::DifferentialAlgebra;
 use eqn_algebra::field::Field;
-use eqn_algebra::ring::SemiRing;
+use eqn_algebra::ring::{DifferentialRing, Element, SemiRing};
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
@@ -97,7 +96,7 @@ mod rewriter;
 pub use rewriter::ElementaryRewriter;
 
 // ================================================================================
-// ElementaryFunctionAlgebra: the differential field of elementary functions
+// ElementaryFunctionRing: the differential ring of elementary functions
 // ================================================================================
 
 /// The set of elementary-function expressions over `F`, represented by
@@ -125,34 +124,24 @@ pub struct ElementaryAdd<F: Field>(std::marker::PhantomData<F>);
 )]
 pub struct ElementaryMul<F: Field>(std::marker::PhantomData<F>);
 
-/// The differential field of elementary functions over `F`, represented by
-/// [`ElementaryExpr`] trees.
-pub struct ElementaryFunctionAlgebra<F: Field>(std::marker::PhantomData<F>);
+/// The differential ring of elementary functions over `F`; a differential
+/// field in fact, but coefficient inversion is a rewriting matter, so only
+/// the ring is declared.
+pub struct ElementaryFunctionRing<F: Field>(std::marker::PhantomData<F>);
 
-impl<F: Field> SemiRing for ElementaryFunctionAlgebra<F> {
+impl<F: Field> SemiRing for ElementaryFunctionRing<F> {
     type Domain = ElementaryFunctions<F>;
     type Addition = ElementaryAdd<F>;
     type Multiplication = ElementaryMul<F>;
 }
 
-impl<F: Field> DifferentialAlgebra for ElementaryFunctionAlgebra<F> {
-    type Constants = F;
-
-    fn constant(c: <F::Domain as Set>::Element) -> ElementaryExpr<F> {
-        ElementaryExpr::Const(c)
-    }
-
-    fn as_constant(a: &ElementaryExpr<F>) -> Option<&<F::Domain as Set>::Element> {
-        match a {
-            ElementaryExpr::Const(c) => Some(c),
-            _ => None,
-        }
-    }
+impl<F: Field> DifferentialRing for ElementaryFunctionRing<F> {
+    type Index = Symbol<F::Domain>;
 
     /// The eager form of [`ElementaryExpr::D`]: both funnel through
     /// [`rewriter::derivative`], the same symbolic differentiation the
     /// rewriter uses to eliminate `D` nodes.
-    fn partial(a: ElementaryExpr<F>, wrt: &Symbol<F::Domain>) -> ElementaryExpr<F> {
-        rewriter::derivative(a, wrt)
+    fn derive(a: Element<Self>, i: &Self::Index) -> Element<Self> {
+        rewriter::derivative(a, i)
     }
 }

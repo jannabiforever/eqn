@@ -544,14 +544,14 @@ mod tests {
     }
 
     #[test]
-    fn partial_agrees_with_the_d_route() {
-        use eqn_algebra::differential::DifferentialAlgebra;
+    fn derive_agrees_with_the_d_route() {
+        use eqn_algebra::ring::DifferentialRing;
 
-        type Alg = crate::ElementaryFunctionAlgebra<RationalField>;
+        type Ring = crate::ElementaryFunctionRing<RationalField>;
 
-        assert_eq!(fmt(Alg::partial(x(), &xs())), c(1));
+        assert_eq!(fmt(Ring::derive(x(), &xs())), c(1));
         assert_eq!(
-            fmt(Alg::partial(fnc(Elementary::Sin, x()), &xs())),
+            fmt(Ring::derive(fnc(Elementary::Sin, x()), &xs())),
             fmt(d(xs(), fnc(Elementary::Sin, x())))
         );
     }
