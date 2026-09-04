@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "eqn"
+name = "eqn-algebra"
 version = "0.1.0"
 dependencies = [
  "derive-where",
@@ -27,6 +27,15 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "eqn-macros",
+]
+
+[[package]]
+name = "eqn-diffgeom"
+version = "0.1.0"
+dependencies = [
+ "derive-where",
+ "eqn-algebra",
+ "eqn-core",
 ]
 
 [[package]]

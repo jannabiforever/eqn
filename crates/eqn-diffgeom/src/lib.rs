@@ -1,9 +1,13 @@
+// mgca: lets `Chart` carry `[_; M::DIM]` with `DIM` an associated const.
+#![feature(min_generic_const_args, macroless_generic_const_args)]
+#![allow(incomplete_features)]
+
 use std::collections::HashSet;
 
-use crate::formatter::{Expression, Formatter};
-use crate::ring::{Ring, SemiRing};
-use crate::set::Set;
-use crate::symbol::Symbol;
+use eqn_algebra::ring::{Ring, SemiRing};
+use eqn_core::formatter::{Expression, Formatter};
+use eqn_core::set::Set;
+use eqn_core::symbol::Symbol;
 
 pub const WEDGE_CHAR: char = '\u{2227}';
 pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
@@ -335,10 +339,11 @@ impl<M: Manifold> Formatter for GradedCommutativeFormatter<M> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::op::{
+    use eqn_core::op::{
         AssociativeOperator, BinaryOperator, CommutativeOperator, IdentityOperator, InverseOperator,
     };
+
+    use super::*;
 
     struct Reals;
     impl Set for Reals {

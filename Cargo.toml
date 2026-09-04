@@ -9,4 +9,5 @@ edition = "2024"
 [workspace.dependencies]
 eqn-core = { path = "crates/eqn-core" }
 eqn-macros = { path = "crates/eqn-macros" }
+eqn-algebra = { path = "crates/eqn-algebra" }
 derive-where = "1.6.1"
