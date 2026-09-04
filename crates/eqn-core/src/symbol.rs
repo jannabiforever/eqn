@@ -1,5 +1,10 @@
 use crate::set::Set;
 
+/// Represents a symbol in expressions.
+///
+/// # See also
+///
+/// [`crate::rewriter::Expression`]
 #[derive_where::derive_where(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Symbol<D: Set> {
     _domain_marker: std::marker::PhantomData<D>,
