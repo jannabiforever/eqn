@@ -237,8 +237,22 @@ fn pow_terms<F: Field>(base: ElementaryExpr<F>, n: isize) -> Vec<Term<F>> {
             for _ in 0..n.unsigned_abs() {
                 coeff = F::multiply(coeff, inv.clone());
             }
-            let factors = t.factors.iter().map(|(a, e)| (a.clone(), e * n)).collect();
-            vec![Term { coeff, factors }]
+            let factors: Vec<(Atom<F>, isize)> =
+                t.factors.iter().map(|(a, e)| (a.clone(), e * n)).collect();
+            let term = Term { coeff, factors };
+            // A Sum atom must only ever carry a negative exponent; negating
+            // n here can flip an already-negative Sum exponent positive
+            // (e.g. inverting (x+1)^-1), so re-expand instead of keeping it
+            // as an opaque atom.
+            if term
+                .factors
+                .iter()
+                .any(|(a, e)| matches!(a, Atom::Sum(_)) && *e > 0)
+            {
+                terms(term.into_expr())
+            } else {
+                vec![term]
+            }
         }
         _ => vec![Term {
             coeff: F::ONE,
@@ -578,5 +592,17 @@ mod tests {
     #[should_panic(expected = "division by zero")]
     fn inverting_zero_panics() {
         fmt(pow(c(0), -1));
+    }
+
+    #[test]
+    fn inverting_an_inverse_sum_expands() {
+        // ((x+1)^-1)^-2 -- inverting an already-inverted sum flips its
+        // exponent back positive, which must expand rather than survive as
+        // a Sum atom with a positive exponent.
+        let expr = pow(pow(Expr::Add(vec![x(), c(1)]), -1), -2);
+        let expected = fmt(pow(Expr::Add(vec![x(), c(1)]), 2));
+        let actual = fmt(expr.clone());
+        assert_eq!(actual, expected);
+        assert_idempotent(&ElementaryRewriter::new(), expr);
     }
 }
