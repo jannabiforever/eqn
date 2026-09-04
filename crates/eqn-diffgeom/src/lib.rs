@@ -300,17 +300,17 @@ fn normalize<M: Manifold>(expr: &mut DifferentialForm<M>, canonical: bool) {
 /// `∧` distributing over `+`, `dc = 0`, `d² = 0`, Leibniz, constant folding,
 /// and vanishing above degree `M::DIM`. Wedge factors keep their written order.
 #[derive_where::derive_where(Default)]
-pub struct ExteriorFormatter<M: Manifold> {
+pub struct ExteriorRewriter<M: Manifold> {
     _marker: std::marker::PhantomData<M>,
 }
 
-impl<M: Manifold> ExteriorFormatter<M> {
+impl<M: Manifold> ExteriorRewriter<M> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<M: Manifold> Rewriter for ExteriorFormatter<M> {
+impl<M: Manifold> Rewriter for ExteriorRewriter<M> {
     type Expr = DifferentialForm<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
@@ -318,21 +318,21 @@ impl<M: Manifold> Rewriter for ExteriorFormatter<M> {
     }
 }
 
-/// [`ExteriorFormatter`] plus graded commutativity: wedge factors sort into
+/// [`ExteriorRewriter`] plus graded commutativity: wedge factors sort into
 /// a canonical order with the permutation sign, `df ∧ df = 0`, and like
 /// terms collect into one coefficient.
 #[derive_where::derive_where(Default)]
-pub struct GradedCommutativeFormatter<M: Manifold> {
+pub struct GradedCommutativeRewriter<M: Manifold> {
     _marker: std::marker::PhantomData<M>,
 }
 
-impl<M: Manifold> GradedCommutativeFormatter<M> {
+impl<M: Manifold> GradedCommutativeRewriter<M> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<M: Manifold> Rewriter for GradedCommutativeFormatter<M> {
+impl<M: Manifold> Rewriter for GradedCommutativeRewriter<M> {
     type Expr = DifferentialForm<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn d_squared_and_d_const_vanish() {
-        let f = ExteriorFormatter::<Plane>::new();
+        let f = ExteriorRewriter::<Plane>::new();
         assert_eq!(
             f.rewrited_expr(d(xy().differential(0).unwrap())),
             DifferentialForm::Const(0)
@@ -440,7 +440,7 @@ mod tests {
             c.differential(0).unwrap(),
             c.differential(1).unwrap(),
         );
-        let f = ExteriorFormatter::<Plane>::new();
+        let f = ExteriorRewriter::<Plane>::new();
         // d(x ∧ dy) = dx ∧ dy
         assert_eq!(
             f.rewrited_expr(d(wedge(vec![x, dy.clone()]))),
@@ -461,7 +461,7 @@ mod tests {
             c.differential(0).unwrap(),
             c.differential(1).unwrap(),
         );
-        let f = ExteriorFormatter::<Plane>::new();
+        let f = ExteriorRewriter::<Plane>::new();
         assert_eq!(
             f.rewrited_expr(wedge(vec![dy.clone(), dx.clone()])),
             wedge(vec![dy.clone(), dx.clone()])
@@ -485,7 +485,7 @@ mod tests {
     fn graded_commutative_sorts_with_sign() {
         let c = xy();
         let (dx, dy) = (c.differential(0).unwrap(), c.differential(1).unwrap());
-        let f = GradedCommutativeFormatter::<Plane>::new();
+        let f = GradedCommutativeRewriter::<Plane>::new();
         // dy ∧ dx = -(dx ∧ dy)
         assert_eq!(
             f.rewrited_expr(wedge(vec![dy.clone(), dx.clone()])),
@@ -519,7 +519,7 @@ mod tests {
             dz,
         ]);
         assert_eq!(
-            ExteriorFormatter::<Plane>::new().rewrited_expr(top),
+            ExteriorRewriter::<Plane>::new().rewrited_expr(top),
             DifferentialForm::Const(0)
         );
     }

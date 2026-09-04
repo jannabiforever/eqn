@@ -94,17 +94,17 @@ impl<D: Set, M: Monoid<Domain = D>> From<Symbol<D>> for MonoidExpr<M> {
 }
 
 #[derive_where::derive_where(Clone, Copy, Default)]
-pub struct NonCommutativeMonoidFormatter<M> {
+pub struct NonCommutativeMonoidRewriter<M> {
     _monoid_marker: std::marker::PhantomData<M>,
 }
 
-impl<M: Monoid> NonCommutativeMonoidFormatter<M> {
+impl<M: Monoid> NonCommutativeMonoidRewriter<M> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<M: Monoid> Rewriter for NonCommutativeMonoidFormatter<M> {
+impl<M: Monoid> Rewriter for NonCommutativeMonoidRewriter<M> {
     type Expr = MonoidExpr<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
@@ -154,7 +154,7 @@ fn normalize_noncommutative<M: Monoid>(expr: &mut MonoidExpr<M>) {
 /// all constants fold into one leading constant, and symbols sort by
 /// name with multiplicity preserved.
 #[derive_where::derive_where(Clone, Copy, Default)]
-pub struct CommutativeMonoidFormatter<M>
+pub struct CommutativeMonoidRewriter<M>
 where
     M: Monoid,
     M::Operator: Commutative,
@@ -162,7 +162,7 @@ where
     _marker: std::marker::PhantomData<M>,
 }
 
-impl<M> CommutativeMonoidFormatter<M>
+impl<M> CommutativeMonoidRewriter<M>
 where
     M: Monoid,
     M::Operator: Commutative,
@@ -172,7 +172,7 @@ where
     }
 }
 
-impl<M> Rewriter for CommutativeMonoidFormatter<M>
+impl<M> Rewriter for CommutativeMonoidRewriter<M>
 where
     M: Monoid,
     M::Operator: Commutative,
@@ -242,7 +242,7 @@ mod tests {
             MonoidExpr::Const(2),
             MonoidExpr::Symbol(x.clone()),
         ]);
-        let simplified = NonCommutativeMonoidFormatter::new().rewrited_expr(expr);
+        let simplified = NonCommutativeMonoidRewriter::new().rewrited_expr(expr);
 
         assert!(simplified == MonoidExpr::Op(vec![MonoidExpr::Const(3), MonoidExpr::Symbol(x),]));
     }
@@ -259,7 +259,7 @@ mod tests {
             MonoidExpr::Const(4),
             MonoidExpr::Symbol(x.clone()),
         ]);
-        let simplified = CommutativeMonoidFormatter::new().rewrited_expr(expr);
+        let simplified = CommutativeMonoidRewriter::new().rewrited_expr(expr);
 
         assert!(
             simplified

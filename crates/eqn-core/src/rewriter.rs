@@ -43,17 +43,17 @@ pub fn flatten<T>(
 
 /// A simple formatter for expressions. Returns identical one.
 #[derive_where::derive_where(Default)]
-pub struct TrivialFormatter<E: Expression> {
+pub struct TrivialRewriter<E: Expression> {
     _marker: std::marker::PhantomData<E>,
 }
 
-impl<E: Expression> TrivialFormatter<E> {
+impl<E: Expression> TrivialRewriter<E> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<E: Expression> Rewriter for TrivialFormatter<E> {
+impl<E: Expression> Rewriter for TrivialRewriter<E> {
     type Expr = E;
 
     fn rewrite_expr(&self, _: &mut Self::Expr) {}

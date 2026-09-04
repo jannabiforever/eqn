@@ -372,17 +372,17 @@ fn normalize<G: Group>(expr: &mut GroupExpr<G>, commutative: bool) {
 
 /// Canonicalizes group expressions while preserving factor order.
 #[derive_where::derive_where(Default)]
-pub struct GroupFormatter<G: Group> {
+pub struct GroupRewriter<G: Group> {
     _marker: std::marker::PhantomData<G>,
 }
 
-impl<G: Group> GroupFormatter<G> {
+impl<G: Group> GroupRewriter<G> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<G: Group> Rewriter for GroupFormatter<G> {
+impl<G: Group> Rewriter for GroupRewriter<G> {
     type Expr = GroupExpr<G>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
@@ -393,17 +393,17 @@ impl<G: Group> Rewriter for GroupFormatter<G> {
 /// Canonicalizes group expressions using the abelian group laws, collecting
 /// equal bases and distributing powers over the group operation.
 #[derive_where::derive_where(Default)]
-pub struct AbelianGroupFormatter<G: AbelianGroup> {
+pub struct AbelianGroupRewriter<G: AbelianGroup> {
     _marker: std::marker::PhantomData<G>,
 }
 
-impl<G: AbelianGroup> AbelianGroupFormatter<G> {
+impl<G: AbelianGroup> AbelianGroupRewriter<G> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<G: AbelianGroup> Rewriter for AbelianGroupFormatter<G> {
+impl<G: AbelianGroup> Rewriter for AbelianGroupRewriter<G> {
     type Expr = GroupExpr<G>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
@@ -510,7 +510,7 @@ mod tests {
         ]);
 
         assert!(
-            GroupFormatter::new().rewrited_expr(expr)
+            GroupRewriter::new().rewrited_expr(expr)
                 == Expr::Op(vec![
                     Expr::Const(3),
                     Expr::Inv(Box::new(Expr::Symbol(y))),
@@ -533,7 +533,7 @@ mod tests {
             Expr::Const(-2),
         ]);
 
-        assert!(AbelianGroupFormatter::new().rewrited_expr(expr) == Expr::Symbol(x));
+        assert!(AbelianGroupRewriter::new().rewrited_expr(expr) == Expr::Symbol(x));
     }
 
     #[test]
@@ -554,7 +554,7 @@ mod tests {
         ]);
 
         assert!(
-            GroupFormatter::new().rewrited_expr(commutator.clone())
+            GroupRewriter::new().rewrited_expr(commutator.clone())
                 == Expr::Op(vec![
                     Expr::Symbol(a.clone()),
                     Expr::Symbol(b.clone()),
@@ -563,7 +563,7 @@ mod tests {
                 ])
         );
         assert!(
-            AbelianGroupFormatter::new().rewrited_expr(commutator)
+            AbelianGroupRewriter::new().rewrited_expr(commutator)
                 == Expr::Const(IntegerAdditionGroup::IDENTITY)
         );
     }
@@ -571,7 +571,7 @@ mod tests {
     #[test]
     fn group_rewriter_folds_constant_and_double_inverses() {
         let x = Symbol::new("x");
-        let formatter = GroupFormatter::new();
+        let formatter = GroupRewriter::new();
 
         assert!(formatter.rewrited_expr(Expr::Inv(Box::new(Expr::Const(3)))) == Expr::Const(-3));
         assert!(
@@ -585,7 +585,7 @@ mod tests {
     #[test]
     fn group_rewriter_normalizes_powers() {
         let x = Symbol::new("x");
-        let formatter = GroupFormatter::new();
+        let formatter = GroupRewriter::new();
 
         assert!(
             formatter.rewrited_expr(Expr::Pow {
@@ -640,7 +640,7 @@ mod tests {
             Expr::Symbol(x.clone()),
         ]);
         assert!(
-            GroupFormatter::new().rewrited_expr(non_commutative)
+            GroupRewriter::new().rewrited_expr(non_commutative)
                 == Expr::Op(vec![
                     Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
                     Expr::Symbol(y.clone()),
@@ -661,7 +661,7 @@ mod tests {
             Expr::Symbol(y.clone()),
         ]);
         assert!(
-            AbelianGroupFormatter::new().rewrited_expr(abelian)
+            AbelianGroupRewriter::new().rewrited_expr(abelian)
                 == Expr::Op(vec![
                     Expr::Pow {
                         base: Box::new(Expr::Symbol(x)),
@@ -689,7 +689,7 @@ mod tests {
         };
 
         assert!(
-            GroupFormatter::new().rewrited_expr(expr.clone())
+            GroupRewriter::new().rewrited_expr(expr.clone())
                 == Expr::Pow {
                     base: Box::new(Expr::Op(vec![
                         Expr::Const(2),
@@ -700,7 +700,7 @@ mod tests {
                 }
         );
         assert!(
-            AbelianGroupFormatter::new().rewrited_expr(expr)
+            AbelianGroupRewriter::new().rewrited_expr(expr)
                 == Expr::Op(vec![
                     Expr::Const(6),
                     Expr::Pow {

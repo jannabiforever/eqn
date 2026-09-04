@@ -630,17 +630,17 @@ fn normalize<E: SemiRingTree>(expr: &mut E, commutative: bool) {
 /// Canonicalizes [`SemiRingExpr`]s using the semi-ring laws (see
 /// [`normalize`]).
 #[derive_where::derive_where(Default)]
-pub struct SemiRingFormatter<SR: SemiRing> {
+pub struct SemiRingRewriter<SR: SemiRing> {
     _semi_ring_marker: std::marker::PhantomData<SR>,
 }
 
-impl<SR: SemiRing> SemiRingFormatter<SR> {
+impl<SR: SemiRing> SemiRingRewriter<SR> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<SR: SemiRing> Rewriter for SemiRingFormatter<SR> {
+impl<SR: SemiRing> Rewriter for SemiRingRewriter<SR> {
     type Expr = SemiRingExpr<SR>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
@@ -652,17 +652,17 @@ impl<SR: SemiRing> Rewriter for SemiRingFormatter<SR> {
 /// canonical form contains no `Neg`: a negated term shows up as a constant
 /// coefficient.
 #[derive_where::derive_where(Default)]
-pub struct RingFormatter<R: Ring> {
+pub struct RingRewriter<R: Ring> {
     _ring_marker: std::marker::PhantomData<R>,
 }
 
-impl<R: Ring> RingFormatter<R> {
+impl<R: Ring> RingRewriter<R> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<R: Ring> Rewriter for RingFormatter<R> {
+impl<R: Ring> Rewriter for RingRewriter<R> {
     type Expr = RingExpr<R>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
@@ -670,22 +670,22 @@ impl<R: Ring> Rewriter for RingFormatter<R> {
     }
 }
 
-/// [`RingFormatter`] for rings whose multiplication is also commutative:
+/// [`RingRewriter`] for rings whose multiplication is also commutative:
 /// additionally folds all constants of a product into one leading constant,
 /// collects repeated factors into powers (`x * y * x -> x^2 * y`), and sorts
 /// factors and terms into a canonical order.
 #[derive_where::derive_where(Default)]
-pub struct CommutativeRingFormatter<R: Ring> {
+pub struct CommutativeRingRewriter<R: Ring> {
     _ring_marker: std::marker::PhantomData<R>,
 }
 
-impl<R: Ring> CommutativeRingFormatter<R> {
+impl<R: Ring> CommutativeRingRewriter<R> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<R: Ring> Rewriter for CommutativeRingFormatter<R>
+impl<R: Ring> Rewriter for CommutativeRingRewriter<R>
 where
     R::Multiplication: Commutative,
 {
@@ -725,7 +725,7 @@ mod tests {
     type RExpr = RingExpr<TestSemiRing>;
 
     fn fmt(expr: Expr) -> Expr {
-        SemiRingFormatter::new().rewrited_expr(expr)
+        SemiRingRewriter::new().rewrited_expr(expr)
     }
 
     #[test]
@@ -843,7 +843,7 @@ mod tests {
 
     #[test]
     fn test_ring_rewriter_neg() {
-        let f = RingFormatter::new();
+        let f = RingRewriter::new();
         let x = Symbol::new("x");
 
         // x + (-x) ==> 0
@@ -873,7 +873,7 @@ mod tests {
 
     #[test]
     fn test_commutative_ring_rewriter() {
-        let f = CommutativeRingFormatter::new();
+        let f = CommutativeRingRewriter::new();
         let x = Symbol::new("x");
         let y = Symbol::new("y");
 
