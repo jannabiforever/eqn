@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 
-use eqn_algebra::ring::SemiRing;
-use eqn_analysis::{ElementaryExpr, ElementaryRewriter};
+use eqn_algebra::differential::DifferentialAlgebra;
 use eqn_core::rewriter::{Expression, Rewriter};
 
 use crate::{Coordinate, DifferentialForm, Manifold, ZeroForm};
@@ -20,19 +19,19 @@ struct Term<M: Manifold> {
 impl<M: Manifold> Term<M> {
     fn one() -> Self {
         Self {
-            coeff: ElementaryExpr::Const(<M::Scalar as SemiRing>::ONE),
+            coeff: ZeroForm::<M>::one(),
             atoms: vec![],
         }
     }
 
     fn negated(mut self) -> Self {
-        self.coeff = ElementaryExpr::Neg(Box::new(self.coeff));
+        self.coeff = -self.coeff;
         self
     }
 
     fn wedge(&self, other: &Self) -> Self {
         Self {
-            coeff: ElementaryExpr::Mul(vec![self.coeff.clone(), other.coeff.clone()]),
+            coeff: self.coeff.clone() * other.coeff.clone(),
             atoms: self.atoms.iter().chain(&other.atoms).cloned().collect(),
         }
     }
@@ -48,7 +47,7 @@ impl<M: Manifold> Term<M> {
             .collect();
         free.into_iter()
             .map(|s| Self {
-                coeff: ElementaryExpr::d(s.clone(), self.coeff.clone()),
+                coeff: self.coeff.clone().partial(&s),
                 atoms: std::iter::once(s)
                     .chain(self.atoms.iter().cloned())
                     .collect(),
@@ -80,11 +79,11 @@ impl<M: Manifold> Term<M> {
             .into_iter()
             .map(|s| {
                 DifferentialForm::Differential(Box::new(DifferentialForm::Scalar(
-                    ElementaryExpr::Symbol(s),
+                    ZeroForm::<M>::from(s),
                 )))
             })
             .collect();
-        let coeff_is_one = matches!(&self.coeff, ElementaryExpr::Const(c) if c.clone() == <M::Scalar as SemiRing>::ONE);
+        let coeff_is_one = self.coeff.is_one();
         if factors.is_empty() || !coeff_is_one {
             factors.insert(0, DifferentialForm::Scalar(self.coeff));
         }
@@ -137,7 +136,7 @@ fn canonicalize<M: Manifold>(ts: Vec<Term<M>>) -> Vec<Term<M>> {
     for t in ts {
         match merged.last_mut() {
             Some(last) if last.atoms == t.atoms => {
-                last.coeff = ElementaryExpr::Add(vec![last.coeff.clone(), t.coeff]);
+                last.coeff = last.coeff.clone() + t.coeff;
             }
             _ => merged.push(t),
         }
@@ -145,20 +144,17 @@ fn canonicalize<M: Manifold>(ts: Vec<Term<M>>) -> Vec<Term<M>> {
     merged
 }
 
-/// Rebuilds a form from its terms: normalizes each coefficient (this is
-/// where `D` nodes actually differentiate, and where `d² = 0` / `dc = 0`
-/// fall out as real derivatives evaluating to zero), then drops terms whose
+/// Rebuilds a form from its terms: normalizes each coefficient into the
+/// algebra's canonical form (this is where `d² = 0` / `dc = 0` fall out, as
+/// `partial` already produced a real zero for them), then drops terms whose
 /// coefficient normalizes to zero.
 fn build_sum<M: Manifold>(mut ts: Vec<Term<M>>) -> DifferentialForm<M> {
-    let elementary = ElementaryRewriter::<M::Scalar>::new();
     for t in &mut ts {
-        elementary.rewrite_expr(&mut t.coeff);
+        t.coeff.normalize();
     }
-    ts.retain(|t| {
-        !matches!(&t.coeff, ElementaryExpr::Const(c) if c.clone() == <M::Scalar as SemiRing>::ZERO)
-    });
+    ts.retain(|t| !t.coeff.is_zero());
     match ts.len() {
-        0 => DifferentialForm::Scalar(ElementaryExpr::Const(<M::Scalar as SemiRing>::ZERO)),
+        0 => DifferentialForm::Scalar(ZeroForm::<M>::zero()),
         1 => ts.pop().unwrap().into_form(),
         _ => DifferentialForm::Add(ts.into_iter().map(Term::into_form).collect()),
     }
@@ -182,8 +178,9 @@ fn normalize_graded<M: Manifold>(expr: &mut DifferentialForm<M>) {
 
 /// Normalizes by the exterior-algebra laws that need no ordering: linearity,
 /// `∧` distributing over `+`, Leibniz via real differentiation of
-/// coefficients (`d² = 0` and `dc = 0` follow from that), and vanishing
-/// above degree `M::DIM`. Wedge factors keep their written order.
+/// coefficients (`d² = 0` and `dc = 0` come from the algebra's `partial`),
+/// and vanishing above degree `M::DIM`. Wedge factors keep their written
+/// order.
 #[derive_where::derive_where(Default)]
 pub struct ExteriorRewriter<M: Manifold> {
     _marker: std::marker::PhantomData<M>,
@@ -227,7 +224,11 @@ impl<M: Manifold> Rewriter for GradedCommutativeRewriter<M> {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+
     use eqn_algebra::field::Rational;
+    use eqn_algebra::ring::RingExpr;
+    use eqn_analysis::ElementaryExpr;
     use eqn_core::symbol::Symbol;
 
     use super::*;
@@ -275,6 +276,81 @@ mod tests {
             base: Box::new(base),
             exponent,
         }
+    }
+
+    // --------------------------------------------------------------------------
+    // IntPlane: the algebraic de Rham complex, `RingExpr<IntegerRing>` 0-forms
+    // --------------------------------------------------------------------------
+
+    fn ixy() -> Chart<IntPlane> {
+        Chart::new([Symbol::new("x"), Symbol::new("y")])
+    }
+
+    fn ix() -> ZeroForm<IntPlane> {
+        RingExpr::Symbol(Symbol::new("x"))
+    }
+
+    fn iy() -> ZeroForm<IntPlane> {
+        RingExpr::Symbol(Symbol::new("y"))
+    }
+
+    fn ic(i: i64) -> ZeroForm<IntPlane> {
+        RingExpr::Const(i)
+    }
+
+    fn isc(e: ZeroForm<IntPlane>) -> DifferentialForm<IntPlane> {
+        DifferentialForm::Scalar(e)
+    }
+
+    fn idx() -> DifferentialForm<IntPlane> {
+        ixy().differential(0).unwrap()
+    }
+
+    fn idy() -> DifferentialForm<IntPlane> {
+        ixy().differential(1).unwrap()
+    }
+
+    fn ipow(base: ZeroForm<IntPlane>, exponent: usize) -> ZeroForm<IntPlane> {
+        RingExpr::Pow {
+            base: Box::new(base),
+            exponent: NonZeroUsize::new(exponent).unwrap(),
+        }
+    }
+
+    #[test]
+    fn d_of_x_squared_y_over_int_plane() {
+        // d(x^2 · y) = 2xy dx + x^2 dy
+        let f = GradedCommutativeRewriter::<IntPlane>::new();
+        let expr = RingExpr::Mul(vec![ipow(ix(), 2), iy()]);
+        assert_eq!(
+            f.rewrited_expr(DifferentialForm::Differential(Box::new(isc(expr)))),
+            DifferentialForm::Add(vec![
+                DifferentialForm::Wedged(vec![isc(RingExpr::Mul(vec![ic(2), ix(), iy()])), idx(),]),
+                DifferentialForm::Wedged(vec![isc(ipow(ix(), 2)), idy()]),
+            ])
+        );
+    }
+
+    #[test]
+    fn d_squared_vanishes_over_int_plane() {
+        // d(d(x^2 · y)) = 0
+        let f = GradedCommutativeRewriter::<IntPlane>::new();
+        let expr = RingExpr::Mul(vec![ipow(ix(), 2), iy()]);
+        let dd = DifferentialForm::Differential(Box::new(DifferentialForm::Differential(
+            Box::new(isc(expr)),
+        )));
+        assert_eq!(f.rewrited_expr(dd), isc(ic(0)));
+    }
+
+    #[test]
+    fn d_of_wedged_product_over_int_plane() {
+        // d(x·y ∧ dx) = -x dx∧dy
+        let f = GradedCommutativeRewriter::<IntPlane>::new();
+        let xy_dx = DifferentialForm::Wedged(vec![isc(RingExpr::Mul(vec![ix(), iy()])), idx()]);
+        assert_eq!(
+            f.rewrited_expr(DifferentialForm::Differential(Box::new(xy_dx))),
+            DifferentialForm::Wedged(vec![isc(RingExpr::Mul(vec![ic(-1), ix()])), idx(), idy(),])
+        );
     }
 
     #[test]
@@ -378,6 +454,35 @@ mod tests {
         for expr in inputs {
             assert_idempotent(&ExteriorRewriter::<Plane>::new(), expr.clone());
             assert_idempotent(&GradedCommutativeRewriter::<Plane>::new(), expr);
+        }
+
+        let int_inputs = [
+            isc(ic(0)),
+            DifferentialForm::Add(vec![]),
+            DifferentialForm::Neg(Box::new(DifferentialForm::Neg(Box::new(isc(ix()))))),
+            DifferentialForm::Differential(Box::new(DifferentialForm::Wedged(vec![
+                isc(ix()),
+                idy(),
+            ]))),
+            DifferentialForm::Wedged(vec![idy(), idx()]),
+            DifferentialForm::Add(vec![
+                DifferentialForm::Wedged(vec![idx(), idy()]),
+                DifferentialForm::Wedged(vec![idy(), idx()]),
+            ]),
+            DifferentialForm::Wedged(vec![
+                isc(ic(2)),
+                DifferentialForm::Add(vec![isc(ix()), idy()]),
+                idx(),
+            ]),
+            DifferentialForm::Wedged(vec![idx(), idy(), idx()]),
+            DifferentialForm::Differential(Box::new(isc(ipow(ix(), 2)))),
+            DifferentialForm::Differential(Box::new(DifferentialForm::Differential(Box::new(
+                isc(RingExpr::Mul(vec![ipow(ix(), 2), iy()])),
+            )))),
+        ];
+        for expr in int_inputs {
+            assert_idempotent(&ExteriorRewriter::<IntPlane>::new(), expr.clone());
+            assert_idempotent(&GradedCommutativeRewriter::<IntPlane>::new(), expr);
         }
     }
 

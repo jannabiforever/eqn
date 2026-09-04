@@ -4,9 +4,7 @@
 
 use std::collections::HashSet;
 
-use eqn_algebra::field::Field;
-use eqn_algebra::ring::SemiRing;
-use eqn_analysis::ElementaryExpr;
+use eqn_algebra::differential::DifferentialAlgebra;
 use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
@@ -14,31 +12,34 @@ use eqn_core::symbol::Symbol;
 pub const WEDGE_CHAR: char = '\u{2227}';
 pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
 
-/// a marker trait for smoothness.
-///
-/// NOTE: for now, it only support for real manifolds.
+/// A manifold is known to the library through its ring of functions.
 pub trait Manifold {
-    type Scalar: Field;
+    /// The 0-forms `A`: a commutative `k`-algebra with partial derivatives
+    /// along its coordinate symbols. Polynomials (`RingExpr`) give the
+    /// algebraic de Rham complex over any commutative ring; elementary
+    /// expressions (`eqn_analysis::ElementaryExpr`) give the smooth one
+    /// over a field.
+    type Functions: DifferentialAlgebra;
 
     type const DIM: usize;
 }
 
-/// An element of the scalar field of `M`.
-pub type Scalar<M> = <<<M as Manifold>::Scalar as SemiRing>::Domain as Set>::Element;
+/// A 0-form on `M`: any element of its ring of functions.
+pub type ZeroForm<M> = <M as Manifold>::Functions;
 
 /// A coordinate symbol on `M`, i.e. a name a 0-form can be built from.
-pub type Coordinate<M> = Symbol<<<M as Manifold>::Scalar as SemiRing>::Domain>;
+pub type Coordinate<M> = Symbol<<ZeroForm<M> as Expression>::Domain>;
 
-/// A 0-form on `M`: any elementary expression in the coordinate symbols.
-pub type ZeroForm<M> = ElementaryExpr<<M as Manifold>::Scalar>;
+/// An element of the scalar ring of `M`.
+pub type Scalar<M> = <<ZeroForm<M> as Expression>::Domain as Set>::Element;
 
 /// `d` on a 0-form `e` is `Σ_s (∂e/∂s) ds` over the free symbols of `e`, so
 /// every symbol is treated as a coordinate and no chart is needed to
 /// differentiate.
 // ponytail: any symbol is a coordinate; a chart-scoped d can restrict the sum later
-#[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
+#[derive_where::derive_where(Clone, Debug, Eq, PartialEq; ZeroForm<M>)]
 pub enum DifferentialForm<M: Manifold> {
-    /// A 0-form: any elementary expression in the coordinate symbols.
+    /// A 0-form: any element of `M`'s ring of functions.
     Scalar(ZeroForm<M>),
     Neg(Box<Self>),
     Add(Vec<Self>),
@@ -48,18 +49,18 @@ pub enum DifferentialForm<M: Manifold> {
 
 impl<M: Manifold> DifferentialForm<M> {
     pub fn constant(c: Scalar<M>) -> Self {
-        Self::Scalar(ElementaryExpr::Const(c))
+        Self::Scalar(ZeroForm::<M>::constant(c))
     }
 }
 
 impl<M: Manifold> From<Coordinate<M>> for DifferentialForm<M> {
     fn from(value: Coordinate<M>) -> Self {
-        Self::Scalar(ElementaryExpr::Symbol(value))
+        Self::Scalar(ZeroForm::<M>::from(value))
     }
 }
 
 impl<M: Manifold> Expression for DifferentialForm<M> {
-    type Domain = <M::Scalar as SemiRing>::Domain;
+    type Domain = <ZeroForm<M> as Expression>::Domain;
 
     fn children(&self) -> &[Self] {
         match self {
@@ -79,7 +80,7 @@ impl<M: Manifold> Expression for DifferentialForm<M> {
 
     fn as_symbol(&self) -> Option<&Symbol<Self::Domain>> {
         match self {
-            Self::Scalar(ElementaryExpr::Symbol(s)) => Some(s),
+            Self::Scalar(e) => e.as_symbol(),
             _ => None,
         }
     }
@@ -148,6 +149,8 @@ pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
 #[cfg(test)]
 mod tests {
     use eqn_algebra::field::{Rational, RationalField};
+    use eqn_algebra::ring::{IntegerRing, RingExpr};
+    use eqn_analysis::ElementaryExpr;
     use eqn_core::rewriter::Rewriter;
 
     use super::*;
@@ -155,7 +158,14 @@ mod tests {
     #[derive(Debug)]
     pub(super) struct Plane;
     impl Manifold for Plane {
-        type Scalar = RationalField;
+        type Functions = ElementaryExpr<RationalField>;
+        type const DIM: usize = 2;
+    }
+
+    #[derive(Debug)]
+    pub(super) struct IntPlane;
+    impl Manifold for IntPlane {
+        type Functions = RingExpr<IntegerRing>;
         type const DIM: usize = 2;
     }
 
