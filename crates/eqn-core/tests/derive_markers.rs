@@ -1,4 +1,4 @@
-use eqn_core::op::{AssociativeOperator, BinaryOperator, CommutativeOperator};
+use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::set::Set;
 
 struct Ints;
@@ -6,7 +6,7 @@ impl Set for Ints {
     type Element = i64;
 }
 
-#[derive(AssociativeOperator, CommutativeOperator)]
+#[derive(Associative, Commutative)]
 struct Add;
 impl BinaryOperator for Add {
     type Domain = Ints;
@@ -15,7 +15,7 @@ impl BinaryOperator for Add {
     }
 }
 
-fn requires<Op: AssociativeOperator + CommutativeOperator>() {}
+fn requires<Op: Associative + Commutative>() {}
 
 #[test]
 fn derives_marker_traits() {

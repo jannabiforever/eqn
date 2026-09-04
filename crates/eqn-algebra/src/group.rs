@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::formatter::{Expression, Formatter};
 use crate::monoid::Monoid;
-use crate::op::{BinaryOperator, CommutativeOperator, InverseOperator};
+use crate::op::{BinaryOperator, Commutative, Inverse};
 use crate::set::Set;
 use crate::symbol::Symbol;
 
@@ -10,14 +10,14 @@ use crate::symbol::Symbol;
 /// element, and a two-sided inverse for every element.
 ///
 /// The inherited [`Monoid`] supplies the set, operation, and identity.
-/// [`InverseOperator`] declares that, for every element `x`, both
+/// [`Inverse`] declares that, for every element `x`, both
 /// `inverse(x) * x` and `x * inverse(x)` equal [`Monoid::IDENTITY`], where `*`
 /// denotes [`Monoid::apply`]. Rust cannot verify these laws, so implementations
 /// should cover them with property tests where practical.
-pub trait Group: Monoid<Operator: BinaryOperator + InverseOperator> {
+pub trait Group: Monoid<Operator: BinaryOperator + Inverse> {
     /// Returns the two-sided inverse of `value` under the group's operation.
     fn inverse(value: <Self::Domain as Set>::Element) -> <Self::Domain as Set>::Element {
-        <Self::Operator as InverseOperator>::inverse(value)
+        <Self::Operator as Inverse>::inverse(value)
     }
 }
 
@@ -25,21 +25,21 @@ pub trait Group: Monoid<Operator: BinaryOperator + InverseOperator> {
 impl<M> Group for M
 where
     M: Monoid,
-    M::Operator: InverseOperator,
+    M::Operator: Inverse,
 {
 }
 
 /// An abelian group: a group whose operation is commutative.
 ///
 /// In addition to the group laws, `x * y` must equal `y * x` for every pair of
-/// elements in the set. [`CommutativeOperator`] declares this law.
-pub trait AbelianGroup: Group + Monoid<Operator: CommutativeOperator> {}
+/// elements in the set. [`Commutative`] declares this law.
+pub trait AbelianGroup: Group + Monoid<Operator: Commutative> {}
 
 /// Classifies every group with a commutative operation as an abelian group.
 impl<G> AbelianGroup for G
 where
     G: Group,
-    G::Operator: CommutativeOperator,
+    G::Operator: Commutative,
 {
 }
 
@@ -392,7 +392,7 @@ impl<G: AbelianGroup> Formatter for AbelianGroupFormatter<G> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::op::{AssociativeOperator, BinaryOperator, IdentityOperator};
+    use crate::op::{Associative, BinaryOperator, Identity};
 
     struct IntegerSet;
 
@@ -400,7 +400,7 @@ mod tests {
         type Element = i64;
     }
 
-    #[derive(AssociativeOperator, CommutativeOperator)]
+    #[derive(Associative, Commutative)]
     struct Addition;
 
     impl BinaryOperator for Addition {
@@ -411,11 +411,11 @@ mod tests {
         }
     }
 
-    impl IdentityOperator for Addition {
+    impl Identity for Addition {
         const IDENTITY: i64 = 0;
     }
 
-    impl InverseOperator for Addition {
+    impl Inverse for Addition {
         fn inverse(a: i64) -> i64 {
             -a
         }

@@ -2,9 +2,7 @@ use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
 use crate::formatter::{Expression, Formatter};
-use crate::op::{
-    AssociativeOperator, BinaryOperator, CommutativeOperator, IdentityOperator, InverseOperator,
-};
+use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
 use crate::set::Set;
 use crate::symbol::Symbol;
 
@@ -21,22 +19,16 @@ pub trait SemiRing {
     /// The addition operator for this semi-ring.
     ///
     /// Should be associative, commutative, and have an identity element.
-    type Addition: BinaryOperator<Domain = Self::Domain>
-        + AssociativeOperator
-        + CommutativeOperator
-        + IdentityOperator;
+    type Addition: BinaryOperator<Domain = Self::Domain> + Associative + Commutative + Identity;
 
     /// The multiplication operator for this semi-ring.
     ///
     /// Should be associative and have an identity element.
-    type Multiplication: BinaryOperator<Domain = Self::Domain>
-        + AssociativeOperator
-        + IdentityOperator;
+    type Multiplication: BinaryOperator<Domain = Self::Domain> + Associative + Identity;
 
-    const ZERO: <Self::Domain as Set>::Element = <Self::Addition as IdentityOperator>::IDENTITY;
+    const ZERO: <Self::Domain as Set>::Element = <Self::Addition as Identity>::IDENTITY;
 
-    const ONE: <Self::Domain as Set>::Element =
-        <Self::Multiplication as IdentityOperator>::IDENTITY;
+    const ONE: <Self::Domain as Set>::Element = <Self::Multiplication as Identity>::IDENTITY;
 
     fn add(
         a: <Self::Domain as Set>::Element,
@@ -62,10 +54,10 @@ pub trait Ring: SemiRing {
 /// Any semi-ring with invertible addition is a ring for free.
 impl<SR: SemiRing> Ring for SR
 where
-    SR::Addition: InverseOperator,
+    SR::Addition: Inverse,
 {
     fn negate(a: <Self::Domain as Set>::Element) -> <Self::Domain as Set>::Element {
-        <SR::Addition as InverseOperator>::inverse(a)
+        <SR::Addition as Inverse>::inverse(a)
     }
 }
 
@@ -498,7 +490,7 @@ impl<R: Ring> CommutativeRingFormatter<R> {
 
 impl<R: Ring> Formatter for CommutativeRingFormatter<R>
 where
-    R::Multiplication: CommutativeOperator,
+    R::Multiplication: Commutative,
 {
     type Expr = RingExpr<R>;
 
@@ -614,7 +606,7 @@ mod tests {
         type Element = i64;
     }
 
-    #[derive(AssociativeOperator, CommutativeOperator)]
+    #[derive(Associative, Commutative)]
     struct TestAdd;
 
     impl BinaryOperator for TestAdd {
@@ -625,16 +617,16 @@ mod tests {
         }
     }
 
-    impl IdentityOperator for TestAdd {
+    impl Identity for TestAdd {
         const IDENTITY: i64 = 0;
     }
-    impl InverseOperator for TestAdd {
+    impl Inverse for TestAdd {
         fn inverse(a: i64) -> i64 {
             -a
         }
     }
 
-    #[derive(AssociativeOperator, CommutativeOperator)]
+    #[derive(Associative, Commutative)]
     struct TestMul;
 
     impl BinaryOperator for TestMul {
@@ -645,7 +637,7 @@ mod tests {
         }
     }
 
-    impl IdentityOperator for TestMul {
+    impl Identity for TestMul {
         const IDENTITY: i64 = 1;
     }
 

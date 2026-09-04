@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::formatter::{Expression, Formatter};
-use crate::op::{AssociativeOperator, BinaryOperator, CommutativeOperator, IdentityOperator};
+use crate::op::{Associative, BinaryOperator, Commutative, Identity};
 use crate::set::Set;
 use crate::symbol::Symbol;
 
@@ -10,9 +10,9 @@ use crate::symbol::Symbol;
 /// must declare them to qualify.
 pub trait Monoid {
     type Domain: Set;
-    type Operator: BinaryOperator<Domain = Self::Domain> + AssociativeOperator + IdentityOperator;
+    type Operator: BinaryOperator<Domain = Self::Domain> + Associative + Identity;
 
-    const IDENTITY: <Self::Domain as Set>::Element = <Self::Operator as IdentityOperator>::IDENTITY;
+    const IDENTITY: <Self::Domain as Set>::Element = <Self::Operator as Identity>::IDENTITY;
 
     fn apply(
         lhs: <Self::Domain as Set>::Element,
@@ -26,7 +26,7 @@ pub trait Monoid {
 impl<D, Op> Monoid for (D, Op)
 where
     D: Set,
-    Op: BinaryOperator<Domain = D> + AssociativeOperator + IdentityOperator,
+    Op: BinaryOperator<Domain = D> + Associative + Identity,
 {
     type Domain = D;
     type Operator = Op;
@@ -154,7 +154,7 @@ impl<M: Monoid> Formatter for NonCommutativeMonoidFormatter<M> {
 pub struct CommutativeMonoidFormatter<M>
 where
     M: Monoid,
-    M::Operator: CommutativeOperator,
+    M::Operator: Commutative,
 {
     _marker: std::marker::PhantomData<M>,
 }
@@ -162,7 +162,7 @@ where
 impl<M> CommutativeMonoidFormatter<M>
 where
     M: Monoid,
-    M::Operator: CommutativeOperator,
+    M::Operator: Commutative,
 {
     pub fn new() -> Self {
         Self::default()
@@ -172,7 +172,7 @@ where
 impl<M> Formatter for CommutativeMonoidFormatter<M>
 where
     M: Monoid,
-    M::Operator: CommutativeOperator,
+    M::Operator: Commutative,
 {
     type Expr = MonoidExpr<M>;
 
@@ -223,7 +223,7 @@ mod tests {
         type Element = i64;
     }
 
-    #[derive(AssociativeOperator, CommutativeOperator)]
+    #[derive(Associative, Commutative)]
     struct TestOperator;
 
     impl BinaryOperator for TestOperator {
@@ -237,7 +237,7 @@ mod tests {
         }
     }
 
-    impl IdentityOperator for TestOperator {
+    impl Identity for TestOperator {
         const IDENTITY: <TestDomain as Set>::Element = 0;
     }
 

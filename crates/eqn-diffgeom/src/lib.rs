@@ -339,9 +339,7 @@ impl<M: Manifold> Formatter for GradedCommutativeFormatter<M> {
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::op::{
-        AssociativeOperator, BinaryOperator, CommutativeOperator, IdentityOperator, InverseOperator,
-    };
+    use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
 
     use super::*;
 
@@ -350,7 +348,7 @@ mod tests {
         type Element = i64; // ponytail: i64 stands in for R; swap for a real type when evaluation lands
     }
 
-    #[derive(AssociativeOperator, CommutativeOperator)]
+    #[derive(Associative, Commutative)]
     struct Add;
     impl BinaryOperator for Add {
         type Domain = Reals;
@@ -358,16 +356,16 @@ mod tests {
             a + b
         }
     }
-    impl IdentityOperator for Add {
+    impl Identity for Add {
         const IDENTITY: i64 = 0;
     }
-    impl InverseOperator for Add {
+    impl Inverse for Add {
         fn inverse(a: i64) -> i64 {
             -a
         }
     }
 
-    #[derive(AssociativeOperator)]
+    #[derive(Associative)]
     struct Mul;
     impl BinaryOperator for Mul {
         type Domain = Reals;
@@ -375,7 +373,7 @@ mod tests {
             a * b
         }
     }
-    impl IdentityOperator for Mul {
+    impl Identity for Mul {
         const IDENTITY: i64 = 1;
     }
 

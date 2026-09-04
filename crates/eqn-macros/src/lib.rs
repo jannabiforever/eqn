@@ -18,13 +18,13 @@ fn marker_impl(input: TokenStream, trait_path: Path) -> TokenStream {
 }
 
 /// Declares the operator associative. Requires a `BinaryOperator` impl.
-#[proc_macro_derive(AssociativeOperator)]
+#[proc_macro_derive(Associative)]
 pub fn derive_associative(input: TokenStream) -> TokenStream {
-    marker_impl(input, parse_quote!(::eqn_core::op::AssociativeOperator))
+    marker_impl(input, parse_quote!(::eqn_core::op::Associative))
 }
 
 /// Declares the operator commutative. Requires a `BinaryOperator` impl.
-#[proc_macro_derive(CommutativeOperator)]
+#[proc_macro_derive(Commutative)]
 pub fn derive_commutative(input: TokenStream) -> TokenStream {
-    marker_impl(input, parse_quote!(::eqn_core::op::CommutativeOperator))
+    marker_impl(input, parse_quote!(::eqn_core::op::Commutative))
 }

@@ -1,4 +1,4 @@
-pub use eqn_macros::{AssociativeOperator, CommutativeOperator};
+pub use eqn_macros::{Associative, Commutative};
 
 use crate::set::Set;
 
@@ -14,15 +14,15 @@ pub trait BinaryOperator {
     ) -> <Self::Domain as Set>::Element;
 }
 
-pub trait AssociativeOperator: BinaryOperator {}
+pub trait Associative: BinaryOperator {}
 
-pub trait CommutativeOperator: BinaryOperator {}
+pub trait Commutative: BinaryOperator {}
 
-pub trait IdentityOperator: BinaryOperator {
+pub trait Identity: BinaryOperator {
     const IDENTITY: <<Self as BinaryOperator>::Domain as Set>::Element;
 }
 
-pub trait InverseOperator: BinaryOperator {
+pub trait Inverse: BinaryOperator {
     fn inverse(
         a: <<Self as BinaryOperator>::Domain as Set>::Element,
     ) -> <<Self as BinaryOperator>::Domain as Set>::Element;
