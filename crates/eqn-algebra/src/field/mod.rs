@@ -1,5 +1,5 @@
 use crate::op::{Associative, BinaryOperator, Commutative, Inverse};
-use crate::ring::{Element, Ring, SemiRing};
+use crate::ring::{Ring, RingElement, SemiRing};
 use crate::set::Set;
 
 // ================================================================================
@@ -10,7 +10,7 @@ use crate::set::Set;
 /// element except `ZERO`. `invert(ZERO)` is a contract violation, not an
 /// error; the operator's `Inverse` impl is only consulted for non-zero input.
 pub trait Field: Ring<Multiplication: Commutative + Inverse> {
-    fn invert(a: Element<Self>) -> Element<Self> {
+    fn invert(a: RingElement<Self>) -> RingElement<Self> {
         <Self::Multiplication as Inverse>::inverse(a)
     }
 }
@@ -32,7 +32,6 @@ fn gcd(a: u64, b: u64) -> u64 {
     if b == 0 { a } else { gcd(b, a % b) }
 }
 
-/// `num / den` in lowest terms, `den > 0`. The canonical test field.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Rational {
     num: i64,

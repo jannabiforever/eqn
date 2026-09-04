@@ -7,9 +7,7 @@ use crate::{Chart, DifferentialForm, Manifold, ZeroForm};
 // Normalization engine
 // ================================================================================
 
-/// `coeff · dx_{i_1} ∧ ... ∧ dx_{i_n}`; the coefficient is a 0-form, the
-/// atoms are chart positions -- so the canonical order of `dx^I` is chart
-/// order, and [`Coordinate`] needs no `Ord`.
+/// `coeff · dx_{i_1} ∧ ... ∧ dx_{i_n}`
 #[derive_where::derive_where(Clone)]
 struct Term<M: Manifold> {
     coeff: ZeroForm<M>,
@@ -36,11 +34,6 @@ impl<M: Manifold> Term<M> {
         }
     }
 
-    /// `d(c · dx_I) = Σ_{i} (∂c/∂xⁱ) dxⁱ ∧ dx_I` over the chart's
-    /// coordinates; any symbol outside the chart is a parameter, and
-    /// `derive` already returns zero for it. No sign: `dc` is placed in
-    /// front. `d(dx) = 0` is automatic: atoms carry no coefficient of their
-    /// own to differentiate.
     fn differential(self, chart: &Chart<M>) -> Vec<Self> {
         (0..M::DIM)
             .map(|i| Self {

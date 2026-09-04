@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use super::{CommutativeRing, Element, PolynomialRing, RingExpr};
+use super::{CommutativeRing, PolynomialRing, RingElement, RingExpr};
 use crate::symbol::Symbol;
 
 // ================================================================================
@@ -9,21 +9,19 @@ use crate::symbol::Symbol;
 
 /// A commutative ring with a family of commuting derivations `∂_i`, indexed
 /// by [`Index`](Self::Index). Each `∂_i` is additive and satisfies Leibniz,
-/// `∂_i(ab) = (∂_i a) b + a (∂_i b)`, and `∂_i ∂_j = ∂_j ∂_i`. Rust cannot
-/// verify these laws; they are the implementor's contract.
+/// `∂_i(ab) = (∂_i a) b + a (∂_i b)`, and `∂_i ∂_j = ∂_j ∂_i`.
 pub trait DifferentialRing: CommutativeRing {
     /// Names a derivation.
     type Index;
     /// `∂_i a`.
-    fn derive(a: Element<Self>, i: &Self::Index) -> Element<Self>;
+    fn derive(a: RingElement<Self>, i: &Self::Index) -> RingElement<Self>;
 }
 
 // ================================================================================
 // PolynomialRing is a DifferentialRing over its own symbols
 // ================================================================================
 
-/// The polynomial derivation on the raw tree (no normalization -- a
-/// [`Rewriter`](crate::rewriter::Rewriter) is the caller's job).
+/// The polynomial derivation on the raw tree
 fn derive<R: CommutativeRing>(expr: RingExpr<R>, wrt: &Symbol<R::Domain>) -> RingExpr<R> {
     match expr {
         RingExpr::Const(_) => RingExpr::Const(R::ZERO),
@@ -59,7 +57,7 @@ fn derive<R: CommutativeRing>(expr: RingExpr<R>, wrt: &Symbol<R::Domain>) -> Rin
 impl<R: CommutativeRing> DifferentialRing for PolynomialRing<R> {
     type Index = Symbol<R::Domain>;
 
-    fn derive(a: Element<Self>, i: &Self::Index) -> Element<Self> {
+    fn derive(a: RingElement<Self>, i: &Self::Index) -> RingElement<Self> {
         derive(a, i)
     }
 }

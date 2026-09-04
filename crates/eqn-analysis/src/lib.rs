@@ -2,7 +2,7 @@
 // because it would collide with this crate's own private `rewriter` module
 // below.
 use eqn_algebra::field::Field;
-use eqn_algebra::ring::{DifferentialRing, Element, SemiRing};
+use eqn_algebra::ring::{DifferentialRing, RingElement, SemiRing};
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
@@ -141,7 +141,7 @@ impl<F: Field> DifferentialRing for ElementaryFunctionRing<F> {
     /// The eager form of [`ElementaryExpr::D`]: both funnel through
     /// [`rewriter::derivative`], the same symbolic differentiation the
     /// rewriter uses to eliminate `D` nodes.
-    fn derive(a: Element<Self>, i: &Self::Index) -> Element<Self> {
+    fn derive(a: RingElement<Self>, i: &Self::Index) -> RingElement<Self> {
         rewriter::derivative(a, i)
     }
 }

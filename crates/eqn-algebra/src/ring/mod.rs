@@ -11,7 +11,7 @@ use crate::symbol::Symbol;
 // ================================================================================
 
 /// The element type of a structure `S`'s domain.
-pub type Element<S> = <<S as SemiRing>::Domain as Set>::Element;
+pub type RingElement<S> = <<S as SemiRing>::Domain as Set>::Element;
 
 /// A semi-ring: addition forms a commutative monoid, multiplication forms a
 /// monoid. Distributivity and annihilation (`0 * a = 0`) relate the two
@@ -29,21 +29,21 @@ pub trait SemiRing {
     /// Should be associative and have an identity element.
     type Multiplication: BinaryOperator<Domain = Self::Domain> + Associative + Identity;
 
-    const ZERO: Element<Self> = <Self::Addition as Identity>::IDENTITY;
+    const ZERO: RingElement<Self> = <Self::Addition as Identity>::IDENTITY;
 
-    const ONE: Element<Self> = <Self::Multiplication as Identity>::IDENTITY;
+    const ONE: RingElement<Self> = <Self::Multiplication as Identity>::IDENTITY;
 
-    fn add(a: Element<Self>, b: Element<Self>) -> Element<Self> {
+    fn add(a: RingElement<Self>, b: RingElement<Self>) -> RingElement<Self> {
         <Self::Addition as BinaryOperator>::apply(a, b)
     }
 
-    fn multiply(a: Element<Self>, b: Element<Self>) -> Element<Self> {
+    fn multiply(a: RingElement<Self>, b: RingElement<Self>) -> RingElement<Self> {
         <Self::Multiplication as BinaryOperator>::apply(a, b)
     }
 
-    /// `n · ONE`: the image of `n` under the unique semi-ring map from the
+    /// `n * ONE`: the image of `n` under the unique semi-ring map from the
     /// naturals, computed by double-and-add in `O(log n)` additions.
-    fn from_usize(mut n: usize) -> Element<Self> {
+    fn from_usize(mut n: usize) -> RingElement<Self> {
         let mut acc = Self::ZERO;
         let mut power = Self::ONE;
         while n > 0 {
@@ -62,7 +62,7 @@ pub trait SemiRing {
 /// A ring: a semi-ring whose addition also has inverses.
 pub trait Ring: SemiRing {
     /// The additive inverse.
-    fn negate(a: Element<Self>) -> Element<Self>;
+    fn negate(a: RingElement<Self>) -> RingElement<Self>;
 }
 
 /// Any semi-ring with invertible addition is a ring for free.
@@ -70,7 +70,7 @@ impl<SR: SemiRing> Ring for SR
 where
     SR::Addition: Inverse,
 {
-    fn negate(a: Element<Self>) -> Element<Self> {
+    fn negate(a: RingElement<Self>) -> RingElement<Self> {
         <SR::Addition as Inverse>::inverse(a)
     }
 }

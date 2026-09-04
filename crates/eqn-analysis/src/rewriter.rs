@@ -1,5 +1,5 @@
 use eqn_algebra::field::Field;
-use eqn_algebra::ring::Element;
+use eqn_algebra::ring::RingElement;
 use eqn_core::rewriter::Rewriter;
 use eqn_core::symbol::Symbol;
 
@@ -31,7 +31,7 @@ impl<F: Field> Atom<F> {
 
 /// `coeff · Π atomᵢ^eᵢ`.
 struct Term<F: Field> {
-    coeff: Element<F>,
+    coeff: RingElement<F>,
     factors: Vec<(Atom<F>, isize)>,
 }
 
