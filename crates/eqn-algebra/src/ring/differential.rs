@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use super::{CommutativeRing, PolynomialRing, RingElement, RingExpr};
+use super::{CommutativeRing, PolynomialRing, RingElem, RingExpr};
 use crate::symbol::Symbol;
 
 // ================================================================================
@@ -14,7 +14,7 @@ pub trait DifferentialRing: CommutativeRing {
     /// Names a derivation.
     type Index;
     /// `∂_i a`.
-    fn derive(a: RingElement<Self>, i: &Self::Index) -> RingElement<Self>;
+    fn derive(a: RingElem<Self>, i: &Self::Index) -> RingElem<Self>;
 }
 
 // ================================================================================
@@ -57,7 +57,7 @@ fn derive<R: CommutativeRing>(expr: RingExpr<R>, wrt: &Symbol<R::Domain>) -> Rin
 impl<R: CommutativeRing> DifferentialRing for PolynomialRing<R> {
     type Index = Symbol<R::Domain>;
 
-    fn derive(a: RingElement<Self>, i: &Self::Index) -> RingElement<Self> {
+    fn derive(a: RingElem<Self>, i: &Self::Index) -> RingElem<Self> {
         derive(a, i)
     }
 }

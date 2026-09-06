@@ -10,8 +10,17 @@ use crate::symbol::Symbol;
 // Ring
 // ================================================================================
 
-/// The element type of a structure `S`'s domain.
-pub type RingElement<S> = <<S as SemiRing>::Domain as Set>::Element;
+/// Alias for Ring's element.
+pub type RingElem<S> = Elem<<S as SemiRing>::Domain>;
+
+/// Alias for Ring's domain. (element set)
+pub type RingDom<S> = <S as SemiRing>::Domain;
+
+/// Alias for Ring's add operation
+pub type RingAdd<S> = <S as SemiRing>::Addition;
+
+/// Alias for Ring's mul operation
+pub type RingMul<S> = <S as SemiRing>::Multiplication;
 
 /// A semi-ring: addition forms a commutative monoid, multiplication forms a
 /// monoid. Distributivity and annihilation (`0 * a = 0`) relate the two
@@ -29,21 +38,21 @@ pub trait SemiRing {
     /// Should be associative and have an identity element.
     type Multiplication: BinaryOperator<Domain = Self::Domain> + Associative + Identity;
 
-    const ZERO: RingElement<Self> = <Self::Addition as Identity>::IDENTITY;
+    const ZERO: RingElem<Self> = <Self::Addition as Identity>::IDENTITY;
 
-    const ONE: RingElement<Self> = <Self::Multiplication as Identity>::IDENTITY;
+    const ONE: RingElem<Self> = <Self::Multiplication as Identity>::IDENTITY;
 
-    fn add(a: RingElement<Self>, b: RingElement<Self>) -> RingElement<Self> {
+    fn add(a: RingElem<Self>, b: RingElem<Self>) -> RingElem<Self> {
         <Self::Addition as BinaryOperator>::apply(a, b)
     }
 
-    fn multiply(a: RingElement<Self>, b: RingElement<Self>) -> RingElement<Self> {
+    fn multiply(a: RingElem<Self>, b: RingElem<Self>) -> RingElem<Self> {
         <Self::Multiplication as BinaryOperator>::apply(a, b)
     }
 
     /// `n * ONE`: the image of `n` under the unique semi-ring map from the
     /// naturals, computed by double-and-add in `O(log n)` additions.
-    fn from_usize(mut n: usize) -> RingElement<Self> {
+    fn from_usize(mut n: usize) -> RingElem<Self> {
         let mut acc = Self::ZERO;
         let mut power = Self::ONE;
         while n > 0 {
@@ -62,7 +71,7 @@ pub trait SemiRing {
 /// A ring: a semi-ring whose addition also has inverses.
 pub trait Ring: SemiRing {
     /// The additive inverse.
-    fn negate(a: RingElement<Self>) -> RingElement<Self>;
+    fn negate(a: RingElem<Self>) -> RingElem<Self>;
 }
 
 /// Any semi-ring with invertible addition is a ring for free.
@@ -70,7 +79,7 @@ impl<SR: SemiRing> Ring for SR
 where
     SR::Addition: Inverse,
 {
-    fn negate(a: RingElement<Self>) -> RingElement<Self> {
+    fn negate(a: RingElem<Self>) -> RingElem<Self> {
         <SR::Addition as Inverse>::inverse(a)
     }
 }
@@ -242,7 +251,7 @@ pub struct Polynomials<R: Ring>(PhantomData<R>);
     identity = RingExpr::Const(R::ZERO),
     inverse = |a| RingExpr::Neg(Box::new(a))
 )]
-pub struct PolynomialAdd<R: Ring>(PhantomData<R>);
+pub struct PolyAdd<R: Ring>(PhantomData<R>);
 
 /// Symbolic multiplication: builds the tree, does not normalize.
 #[derive(Associative, BinaryOperator, Commutative)]
@@ -251,7 +260,7 @@ pub struct PolynomialAdd<R: Ring>(PhantomData<R>);
     apply = |a, b| RingExpr::Mul(vec![a, b]),
     identity = RingExpr::Const(R::ONE)
 )]
-pub struct PolynomialMul<R: CommutativeRing>(PhantomData<R>);
+pub struct PolyMul<R: CommutativeRing>(PhantomData<R>);
 
 /// The commutative ring of polynomials over `R`. Elements are trees, so `Eq`
 /// is structural: the ring laws hold modulo [`CommutativeRingRewriter`].
@@ -259,13 +268,14 @@ pub struct PolynomialRing<R: CommutativeRing>(PhantomData<R>);
 
 impl<R: CommutativeRing> SemiRing for PolynomialRing<R> {
     type Domain = Polynomials<R>;
-    type Addition = PolynomialAdd<R>;
-    type Multiplication = PolynomialMul<R>;
+    type Addition = PolyAdd<R>;
+    type Multiplication = PolyMul<R>;
 }
 
 mod differential;
 mod rewriter;
 pub use differential::DifferentialRing;
+use eqn_core::set::Elem;
 pub use rewriter::{CommutativeRingRewriter, RingRewriter, SemiRingRewriter};
 
 // ================================================================================

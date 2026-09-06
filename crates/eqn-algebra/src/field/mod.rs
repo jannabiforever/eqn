@@ -1,5 +1,5 @@
 use crate::op::{Associative, BinaryOperator, Commutative, Inverse};
-use crate::ring::{Ring, RingElement, SemiRing};
+use crate::ring::{Ring, RingElem, SemiRing};
 use crate::set::Set;
 
 // ================================================================================
@@ -10,7 +10,7 @@ use crate::set::Set;
 /// element except `ZERO`. `invert(ZERO)` is a contract violation, not an
 /// error; the operator's `Inverse` impl is only consulted for non-zero input.
 pub trait Field: Ring<Multiplication: Commutative + Inverse> {
-    fn invert(a: RingElement<Self>) -> RingElement<Self> {
+    fn invert(a: RingElem<Self>) -> RingElem<Self> {
         <Self::Multiplication as Inverse>::inverse(a)
     }
 }
@@ -126,7 +126,7 @@ impl std::fmt::Display for Rational {
 pub struct Rationals;
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = Rationals, apply = |a, b| a + b, identity = Rational::ZERO, inverse = |a| -a)]
+#[operator(domain = Rationals, apply = |a, b| a + b, identity = Rational::ZERO, inverse = std::ops::Neg::neg)]
 pub struct RationalAdd;
 
 #[derive(Associative, BinaryOperator, Commutative)]

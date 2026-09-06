@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use eqn_algebra::ring::{DifferentialRing, RingElement};
+use eqn_algebra::ring::{DifferentialRing, RingElem};
 use eqn_core::rewriter::Expression;
 use eqn_core::symbol::Symbol;
 
@@ -14,13 +14,13 @@ pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
 /// A manifold is known to the library through its ring of functions.
 pub trait Manifold {
     /// The ring of 0-forms along the [`Chart`].
-    type Functions: DifferentialRing<Index: Clone + Into<RingElement<Self::Functions>>>;
+    type Functions: DifferentialRing<Index: Clone + Into<RingElem<Self::Functions>>>;
 
     type const DIM: usize;
 }
 
 /// A 0-form on the manifold `M`: an element of `M::Functions`.
-pub type ZeroForm<M> = RingElement<<M as Manifold>::Functions>;
+pub type ZeroForm<M> = RingElem<<M as Manifold>::Functions>;
 
 /// A coordinate on the manifold `M`.
 pub type Coordinate<M> = <<M as Manifold>::Functions as DifferentialRing>::Index;
