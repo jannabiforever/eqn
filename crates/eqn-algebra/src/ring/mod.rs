@@ -1,13 +1,34 @@
 use std::num::NonZeroUsize;
 
+use eqn_core::set::Elem;
+
 use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
 use crate::rewriter::Expression;
 use crate::set::Set;
 use crate::symbol::Symbol;
 
+mod differential;
+mod rewriter;
+
+// Re-exports
+pub use differential::DifferentialRing;
+pub use rewriter::{CommutativeRingRewriter, RingRewriter, SemiRingRewriter};
+
 // ================================================================================
 // Ring
 // ================================================================================
+
+/// Alias for Ring's element.
+pub type RingElem<S> = Elem<<S as SemiRing>::Domain>;
+
+/// Alias for Ring's domain. (element set)
+pub type RingDom<S> = <S as SemiRing>::Domain;
+
+/// Alias for Ring's add operation
+pub type RingAdd<S> = <S as SemiRing>::Addition;
+
+/// Alias for Ring's mul operation
+pub type RingMul<S> = <S as SemiRing>::Multiplication;
 
 /// A semi-ring: addition forms a commutative monoid, multiplication forms a
 /// monoid. Distributivity and annihilation (`0 * a = 0`) relate the two
@@ -25,29 +46,54 @@ pub trait SemiRing {
     /// Should be associative and have an identity element.
     type Multiplication: BinaryOperator<Domain = Self::Domain> + Associative + Identity;
 
-    const ZERO: <Self::Domain as Set>::Element = <Self::Addition as Identity>::IDENTITY;
+    /// Addition's identity
+    const ZERO: RingElem<Self> = <Self::Addition as Identity>::IDENTITY;
 
-    const ONE: <Self::Domain as Set>::Element = <Self::Multiplication as Identity>::IDENTITY;
+    /// Multiplication's identity
+    const ONE: RingElem<Self> = <Self::Multiplication as Identity>::IDENTITY;
 
-    fn add(
-        a: <Self::Domain as Set>::Element,
-        b: <Self::Domain as Set>::Element,
-    ) -> <Self::Domain as Set>::Element {
+    fn add(a: RingElem<Self>, b: RingElem<Self>) -> RingElem<Self> {
         <Self::Addition as BinaryOperator>::apply(a, b)
     }
 
-    fn multiply(
-        a: <Self::Domain as Set>::Element,
-        b: <Self::Domain as Set>::Element,
-    ) -> <Self::Domain as Set>::Element {
+    fn multiply(a: RingElem<Self>, b: RingElem<Self>) -> RingElem<Self> {
         <Self::Multiplication as BinaryOperator>::apply(a, b)
     }
+
+    /// `n * ONE`: the image of `n` under the unique semi-ring map from the
+    /// naturals, computed by double-and-add in `O(log n)` additions.
+    fn from_usize(mut n: usize) -> RingElem<Self> {
+        let mut acc = Self::ZERO;
+        let mut power = Self::ONE;
+        while n > 0 {
+            if n & 1 == 1 {
+                acc = Self::add(acc, power.clone());
+            }
+            n >>= 1;
+            if n > 0 {
+                power = Self::add(power.clone(), power);
+            }
+        }
+        acc
+    }
+}
+
+// Blanket implementation on tuple - mathematical convention.
+impl<D, A, M> SemiRing for (D, A, M)
+where
+    D: Set,
+    A: BinaryOperator<Domain = D> + Associative + Commutative + Identity,
+    M: BinaryOperator<Domain = D> + Associative + Identity,
+{
+    type Domain = D;
+    type Addition = A;
+    type Multiplication = M;
 }
 
 /// A ring: a semi-ring whose addition also has inverses.
 pub trait Ring: SemiRing {
     /// The additive inverse.
-    fn negate(a: <Self::Domain as Set>::Element) -> <Self::Domain as Set>::Element;
+    fn negate(a: RingElem<Self>) -> RingElem<Self>;
 }
 
 /// Any semi-ring with invertible addition is a ring for free.
@@ -55,9 +101,24 @@ impl<SR: SemiRing> Ring for SR
 where
     SR::Addition: Inverse,
 {
-    fn negate(a: <Self::Domain as Set>::Element) -> <Self::Domain as Set>::Element {
+    fn negate(a: RingElem<Self>) -> RingElem<Self> {
         <SR::Addition as Inverse>::inverse(a)
     }
+}
+
+/// A ring whose multiplication is also commutative.
+///
+/// In addition to the ring laws, `a * b` must equal `b * a` for every pair of
+/// elements in the domain. [`Commutative`] declares this law.
+pub trait CommutativeRing: Ring<Multiplication: Commutative> {}
+
+/// Classifies every ring with a commutative multiplication as a commutative
+/// ring.
+impl<R> CommutativeRing for R
+where
+    R: Ring,
+    R::Multiplication: Commutative,
+{
 }
 
 /// An expression tree over a semi-ring: constants, named symbols, n-ary sums
@@ -193,6 +254,3 @@ impl<R: Ring> From<SemiRingExpr<R>> for RingExpr<R> {
         }
     }
 }
-
-mod rewriter;
-pub use rewriter::{CommutativeRingRewriter, RingRewriter, SemiRingRewriter};

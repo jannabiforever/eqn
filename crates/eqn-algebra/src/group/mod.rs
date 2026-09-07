@@ -4,6 +4,11 @@ use crate::rewriter::Expression;
 use crate::set::Set;
 use crate::symbol::Symbol;
 
+mod rewriter;
+
+// Re-exports
+pub use rewriter::{AbelianGroupRewriter, GroupRewriter};
+
 /// A group: a set equipped with an associative binary operation, an identity
 /// element, and a two-sided inverse for every element.
 ///
@@ -87,9 +92,6 @@ impl<G: Group> Expression for GroupExpr<G> {
         }
     }
 }
-
-mod rewriter;
-pub use rewriter::{AbelianGroupRewriter, GroupRewriter};
 
 #[cfg(test)]
 mod tests {

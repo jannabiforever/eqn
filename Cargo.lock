@@ -22,6 +22,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "eqn-analysis"
+version = "0.1.0"
+dependencies = [
+ "derive-where",
+ "eqn-algebra",
+ "eqn-core",
+]
+
+[[package]]
 name = "eqn-core"
 version = "0.1.0"
 dependencies = [
@@ -35,7 +44,9 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "eqn-algebra",
+ "eqn-analysis",
  "eqn-core",
+ "eqn-poly",
 ]
 
 [[package]]
@@ -45,6 +56,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "eqn-poly"
+version = "0.1.0"
+dependencies = [
+ "derive-where",
+ "eqn-algebra",
+ "eqn-analysis",
+ "eqn-core",
 ]
 
 [[package]]

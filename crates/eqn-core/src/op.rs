@@ -15,6 +15,12 @@ pub trait BinaryOperator {
     ) -> <Self::Domain as Set>::Element;
 }
 
+/// Alias for a [`BinaryOperator`]'s Domain
+pub type BinaryOperatorDomain<B> = <B as BinaryOperator>::Domain;
+
+/// Alias for a [`BinaryOperator`]'s Domain Element
+pub type BinaryOperatorDomainElement<B> = <BinaryOperatorDomain<B> as Set>::Element;
+
 /// Marks a binary operation as associative:
 ///
 /// `Op(Op(a, b), c) == Op(a, Op(b, c))` for all `a`, `b`, `c` in the domain.
@@ -30,7 +36,7 @@ pub trait Commutative: BinaryOperator {}
 /// There exists an element `IDENTITY` such that for all `a` in the domain,
 /// `Op(a, IDENTITY) == Op(IDENTITY, a) == a`.
 pub trait Identity: BinaryOperator {
-    const IDENTITY: <<Self as BinaryOperator>::Domain as Set>::Element;
+    const IDENTITY: BinaryOperatorDomainElement<Self>;
 }
 
 /// Marks a binary operation as having an inverse for every element in the
@@ -39,7 +45,5 @@ pub trait Identity: BinaryOperator {
 /// For all `a` in the domain, `inverse(a)` denotes the inverse element of `a`
 /// with respect to `Op`.
 pub trait Inverse: Identity {
-    fn inverse(
-        a: <<Self as BinaryOperator>::Domain as Set>::Element,
-    ) -> <<Self as BinaryOperator>::Domain as Set>::Element;
+    fn inverse(a: BinaryOperatorDomainElement<Self>) -> BinaryOperatorDomainElement<Self>;
 }

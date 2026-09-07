@@ -1,57 +1,52 @@
-// mgca: lets `Chart` carry `[_; M::DIM]` with `DIM` an associated const.
+// mgca: `Chart<M>` hold `M::DIM` coordinates.
 #![feature(min_generic_const_args, macroless_generic_const_args)]
 #![allow(incomplete_features)]
 
-use eqn_algebra::ring::{Ring, SemiRing};
+use std::collections::HashSet;
+
+use eqn_algebra::ring::{DifferentialRing, RingElem};
 use eqn_core::rewriter::Expression;
-use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
 pub const WEDGE_CHAR: char = '\u{2227}';
 pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
 
-/// a marker trait for smoothness.
-///
-/// NOTE: for now, it only support for real manifolds.
+/// A manifold is known to the library through its ring of functions.
 pub trait Manifold {
-    type Scalar: Ring;
+    /// The ring of 0-forms along the [`Chart`].
+    type Functions: DifferentialRing<Index: Clone + Into<RingElem<Self::Functions>>>;
 
     type const DIM: usize;
 }
 
-/// An element of the scalar ring of `M`.
-pub type Scalar<M> = <<<M as Manifold>::Scalar as SemiRing>::Domain as Set>::Element;
+/// A 0-form on the manifold `M`: an element of `M::Functions`.
+pub type ZeroForm<M> = RingElem<<M as Manifold>::Functions>;
 
-/// The set of 0-forms on `M`, i.e. smooth functions `M -> Scalar`.
-pub struct ZeroForms<M: Manifold>(std::marker::PhantomData<M>);
+/// A coordinate on the manifold `M`.
+pub type Coordinate<M> = <<M as Manifold>::Functions as DifferentialRing>::Index;
 
-impl<M: Manifold> Set for ZeroForms<M> {
-    type Element = Scalar<M>;
-}
-
-#[derive_where::derive_where(Clone, Debug, PartialEq)]
+#[derive_where::derive_where(Clone, Debug, Eq, PartialEq; ZeroForm<M>)]
 pub enum DifferentialForm<M: Manifold> {
-    Const(Scalar<M>),
-    /// unknown `f: M -> Scalar`, a 0-form.
-    Function(Symbol<ZeroForms<M>>),
+    /// A 0-form: any element of `M`'s ring of functions.
+    Scalar(ZeroForm<M>),
     Neg(Box<Self>),
     Add(Vec<Self>),
     Wedged(Vec<Self>),
     Differential(Box<Self>),
 }
 
-impl<M: Manifold> From<Symbol<ZeroForms<M>>> for DifferentialForm<M> {
-    fn from(value: Symbol<ZeroForms<M>>) -> Self {
-        Self::Function(value)
-    }
-}
-
-impl<M: Manifold> Expression for DifferentialForm<M> {
-    type Domain = ZeroForms<M>;
+/// Substitution is available whenever the 0-forms are themselves expression
+/// trees; `Expression` is implemented on `DifferentialForm<M>` under that
+/// condition.
+impl<M: Manifold> Expression for DifferentialForm<M>
+where
+    ZeroForm<M>: Expression,
+{
+    type Domain = <ZeroForm<M> as Expression>::Domain;
 
     fn children(&self) -> &[Self] {
         match self {
-            Self::Const(_) | Self::Function(_) => &[],
+            Self::Scalar(_) => &[],
             Self::Neg(inner) | Self::Differential(inner) => std::slice::from_ref(inner),
             Self::Add(v) | Self::Wedged(v) => v,
         }
@@ -59,7 +54,7 @@ impl<M: Manifold> Expression for DifferentialForm<M> {
 
     fn children_mut(&mut self) -> &mut [Self] {
         match self {
-            Self::Const(_) | Self::Function(_) => &mut [],
+            Self::Scalar(_) => &mut [],
             Self::Neg(inner) | Self::Differential(inner) => std::slice::from_mut(inner),
             Self::Add(v) | Self::Wedged(v) => v,
         }
@@ -67,23 +62,65 @@ impl<M: Manifold> Expression for DifferentialForm<M> {
 
     fn as_symbol(&self) -> Option<&Symbol<Self::Domain>> {
         match self {
-            Self::Function(f) => Some(f),
+            Self::Scalar(e) => e.as_symbol(),
             _ => None,
         }
     }
+
+    /// A composite `Scalar` hides its symbols from the generic descendant
+    /// walk, so this overrides the default: a coordinate can only be
+    /// replaced by a 0-form, and the replacement happens inside the
+    /// elementary expression tree.
+    fn substitute(&mut self, sym: Symbol<Self::Domain>, expr: &Self) {
+        if let Self::Scalar(e) = self {
+            if let Self::Scalar(with) = expr {
+                e.substitute(sym, with);
+            }
+            return;
+        }
+        for child in self.children_mut() {
+            child.substitute(sym.clone(), expr);
+        }
+    }
+
+    /// Overridden for the same reason as [`substitute`](Self::substitute):
+    /// free symbols live inside each `Scalar` leaf's own expression tree.
+    fn degrees_of_freedom(&self) -> usize {
+        std::iter::once(self)
+            .chain(self.descendants())
+            .filter_map(|node| match node {
+                Self::Scalar(e) => Some(e),
+                _ => None,
+            })
+            .flat_map(|e| std::iter::once(e).chain(e.descendants()))
+            .filter_map(Expression::as_symbol)
+            .collect::<HashSet<_>>()
+            .len()
+    }
 }
 
-/// A coordinate chart
+impl<M: Manifold> From<Symbol<<ZeroForm<M> as Expression>::Domain>> for DifferentialForm<M>
+where
+    ZeroForm<M>: Expression,
+{
+    fn from(value: Symbol<<ZeroForm<M> as Expression>::Domain>) -> Self {
+        Self::Scalar(ZeroForm::<M>::from(value))
+    }
+}
+
+/// A coordinate chart: names, for each position `i`, the derivation `∂_i`
+/// and the coordinate function `xⁱ`. The contract is `∂_i xʲ = δ_ij`.
+#[derive_where::derive_where(Clone, Debug, Eq, PartialEq; Coordinate<M>)]
 pub struct Chart<M: Manifold> {
-    coordinates: [Symbol<ZeroForms<M>>; M::DIM],
+    coordinates: [Coordinate<M>; M::DIM],
 }
 
 impl<M: Manifold> Chart<M> {
-    pub fn new(coordinates: [Symbol<ZeroForms<M>>; M::DIM]) -> Self {
+    pub fn new(coordinates: [Coordinate<M>; M::DIM]) -> Self {
         Self { coordinates }
     }
 
-    pub fn coordinates(&self) -> &[Symbol<ZeroForms<M>>; M::DIM] {
+    pub fn coordinates(&self) -> &[Coordinate<M>; M::DIM] {
         &self.coordinates
     }
 
@@ -92,7 +129,7 @@ impl<M: Manifold> Chart<M> {
         self.coordinates
             .get(i)
             .cloned()
-            .map(DifferentialForm::Function)
+            .map(|c| DifferentialForm::Scalar(c.into()))
     }
 
     /// `dx^i`.
@@ -107,34 +144,30 @@ pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::op::{Associative, BinaryOperator, Commutative};
+    use eqn_algebra::operator_impl::{QAdd, QMul, ZAdd, ZMul};
+    use eqn_analysis::{ElementaryExpr, ElementaryFunctionRing, ElementaryRewriter};
+    use eqn_core::rewriter::Rewriter;
+    use eqn_core::set::{Q, Rational, Z};
+    use eqn_poly::PolynomialRing;
 
     use super::*;
-
-    #[derive(Set)]
-    #[set(element = i64)] // ponytail: i64 stands in for R; swap for a real type when evaluation lands
-    pub(super) struct Reals;
-
-    #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = Reals, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
-    pub(super) struct Add;
-
-    #[derive(Associative, BinaryOperator)]
-    #[operator(domain = Reals, apply = |a, b| a * b, identity = 1)]
-    pub(super) struct Mul;
-
-    pub(super) struct RealRing;
-    impl SemiRing for RealRing {
-        type Domain = Reals;
-        type Addition = Add;
-        type Multiplication = Mul;
-    }
 
     #[derive(Debug)]
     pub(super) struct Plane;
     impl Manifold for Plane {
-        type Scalar = RealRing;
+        type Functions = ElementaryFunctionRing<(Q, QAdd, QMul)>;
         type const DIM: usize = 2;
+    }
+
+    #[derive(Debug)]
+    pub(super) struct IntPlane;
+    impl Manifold for IntPlane {
+        type Functions = PolynomialRing<(Z, ZAdd, ZMul)>;
+        type const DIM: usize = 2;
+    }
+
+    fn constant(c: Rational) -> DifferentialForm<Plane> {
+        DifferentialForm::Scalar(ElementaryExpr::Const(c))
     }
 
     #[test]
@@ -144,7 +177,9 @@ mod tests {
 
         assert_eq!(
             cartesian.differential(0).unwrap(),
-            DifferentialForm::Differential(Box::new(DifferentialForm::Function(Symbol::new("x"))))
+            DifferentialForm::Differential(Box::new(DifferentialForm::Scalar(
+                ElementaryExpr::Symbol(Symbol::new("x"))
+            )))
         );
         assert_ne!(cartesian.differential(0), polar.differential(0));
     }
@@ -152,7 +187,7 @@ mod tests {
     #[test]
     fn substitute_replaces_coordinate_inside_differential() {
         let polar = Chart::<Plane>::new([Symbol::new("r"), Symbol::new("θ")]);
-        // ω = r ∧ dθ, two free functions
+        // ω = r ∧ dθ, two free symbols
         let mut omega = DifferentialForm::Wedged(vec![
             polar.coordinate(0).unwrap(),
             polar.differential(1).unwrap(),
@@ -160,14 +195,55 @@ mod tests {
         assert_eq!(omega.degrees_of_freedom(), 2);
 
         // θ := 3  ⇒  r ∧ d3
-        omega.substitute(Symbol::new("θ"), &DifferentialForm::Const(3));
+        omega.substitute(Symbol::new("θ"), &constant(Rational::from(3)));
         assert_eq!(
             omega,
             DifferentialForm::Wedged(vec![
                 polar.coordinate(0).unwrap(),
-                DifferentialForm::Differential(Box::new(DifferentialForm::Const(3))),
+                DifferentialForm::Differential(Box::new(constant(Rational::from(3)))),
             ])
         );
         assert_eq!(omega.degrees_of_freedom(), 1);
+    }
+
+    #[test]
+    fn substitute_into_composite_scalar_updates_degrees_of_freedom() {
+        let xy = Chart::<Plane>::new([Symbol::new("x"), Symbol::new("y")]);
+        let x = || ElementaryExpr::Symbol(Symbol::new("x"));
+        let y = || ElementaryExpr::Symbol(Symbol::new("y"));
+
+        // ω = (x^2 + y) dx
+        let coeff = ElementaryExpr::Add(vec![
+            ElementaryExpr::Pow {
+                base: Box::new(x()),
+                exponent: 2,
+            },
+            y(),
+        ]);
+        let mut omega = DifferentialForm::Wedged(vec![
+            DifferentialForm::Scalar(coeff),
+            xy.differential(0).unwrap(),
+        ]);
+        assert_eq!(omega.degrees_of_freedom(), 2);
+
+        // y := 3  ⇒  (x^2 + 3) dx
+        omega.substitute(Symbol::new("y"), &constant(Rational::from(3)));
+        assert_eq!(omega.degrees_of_freedom(), 1);
+
+        let expected = DifferentialForm::Wedged(vec![
+            DifferentialForm::Scalar(ElementaryExpr::Add(vec![
+                ElementaryExpr::Pow {
+                    base: Box::new(x()),
+                    exponent: 2,
+                },
+                ElementaryExpr::Const(Rational::from(3)),
+            ])),
+            xy.differential(0).unwrap(),
+        ]);
+
+        // `substitute` does not normalize; compare after normalizing both
+        // sides.
+        let f = GradedCommutativeRewriter::<Plane, _>::new(xy.clone(), ElementaryRewriter::new());
+        assert_eq!(f.rewrited_expr(omega), f.rewrited_expr(expected));
     }
 }

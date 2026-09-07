@@ -1,8 +1,12 @@
 [package]
-name = "eqn-algebra"
+name = "eqn-poly"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 derive-where.workspace = true
+eqn-algebra.workspace = true
 eqn-core.workspace = true
+
+[dev-dependencies]
+eqn-analysis.workspace = true

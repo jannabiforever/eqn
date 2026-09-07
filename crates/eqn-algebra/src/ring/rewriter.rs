@@ -84,8 +84,9 @@ fn collect_terms<SR: SemiRing>(summands: impl Iterator<Item = SemiRingExpr<SR>>)
     let mut acc = SR::ZERO;
     // Like terms keyed by structural Eq with a linear scan; needs neither
     // Ord nor Hash on elements. Coefficients are summed as domain elements,
-    // so cancellation (`x + (-1)*x = 0`) works.
-    // ponytail: O(n^2) in term count; fine for expression trees.
+    // so cancellation (`x + (-1)*x = 0`) works. The scan is quadratic in
+    // the number of distinct terms; a hashed index would need `Hash` on
+    // the domain.
     let mut coeffs: Vec<(SemiRingExpr<SR>, <SR::Domain as Set>::Element)> = Vec::new();
 
     for item in summands {
@@ -242,8 +243,6 @@ fn collect_factors<SR: SemiRing>(factors: Vec<SemiRingExpr<SR>>) -> Option<Vec<S
         return None;
     }
 
-    // ponytail: exponents summed with plain +; overflow is not a realistic
-    // concern for expression trees.
     let mut pows: Vec<(SemiRingExpr<SR>, usize)> = Vec::new();
     for factor in rest {
         let (base, exp) = match factor {
@@ -251,7 +250,7 @@ fn collect_factors<SR: SemiRing>(factors: Vec<SemiRingExpr<SR>>) -> Option<Vec<S
             factor => (factor, 1),
         };
         match pows.iter_mut().find(|(b, _)| *b == base) {
-            Some((_, e)) => *e += exp,
+            Some((_, e)) => *e = e.checked_add(exp).expect("exponent overflow"),
             None => pows.push((base, exp)),
         }
     }
@@ -685,7 +684,7 @@ mod tests {
 
     fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
     where
-        R::Expr: PartialEq + std::fmt::Debug,
+        R::Expr: PartialEq + std::fmt::Debug + Clone,
     {
         let once = rewriter.rewrited_expr(expr);
         assert_eq!(rewriter.rewrited_expr(once.clone()), once);
