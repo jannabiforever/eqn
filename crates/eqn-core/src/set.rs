@@ -1,5 +1,5 @@
 // ================================================================================
-// Domain traits
+// Set traits
 // ================================================================================
 
 pub use eqn_macros::Set;
@@ -11,3 +11,119 @@ pub trait Set {
 
 /// Alias for a set's element.
 pub type Elem<S> = <S as Set>::Element;
+
+// ================================================================================
+// Set implementations
+// ================================================================================
+
+/// A set of all natural numbers (including 0)
+/// TODO: big num
+#[derive(Set)]
+#[set(element = u32)]
+pub struct N;
+
+/// A set of all integers.
+/// TODO: big num
+#[derive(Set)]
+#[set(element = i64)]
+pub struct Z;
+
+/// represent a rational number
+/// TODO: big num
+#[derive(Clone, Debug, Eq)]
+pub struct Rational {
+    pub numerator: i64,
+    pub denominator: i64,
+}
+
+impl Rational {
+    pub const ZERO: Self = Self {
+        numerator: 0,
+        denominator: 1,
+    };
+
+    pub const ONE: Self = Self {
+        numerator: 1,
+        denominator: 1,
+    };
+
+    pub const fn recip(self) -> Self {
+        Self {
+            numerator: self.denominator,
+            denominator: self.numerator,
+        }
+    }
+}
+
+impl PartialEq for Rational {
+    fn eq(&self, other: &Self) -> bool {
+        self.numerator * other.denominator == self.denominator * other.numerator
+    }
+}
+
+impl std::ops::Neg for Rational {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Rational {
+            numerator: -self.numerator,
+            denominator: self.denominator,
+        }
+    }
+}
+
+impl std::ops::Add for Rational {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Rational {
+            numerator: self.numerator * other.denominator + other.numerator * self.denominator,
+            denominator: self.denominator * other.denominator,
+        }
+    }
+}
+
+impl std::ops::Mul for Rational {
+    type Output = Self;
+
+    fn mul(self, other: Self) -> Self {
+        Rational {
+            numerator: self.numerator * other.numerator,
+            denominator: self.denominator * other.denominator,
+        }
+    }
+}
+
+impl From<i64> for Rational {
+    fn from(value: i64) -> Self {
+        Self {
+            numerator: value,
+            denominator: 1,
+        }
+    }
+}
+
+/// A set of all rationals.
+/// TODO: big num
+#[derive(Clone, Set)]
+#[set(element = Rational)]
+pub struct Q;
+
+/// represent a real number
+/// NOTE: a bit hacky implementation on PartialEq / Eq
+#[derive(Clone, Debug)]
+pub struct RealNumber(f64);
+
+impl PartialEq for RealNumber {
+    fn eq(&self, other: &Self) -> bool {
+        other.0 >= self.0 && self.0 >= other.0
+    }
+}
+
+impl Eq for RealNumber {}
+
+/// A set of all real numbers
+/// TODO: big num
+#[derive(Set)]
+#[set(element = RealNumber)]
+pub struct R;

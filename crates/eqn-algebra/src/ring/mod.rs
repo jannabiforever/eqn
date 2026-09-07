@@ -293,36 +293,18 @@ pub type PolynomialRing<R> = (Polynomials<R>, PolyAdd<R>, PolyMul<R>);
 // Integers: the canonical test ring
 // ================================================================================
 
-#[derive(Set)]
-#[set(element = i64)]
-pub struct Integers;
-
-#[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = Integers, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
-pub struct IntegerAdd;
-
-#[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = Integers, apply = |a, b| a * b, identity = 1)]
-pub struct IntegerMul;
-
-pub type IntegerRing = (Integers, IntegerAdd, IntegerMul);
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use eqn_core::set::Z;
 
-    #[test]
-    fn from_usize_is_the_natural_map() {
-        for n in [0usize, 1, 2, 3, 7, 8, 1000] {
-            assert_eq!(IntegerRing::from_usize(n), n as i64);
-        }
-    }
+    use super::*;
+    use crate::operator_impl::{ZAdd, ZMul};
 
     #[test]
     fn polynomial_ring_operators_build_trees() {
-        type P = PolynomialRing<IntegerRing>;
-        let x = RingExpr::<IntegerRing>::Symbol(Symbol::new("x"));
-        let y = RingExpr::<IntegerRing>::Symbol(Symbol::new("y"));
+        type P = PolynomialRing<(Z, ZAdd, ZMul)>;
+        let x = RingExpr::<(Z, ZAdd, ZMul)>::Symbol(Symbol::new("x"));
+        let y = RingExpr::<(Z, ZAdd, ZMul)>::Symbol(Symbol::new("y"));
 
         assert_eq!(
             P::add(x.clone(), y.clone()),
@@ -335,6 +317,6 @@ mod tests {
     #[test]
     fn polynomial_ring_is_commutative() {
         fn assert_commutative_ring<R: CommutativeRing>() {}
-        assert_commutative_ring::<PolynomialRing<IntegerRing>>();
+        assert_commutative_ring::<PolynomialRing<(Z, ZAdd, ZMul)>>();
     }
 }

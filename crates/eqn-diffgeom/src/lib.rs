@@ -144,24 +144,25 @@ pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
 
 #[cfg(test)]
 mod tests {
-    use eqn_algebra::rational::{Rational, RationalField};
-    use eqn_algebra::ring::{IntegerRing, PolynomialRing};
+    use eqn_algebra::operator_impl::{QAdd, QMul, ZAdd, ZMul};
+    use eqn_algebra::ring::PolynomialRing;
     use eqn_analysis::{ElementaryExpr, ElementaryFunctionRing, ElementaryRewriter};
     use eqn_core::rewriter::Rewriter;
+    use eqn_core::set::{Q, Rational, Z};
 
     use super::*;
 
     #[derive(Debug)]
     pub(super) struct Plane;
     impl Manifold for Plane {
-        type Functions = ElementaryFunctionRing<RationalField>;
+        type Functions = ElementaryFunctionRing<(Q, QAdd, QMul)>;
         type const DIM: usize = 2;
     }
 
     #[derive(Debug)]
     pub(super) struct IntPlane;
     impl Manifold for IntPlane {
-        type Functions = PolynomialRing<IntegerRing>;
+        type Functions = PolynomialRing<(Z, ZAdd, ZMul)>;
         type const DIM: usize = 2;
     }
 

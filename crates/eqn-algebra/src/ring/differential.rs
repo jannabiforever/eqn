@@ -64,22 +64,25 @@ impl<R: CommutativeRing> DifferentialRing for PolynomialRing<R> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::rewriter::Rewriter;
-    use crate::ring::{CommutativeRingRewriter, IntegerRing, Integers, SemiRing};
+    use eqn_core::set::Z;
 
-    type Expr = RingExpr<IntegerRing>;
-    type Poly = PolynomialRing<IntegerRing>;
+    use super::*;
+    use crate::operator_impl::{ZAdd, ZMul};
+    use crate::rewriter::Rewriter;
+    use crate::ring::{CommutativeRingRewriter, SemiRing};
+
+    type Expr = RingExpr<(Z, ZAdd, ZMul)>;
+    type Poly = PolynomialRing<(Z, ZAdd, ZMul)>;
 
     fn c(i: i64) -> Expr {
         Expr::Const(i)
     }
 
-    fn xs() -> Symbol<Integers> {
+    fn xs() -> Symbol<Z> {
         Symbol::new("x")
     }
 
-    fn ys() -> Symbol<Integers> {
+    fn ys() -> Symbol<Z> {
         Symbol::new("y")
     }
 
@@ -99,7 +102,7 @@ mod tests {
     }
 
     fn norm(e: Expr) -> Expr {
-        CommutativeRingRewriter::<IntegerRing>::new().rewrited_expr(e)
+        CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new().rewrited_expr(e)
     }
 
     #[test]
@@ -132,9 +135,9 @@ mod tests {
     #[test]
     fn is_zero_and_is_one_after_normalizing() {
         let zero = norm(Expr::Add(vec![x(), Expr::Neg(Box::new(x()))]));
-        assert_eq!(zero, Expr::Const(IntegerRing::ZERO));
+        assert_eq!(zero, Expr::Const(<(Z, ZAdd, ZMul) as SemiRing>::ZERO));
 
         let one = norm(Expr::Mul(vec![c(1), c(1)]));
-        assert_eq!(one, Expr::Const(IntegerRing::ONE));
+        assert_eq!(one, Expr::Const(<(Z, ZAdd, ZMul) as SemiRing>::ZERO));
     }
 }

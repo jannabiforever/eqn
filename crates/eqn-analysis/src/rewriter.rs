@@ -421,21 +421,26 @@ impl<F: Field> Rewriter for ElementaryRewriter<F> {
 
 #[cfg(test)]
 mod tests {
-    use eqn_algebra::rational::{Rational, RationalField, Rationals};
+
+    use eqn_algebra::operator_impl::{QAdd, QMul};
+    use eqn_core::set::{Q, Rational};
 
     use super::*;
 
-    type Expr = ElementaryExpr<RationalField>;
+    type Expr = ElementaryExpr<(Q, QAdd, QMul)>;
 
     fn c(i: i64) -> Expr {
-        Expr::Const(Rational::from(i))
+        Expr::Const(Rational {
+            numerator: i,
+            denominator: 1,
+        })
     }
 
-    fn xs() -> Symbol<Rationals> {
+    fn xs() -> Symbol<Q> {
         Symbol::new("x")
     }
 
-    fn ys() -> Symbol<Rationals> {
+    fn ys() -> Symbol<Q> {
         Symbol::new("y")
     }
 
@@ -458,7 +463,7 @@ mod tests {
         Expr::elementary(kind, arg)
     }
 
-    fn d(wrt: Symbol<Rationals>, inner: Expr) -> Expr {
+    fn d(wrt: Symbol<Q>, inner: Expr) -> Expr {
         Expr::d(wrt, inner)
     }
 
@@ -546,7 +551,7 @@ mod tests {
     fn derive_agrees_with_the_d_route() {
         use eqn_algebra::ring::DifferentialRing;
 
-        type Ring = crate::ElementaryFunctionRing<RationalField>;
+        type Ring = crate::ElementaryFunctionRing<(Q, QAdd, QMul)>;
 
         assert_eq!(fmt(Ring::derive(x(), &xs())), c(1));
         assert_eq!(
