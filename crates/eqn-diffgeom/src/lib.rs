@@ -145,10 +145,10 @@ pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
 #[cfg(test)]
 mod tests {
     use eqn_algebra::operator_impl::{QAdd, QMul, ZAdd, ZMul};
-    use eqn_algebra::ring::PolynomialRing;
     use eqn_analysis::{ElementaryExpr, ElementaryFunctionRing, ElementaryRewriter};
     use eqn_core::rewriter::Rewriter;
     use eqn_core::set::{Q, Rational, Z};
+    use eqn_poly::PolynomialRing;
 
     use super::*;
 

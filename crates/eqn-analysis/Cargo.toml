@@ -4,6 +4,6 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-eqn-core.workspace = true
-eqn-algebra.workspace = true
 derive-where.workspace = true
+eqn-algebra.workspace = true
+eqn-core.workspace = true

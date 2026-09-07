@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 
 use eqn_core::set::Elem;
@@ -253,70 +252,5 @@ impl<R: Ring> From<SemiRingExpr<R>> for RingExpr<R> {
                 exponent,
             },
         }
-    }
-}
-
-// ================================================================================
-// PolynomialRing: the ring formed by RingExpr trees
-// ================================================================================
-
-/// The set of polynomial expressions over `R`, represented by [`RingExpr`]
-/// trees.
-#[derive(Set)]
-#[set(element = RingExpr<R>)]
-pub struct Polynomials<R: Ring>(PhantomData<R>);
-
-/// Symbolic addition: builds the tree, does not normalize.
-#[derive(Associative, BinaryOperator, Commutative)]
-#[operator(
-    domain = Polynomials<R>,
-    apply = |a, b| RingExpr::Add(vec![a, b]),
-    identity = RingExpr::Const(R::ZERO),
-    inverse = |a| RingExpr::Neg(Box::new(a))
-)]
-pub struct PolyAdd<R: Ring>(PhantomData<R>);
-
-/// Symbolic multiplication: builds the tree, does not normalize.
-#[derive(Associative, BinaryOperator, Commutative)]
-#[operator(
-    domain = Polynomials<R>,
-    apply = |a, b| RingExpr::Mul(vec![a, b]),
-    identity = RingExpr::Const(R::ONE)
-)]
-pub struct PolyMul<R: CommutativeRing>(PhantomData<R>);
-
-/// The commutative ring of polynomials over `R`. Elements are trees, so `Eq`
-/// is structural: the ring laws hold modulo [`CommutativeRingRewriter`].
-pub type PolynomialRing<R> = (Polynomials<R>, PolyAdd<R>, PolyMul<R>);
-
-// ================================================================================
-// Integers: the canonical test ring
-// ================================================================================
-
-#[cfg(test)]
-mod tests {
-    use eqn_core::set::Z;
-
-    use super::*;
-    use crate::operator_impl::{ZAdd, ZMul};
-
-    #[test]
-    fn polynomial_ring_operators_build_trees() {
-        type P = PolynomialRing<(Z, ZAdd, ZMul)>;
-        let x = RingExpr::<(Z, ZAdd, ZMul)>::Symbol(Symbol::new("x"));
-        let y = RingExpr::<(Z, ZAdd, ZMul)>::Symbol(Symbol::new("y"));
-
-        assert_eq!(
-            P::add(x.clone(), y.clone()),
-            RingExpr::Add(vec![x.clone(), y])
-        );
-        assert_eq!(P::ONE, RingExpr::Const(1));
-        assert_eq!(P::negate(x.clone()), RingExpr::Neg(Box::new(x)));
-    }
-
-    #[test]
-    fn polynomial_ring_is_commutative() {
-        fn assert_commutative_ring<R: CommutativeRing>() {}
-        assert_commutative_ring::<PolynomialRing<(Z, ZAdd, ZMul)>>();
     }
 }

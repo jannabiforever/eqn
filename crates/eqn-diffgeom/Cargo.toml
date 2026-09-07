@@ -4,9 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-eqn-core.workspace = true
-eqn-algebra.workspace = true
 derive-where.workspace = true
+eqn-algebra.workspace = true
+eqn-core.workspace = true
 
 [dev-dependencies]
 eqn-analysis.workspace = true
+eqn-poly.workspace = true

@@ -7,8 +7,9 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-eqn-core = { path = "crates/eqn-core" }
-eqn-macros = { path = "crates/eqn-macros" }
+derive-where = "1.6.1"
 eqn-algebra = { path = "crates/eqn-algebra" }
 eqn-analysis = { path = "crates/eqn-analysis" }
-derive-where = "1.6.1"
+eqn-core = { path = "crates/eqn-core" }
+eqn-macros = { path = "crates/eqn-macros" }
+eqn-poly = { path = "crates/eqn-poly" }
