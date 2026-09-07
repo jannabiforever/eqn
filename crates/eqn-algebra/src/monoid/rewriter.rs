@@ -1,7 +1,8 @@
+use eqn_core::op::Commutative;
+use eqn_core::rewriter::Rewriter;
+
 use super::{Monoid, MonoidExpr};
 use crate::Flatten;
-use crate::op::Commutative;
-use crate::rewriter::Rewriter;
 
 // ================================================================================
 // Normalization engine
@@ -163,10 +164,11 @@ where
 mod tests {
     use std::ops::Add;
 
+    use eqn_core::op::{Associative, BinaryOperator};
+    use eqn_core::set::Set;
+    use eqn_core::symbol::Symbol;
+
     use super::*;
-    use crate::op::{Associative, BinaryOperator};
-    use crate::set::Set;
-    use crate::symbol::Symbol;
 
     #[derive(Set)]
     #[set(element = i64)]

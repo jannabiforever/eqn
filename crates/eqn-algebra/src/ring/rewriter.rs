@@ -1,10 +1,11 @@
 use std::num::NonZeroUsize;
 
+use eqn_core::op::Commutative;
+use eqn_core::rewriter::Rewriter;
+use eqn_core::set::Set;
+
 use super::{Ring, RingExpr, SemiRing, SemiRingExpr};
 use crate::Flatten;
-use crate::op::Commutative;
-use crate::rewriter::Rewriter;
-use crate::set::Set;
 
 // ================================================================================
 // Normalization engine
@@ -477,9 +478,10 @@ where
 mod tests {
     use std::ops::{Add, Mul};
 
+    use eqn_core::op::{Associative, BinaryOperator};
+    use eqn_core::symbol::Symbol;
+
     use super::*;
-    use crate::op::{Associative, BinaryOperator};
-    use crate::symbol::Symbol;
 
     #[derive(Set)]
     #[set(element = i64)]

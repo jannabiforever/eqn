@@ -1,8 +1,9 @@
+use eqn_core::op::{BinaryOperator, Commutative, Inverse};
+use eqn_core::rewriter::Expression;
+use eqn_core::set::Set;
+use eqn_core::symbol::Symbol;
+
 use crate::monoid::{Monoid, MonoidElem, Submonoid};
-use crate::op::{BinaryOperator, Commutative, Inverse};
-use crate::rewriter::Expression;
-use crate::set::Set;
-use crate::symbol::Symbol;
 
 mod normal;
 mod quotient;
@@ -104,8 +105,9 @@ impl<G: Group> Expression for GroupExpr<G> {
 mod tests {
     use std::ops::Add;
 
+    use eqn_core::op::{Associative, BinaryOperator};
+
     use super::*;
-    use crate::op::{Associative, BinaryOperator};
 
     #[derive(Set)]
     #[set(element = i64)]

@@ -1,6 +1,7 @@
-use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
+use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
+use eqn_core::set::{Elem, Set};
+
 use crate::ring::{Ring, RingElem};
-use crate::set::{Elem, Set};
 
 /// An element of a module.
 pub type ModuleElem<M> = Elem<<M as Module>::Domain>;
