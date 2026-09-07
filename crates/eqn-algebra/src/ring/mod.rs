@@ -1,10 +1,19 @@
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 
+use eqn_core::set::Elem;
+
 use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
 use crate::rewriter::Expression;
 use crate::set::Set;
 use crate::symbol::Symbol;
+
+mod differential;
+mod rewriter;
+
+// Re-exports
+pub use differential::DifferentialRing;
+pub use rewriter::{CommutativeRingRewriter, RingRewriter, SemiRingRewriter};
 
 // ================================================================================
 // Ring
@@ -38,8 +47,10 @@ pub trait SemiRing {
     /// Should be associative and have an identity element.
     type Multiplication: BinaryOperator<Domain = Self::Domain> + Associative + Identity;
 
+    /// Addition's identity
     const ZERO: RingElem<Self> = <Self::Addition as Identity>::IDENTITY;
 
+    /// Multiplication's identity
     const ONE: RingElem<Self> = <Self::Multiplication as Identity>::IDENTITY;
 
     fn add(a: RingElem<Self>, b: RingElem<Self>) -> RingElem<Self> {
@@ -66,6 +77,18 @@ pub trait SemiRing {
         }
         acc
     }
+}
+
+// Blanket implementation on tuple - mathematical convention.
+impl<D, A, M> SemiRing for (D, A, M)
+where
+    D: Set,
+    A: BinaryOperator<Domain = D> + Associative + Commutative + Identity,
+    M: BinaryOperator<Domain = D> + Associative + Identity,
+{
+    type Domain = D;
+    type Addition = A;
+    type Multiplication = M;
 }
 
 /// A ring: a semi-ring whose addition also has inverses.
@@ -264,19 +287,7 @@ pub struct PolyMul<R: CommutativeRing>(PhantomData<R>);
 
 /// The commutative ring of polynomials over `R`. Elements are trees, so `Eq`
 /// is structural: the ring laws hold modulo [`CommutativeRingRewriter`].
-pub struct PolynomialRing<R: CommutativeRing>(PhantomData<R>);
-
-impl<R: CommutativeRing> SemiRing for PolynomialRing<R> {
-    type Domain = Polynomials<R>;
-    type Addition = PolyAdd<R>;
-    type Multiplication = PolyMul<R>;
-}
-
-mod differential;
-mod rewriter;
-pub use differential::DifferentialRing;
-use eqn_core::set::Elem;
-pub use rewriter::{CommutativeRingRewriter, RingRewriter, SemiRingRewriter};
+pub type PolynomialRing<R> = (Polynomials<R>, PolyAdd<R>, PolyMul<R>);
 
 // ================================================================================
 // Integers: the canonical test ring
@@ -294,14 +305,7 @@ pub struct IntegerAdd;
 #[operator(domain = Integers, apply = |a, b| a * b, identity = 1)]
 pub struct IntegerMul;
 
-/// The canonical test ring. Not a field: `IntegerMul` has no `Inverse`.
-pub struct IntegerRing;
-
-impl SemiRing for IntegerRing {
-    type Domain = Integers;
-    type Addition = IntegerAdd;
-    type Multiplication = IntegerMul;
-}
+pub type IntegerRing = (Integers, IntegerAdd, IntegerMul);
 
 #[cfg(test)]
 mod tests {

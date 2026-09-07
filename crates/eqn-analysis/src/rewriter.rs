@@ -421,7 +421,7 @@ impl<F: Field> Rewriter for ElementaryRewriter<F> {
 
 #[cfg(test)]
 mod tests {
-    use eqn_algebra::field::{Rational, RationalField, Rationals};
+    use eqn_algebra::rational::{Rational, RationalField, Rationals};
 
     use super::*;
 

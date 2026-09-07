@@ -233,7 +233,7 @@ impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for GradedCommutativ
 mod tests {
     use std::num::NonZeroUsize;
 
-    use eqn_algebra::field::{Rational, RationalField};
+    use eqn_algebra::rational::{Rational, RationalField};
     use eqn_algebra::ring::{CommutativeRingRewriter, IntegerRing, RingExpr};
     use eqn_analysis::{ElementaryExpr, ElementaryRewriter};
     use eqn_core::symbol::Symbol;

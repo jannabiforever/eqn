@@ -3,6 +3,10 @@ use crate::rewriter::Expression;
 use crate::set::Set;
 use crate::symbol::Symbol;
 
+mod rewriter;
+// Re-exports
+pub use rewriter::{CommutativeMonoidRewriter, NonCommutativeMonoidRewriter};
+
 /// A monoid: a domain paired with an associative operator that has an
 /// identity element. Both laws are demanded as bounds, so an operator
 /// must declare them to qualify.
@@ -77,6 +81,3 @@ impl<D: Set, M: Monoid<Domain = D>> From<Symbol<D>> for MonoidExpr<M> {
         Self::Symbol(value)
     }
 }
-
-mod rewriter;
-pub use rewriter::{CommutativeMonoidRewriter, NonCommutativeMonoidRewriter};

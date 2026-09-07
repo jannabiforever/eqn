@@ -144,7 +144,7 @@ pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
 
 #[cfg(test)]
 mod tests {
-    use eqn_algebra::field::{Rational, RationalField};
+    use eqn_algebra::rational::{Rational, RationalField};
     use eqn_algebra::ring::{IntegerRing, PolynomialRing};
     use eqn_analysis::{ElementaryExpr, ElementaryFunctionRing, ElementaryRewriter};
     use eqn_core::rewriter::Rewriter;
