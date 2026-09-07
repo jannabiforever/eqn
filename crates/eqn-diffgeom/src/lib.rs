@@ -8,6 +8,10 @@ use eqn_algebra::ring::{DifferentialRing, RingElem};
 use eqn_core::rewriter::Expression;
 use eqn_core::symbol::Symbol;
 
+mod rewriter;
+// Re-exports
+pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
+
 pub const WEDGE_CHAR: char = '\u{2227}';
 pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
 
@@ -138,9 +142,6 @@ impl<M: Manifold> Chart<M> {
             .map(|c| DifferentialForm::Differential(Box::new(c)))
     }
 }
-
-mod rewriter;
-pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
 
 #[cfg(test)]
 mod tests {

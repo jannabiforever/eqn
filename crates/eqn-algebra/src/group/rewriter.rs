@@ -1,7 +1,8 @@
+use eqn_core::rewriter::Rewriter;
+use eqn_core::set::Set;
+
 use super::{AbelianGroup, Group, GroupExpr};
 use crate::flatten;
-use crate::rewriter::Rewriter;
-use crate::set::Set;
 
 fn cmp_structural<G: Group>(lhs: &GroupExpr<G>, rhs: &GroupExpr<G>) -> std::cmp::Ordering {
     const fn rank<G: Group>(expr: &GroupExpr<G>) -> u8 {
@@ -416,10 +417,11 @@ impl<G: AbelianGroup> Rewriter for AbelianGroupRewriter<G> {
 
 #[cfg(test)]
 mod tests {
+    use eqn_core::symbol::Symbol;
+
     use super::super::tests::*;
     use super::*;
     use crate::monoid::Monoid;
-    use crate::symbol::Symbol;
 
     #[test]
     fn group_rewriter_preserves_order_and_reduces_inverses() {

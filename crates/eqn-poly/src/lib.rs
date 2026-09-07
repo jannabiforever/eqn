@@ -119,8 +119,8 @@ mod tests {
     use eqn_algebra::algebra::Algebra;
     use eqn_algebra::module::Module;
     use eqn_algebra::operator_impl::{ZAdd, ZMul};
-    use eqn_algebra::rewriter::Rewriter;
     use eqn_algebra::ring::{CommutativeRingRewriter, SemiRing};
+    use eqn_core::rewriter::Rewriter;
     use eqn_core::set::Z;
 
     use super::*;

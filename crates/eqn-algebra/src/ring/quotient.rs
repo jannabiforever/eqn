@@ -1,9 +1,10 @@
 use std::fmt;
 use std::marker::PhantomData;
 
+use eqn_core::op::{Associative, BinaryOperator, Commutative};
+use eqn_core::set::Set;
+
 use super::{CommutativeRing, Ideal, Ring, RingElem, SemiRing};
-use crate::op::{Associative, BinaryOperator, Commutative};
-use crate::set::Set;
 
 /// An equivalence class modulo `I`, represented by one element of the parent
 /// ring. Representatives are equal when their difference belongs to `I`.

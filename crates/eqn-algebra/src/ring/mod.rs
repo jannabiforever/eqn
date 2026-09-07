@@ -1,11 +1,9 @@
 use std::num::NonZeroUsize;
 
-use eqn_core::set::Elem;
-
-use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
-use crate::rewriter::Expression;
-use crate::set::Set;
-use crate::symbol::Symbol;
+use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
+use eqn_core::rewriter::Expression;
+use eqn_core::set::{Elem, Set};
+use eqn_core::symbol::Symbol;
 
 mod differential;
 mod ideal;

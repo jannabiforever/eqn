@@ -8,7 +8,10 @@ use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
-pub use eqn_core::{set, symbol};
+
+mod rewriter;
+// Re-exports
+pub use rewriter::ElementaryRewriter;
 
 /// Elementary transcendental functions.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -92,9 +95,6 @@ impl<F: Field> From<Symbol<F::Domain>> for ElementaryExpr<F> {
         Self::Symbol(value)
     }
 }
-
-mod rewriter;
-pub use rewriter::ElementaryRewriter;
 
 // ================================================================================
 // ElementaryFunctionRing: the differential ring of elementary functions

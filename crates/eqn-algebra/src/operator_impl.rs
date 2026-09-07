@@ -1,6 +1,5 @@
+use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::set::{Q, Rational, Z};
-
-use crate::op::{Associative, BinaryOperator, Commutative};
 
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(domain = Q, apply = |a, b| a + b, identity = Rational::ZERO, inverse = std::ops::Neg::neg)]

@@ -2,12 +2,13 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
+use eqn_core::map::Map;
+use eqn_core::op::{Associative, BinaryOperator, Commutative, Inverse};
+use eqn_core::set::Set;
+
 use crate::algebra::Algebra;
-use crate::map::Map;
 use crate::module::{Module, ModuleElem, ModuleScalar};
-use crate::op::{Associative, BinaryOperator, Commutative, Inverse};
 use crate::ring::{Ring, RingElem, Subring};
-use crate::set::Set;
 
 // ================================================================================
 // Field
