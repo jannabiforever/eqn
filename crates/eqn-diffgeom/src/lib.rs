@@ -241,7 +241,8 @@ mod tests {
             xy.differential(0).unwrap(),
         ]);
 
-        // `substitute` does not normalize; compare after normalizing both sides.
+        // `substitute` does not normalize; compare after normalizing both
+        // sides.
         let f = GradedCommutativeRewriter::<Plane, _>::new(xy.clone(), ElementaryRewriter::new());
         assert_eq!(f.rewrited_expr(omega), f.rewrited_expr(expected));
     }
