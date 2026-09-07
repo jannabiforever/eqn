@@ -9,11 +9,13 @@ use crate::symbol::Symbol;
 
 mod differential;
 mod ideal;
+mod quotient;
 mod rewriter;
 
 // Re-exports
 pub use differential::DifferentialRing;
 pub use ideal::Ideal;
+pub use quotient::{QuotientAdd, QuotientMul, QuotientRing, ResidueClass, ResidueClasses};
 pub use rewriter::{CommutativeRingRewriter, RingRewriter, SemiRingRewriter};
 
 // ================================================================================
