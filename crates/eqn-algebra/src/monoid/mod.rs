@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use eqn_core::op::{Associative, BinaryOperator, Identity};
 use eqn_core::rewriter::Expression;
 use eqn_core::set::{Elem, Set};
@@ -48,6 +50,33 @@ pub enum MonoidExpr<M: Monoid> {
     Op(Vec<MonoidExpr<M>>),
 }
 
+impl<M: Monoid> MonoidExpr<M> {
+    /// Wraps a domain element as a constant expression.
+    #[inline]
+    pub const fn constant(value: <M::Domain as Set>::Element) -> Self {
+        Self::Const(value)
+    }
+
+    pub fn apply(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (Self::Op(mut lhs), Self::Op(rhs)) => {
+                lhs.extend(rhs);
+                Self::Op(lhs)
+            }
+            (Self::Op(mut lhs), rhs) => {
+                lhs.push(rhs);
+                Self::Op(lhs)
+            }
+            (lhs, Self::Op(rhs)) => {
+                let mut v = vec![lhs];
+                v.extend(rhs);
+                Self::Op(v)
+            }
+            (lhs, rhs) => Self::Op(vec![lhs, rhs]),
+        }
+    }
+}
+
 impl<M: Monoid> Expression for MonoidExpr<M> {
     type Domain = M::Domain;
 
@@ -70,14 +99,6 @@ impl<M: Monoid> Expression for MonoidExpr<M> {
             Self::Symbol(s) => Some(s),
             _ => None,
         }
-    }
-}
-
-impl<M: Monoid> MonoidExpr<M> {
-    /// Wraps a domain element as a constant expression.
-    #[inline]
-    pub const fn constant(value: MonoidElem<M>) -> Self {
-        Self::Const(value)
     }
 }
 
@@ -117,5 +138,18 @@ mod tests {
                 )));
             }
         }
+    }
+}
+
+impl<M> FromStr for MonoidExpr<M>
+where
+    M: Monoid,
+{
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let token_iterator = parser::MonoidExprTokenizer::new(s);
+        let parser = parser::MonoidParser::new(token_iterator);
+        parser.parse()
     }
 }
