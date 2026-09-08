@@ -7,6 +7,13 @@ use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
+mod finite_field;
+
+pub use finite_field::{
+    DefiningPolynomial, FiniteField, FiniteFieldAdd, FiniteFieldElement, FiniteFieldElements,
+    FiniteFieldMul, FirstIrreducible, Fq, FqElement, IrreduciblePolynomial, is_irreducible,
+};
+
 /// The set of polynomial expressions over `R`, represented by [`RingExpr`]
 /// trees.
 #[derive(Set)]
