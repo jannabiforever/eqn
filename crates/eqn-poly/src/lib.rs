@@ -11,7 +11,8 @@ mod finite_field;
 
 pub use finite_field::{
     DefiningPolynomial, FiniteField, FiniteFieldAdd, FiniteFieldElement, FiniteFieldElements,
-    FiniteFieldMul, FirstIrreducible, Fq, FqElement, IrreduciblePolynomial, is_irreducible,
+    FiniteFieldMul, FirstIrreducible, FirstPrimitive, Fq, FqElement, IrreduciblePolynomial,
+    PrimitiveFiniteField, PrimitiveFiniteFieldElement, is_irreducible, is_primitive,
 };
 
 /// The set of polynomial expressions over `R`, represented by [`RingExpr`]

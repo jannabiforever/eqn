@@ -25,11 +25,23 @@ pub struct FirstIrreducible;
 
 impl<const P: u64, const N: usize> DefiningPolynomial<P, N> for FirstIrreducible {
     fn coefficients() -> Vec<PrimeFieldElement<P>> {
-        generated_modulus::<P>(N)
+        generated_polynomial::<P>(N, PolynomialSelection::Irreducible)
     }
 }
 
 impl<const P: u64, const N: usize> IrreduciblePolynomial<P, N> for FirstIrreducible {}
+
+/// Selects the first primitive polynomial in base-`P` coefficient order.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FirstPrimitive;
+
+impl<const P: u64, const N: usize> DefiningPolynomial<P, N> for FirstPrimitive {
+    fn coefficients() -> Vec<PrimeFieldElement<P>> {
+        generated_polynomial::<P>(N, PolynomialSelection::Primitive)
+    }
+}
+
+impl<const P: u64, const N: usize> IrreduciblePolynomial<P, N> for FirstPrimitive {}
 
 /// A canonical power-basis representative of a finite-field element.
 pub struct FiniteFieldElement<const P: u64, const N: usize, M = FirstIrreducible> {
@@ -72,6 +84,30 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
 
     pub const fn into_coefficients(self) -> [PrimeFieldElement<P>; N] {
         self.coefficients
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.coefficients
+            .iter()
+            .all(|coefficient| coefficient.is_zero())
+    }
+
+    pub fn pow(self, mut exponent: u128) -> Self
+    where
+        M: IrreduciblePolynomial<P, N>,
+    {
+        let mut result = Self::ONE;
+        let mut base = self;
+        while exponent > 0 {
+            if exponent & 1 == 1 {
+                result = FiniteFieldMul::apply(result, base);
+            }
+            exponent >>= 1;
+            if exponent > 0 {
+                base = FiniteFieldMul::apply(base, base);
+            }
+        }
+        result
     }
 }
 
@@ -308,6 +344,11 @@ where
 pub type Fq<const P: u64, const N: usize> = FiniteField<P, N, FirstIrreducible>;
 pub type FqElement<const P: u64, const N: usize> = FiniteFieldElement<P, N, FirstIrreducible>;
 
+/// `F_(P^N)` whose power-basis generator is multiplicatively primitive.
+pub type PrimitiveFiniteField<const P: u64, const N: usize> = FiniteField<P, N, FirstPrimitive>;
+pub type PrimitiveFiniteFieldElement<const P: u64, const N: usize> =
+    FiniteFieldElement<P, N, FirstPrimitive>;
+
 pub fn is_irreducible<const P: u64>(polynomial: &[PrimeFieldElement<P>]) -> bool {
     if !is_prime(P) {
         return false;
@@ -336,6 +377,32 @@ pub fn is_irreducible<const P: u64>(polynomial: &[PrimeFieldElement<P>]) -> bool
     true
 }
 
+pub fn is_primitive<const P: u64>(polynomial: &[PrimeFieldElement<P>]) -> bool {
+    let mut polynomial = polynomial.to_vec();
+    trim(&mut polynomial);
+    if polynomial.last() != Some(&PrimeFieldElement::ONE) || !is_irreducible(&polynomial) {
+        return false;
+    }
+
+    let Some(order) = field_order(P, polynomial.len() - 1).map(|order| order - 1) else {
+        return false;
+    };
+    let generator = poly_div_rem(
+        vec![PrimeFieldElement::ZERO, PrimeFieldElement::ONE],
+        polynomial.clone(),
+    )
+    .1;
+    if generator.is_empty()
+        || poly_pow_mod(generator.clone(), order, &polynomial) != vec![PrimeFieldElement::ONE]
+    {
+        return false;
+    }
+
+    prime_factors(order).into_iter().all(|factor| {
+        poly_pow_mod(generator.clone(), order / factor, &polynomial) != vec![PrimeFieldElement::ONE]
+    })
+}
+
 fn modulus<const P: u64, const N: usize, M>() -> Vec<PrimeFieldElement<P>>
 where
     M: IrreduciblePolynomial<P, N>,
@@ -358,11 +425,21 @@ where
     coefficients
 }
 
-fn generated_modulus<const P: u64>(degree: usize) -> Vec<PrimeFieldElement<P>> {
-    static CACHE: OnceLock<Mutex<HashMap<(u64, usize), Vec<u64>>>> = OnceLock::new();
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum PolynomialSelection {
+    Irreducible,
+    Primitive,
+}
+
+fn generated_polynomial<const P: u64>(
+    degree: usize,
+    selection: PolynomialSelection,
+) -> Vec<PrimeFieldElement<P>> {
+    static CACHE: OnceLock<Mutex<HashMap<(u64, usize, PolynomialSelection), Vec<u64>>>> =
+        OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
 
-    if let Some(coefficients) = cache.lock().unwrap().get(&(P, degree)).cloned() {
+    if let Some(coefficients) = cache.lock().unwrap().get(&(P, degree, selection)).cloned() {
         return coefficients
             .into_iter()
             .map(PrimeFieldElement::new)
@@ -376,20 +453,68 @@ fn generated_modulus<const P: u64>(degree: usize) -> Vec<PrimeFieldElement<P>> {
     let polynomial = loop {
         let mut candidate: Vec<_> = lower.iter().copied().map(PrimeFieldElement::new).collect();
         candidate.push(PrimeFieldElement::ONE);
-        if is_irreducible(&candidate) {
+        let matches = match selection {
+            PolynomialSelection::Irreducible => is_irreducible(&candidate),
+            PolynomialSelection::Primitive => is_primitive(&candidate),
+        };
+        if matches {
             break candidate;
         }
-        assert!(increment(&mut lower, P), "no irreducible polynomial found");
+        assert!(increment(&mut lower, P), "no defining polynomial found");
     };
 
     cache.lock().unwrap().insert(
-        (P, degree),
+        (P, degree, selection),
         polynomial
             .iter()
             .map(|coefficient| coefficient.value())
             .collect(),
     );
     polynomial
+}
+
+fn poly_pow_mod<const P: u64>(
+    mut base: Vec<PrimeFieldElement<P>>,
+    mut exponent: u128,
+    modulus: &[PrimeFieldElement<P>],
+) -> Vec<PrimeFieldElement<P>> {
+    let mut result = vec![PrimeFieldElement::ONE];
+    while exponent > 0 {
+        if exponent & 1 == 1 {
+            result = poly_div_rem(poly_mul(&result, &base), modulus.to_vec()).1;
+        }
+        exponent >>= 1;
+        if exponent > 0 {
+            base = poly_div_rem(poly_mul(&base, &base), modulus.to_vec()).1;
+        }
+    }
+    result
+}
+
+fn field_order(characteristic: u64, degree: usize) -> Option<u128> {
+    let mut order = 1u128;
+    for _ in 0..degree {
+        order = order.checked_mul(u128::from(characteristic))?;
+    }
+    Some(order)
+}
+
+fn prime_factors(mut value: u128) -> Vec<u128> {
+    let mut factors = Vec::new();
+    let mut divisor = 2;
+    while divisor <= value / divisor {
+        if value.is_multiple_of(divisor) {
+            factors.push(divisor);
+            while value.is_multiple_of(divisor) {
+                value /= divisor;
+            }
+        }
+        divisor += 1;
+    }
+    if value > 1 {
+        factors.push(value);
+    }
+    factors
 }
 
 fn element_from_poly<const P: u64, const N: usize, M>(
@@ -528,6 +653,22 @@ mod tests {
         let expected = [1, 1, 0, 1].map(PrimeFieldElement::new).to_vec();
         assert_eq!(Fq::<2, 3>::modulus(), expected);
         assert!(Fq::<2, 3>::modulus_is_irreducible());
+    }
+
+    #[test]
+    fn primitive_modulus_gives_a_multiplicative_generator() {
+        type F9 = PrimitiveFiniteField<3, 2>;
+        type E = PrimitiveFiniteFieldElement<3, 2>;
+
+        let modulus = F9::modulus();
+        let generator = E::from_values([0, 1]);
+        assert!(is_primitive(&modulus));
+        assert_eq!(generator.pow(8), E::ONE);
+        assert_ne!(generator.pow(4), E::ONE);
+
+        let irreducible = [1, 0, 1].map(PrimeFieldElement::<3>::new);
+        assert!(is_irreducible(&irreducible));
+        assert!(!is_primitive(&irreducible));
     }
 
     #[test]
