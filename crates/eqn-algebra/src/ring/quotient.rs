@@ -2,12 +2,13 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use super::{CommutativeRing, Ideal, Ring, RingElem, SemiRing};
-use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
+use crate::op::{Associative, BinaryOperator, Commutative};
 use crate::set::Set;
 
 /// An equivalence class modulo `I`, represented by one element of the parent
 /// ring. Representatives are equal when their difference belongs to `I`.
 /// This equality relies on `I` satisfying the [`Ideal`] laws.
+#[derive_where::derive_where(Clone)]
 pub struct ResidueClass<I: Ideal> {
     representative: RingElem<I::Ring>,
     ideal: PhantomData<I>,
@@ -28,11 +29,31 @@ impl<I: Ideal> ResidueClass<I> {
     pub fn into_representative(self) -> RingElem<I::Ring> {
         self.representative
     }
-}
 
-impl<I: Ideal> Clone for ResidueClass<I> {
-    fn clone(&self) -> Self {
-        Self::new(self.representative.clone())
+    pub fn added(self, rhs: Self) -> Self {
+        ResidueClass::new(I::Ring::add(
+            self.into_representative(),
+            rhs.into_representative(),
+        ))
+    }
+
+    pub fn multiplied(self, rhs: Self) -> Self {
+        ResidueClass::new(I::Ring::multiply(
+            self.into_representative(),
+            rhs.into_representative(),
+        ))
+    }
+
+    pub const fn zero() -> Self {
+        ResidueClass::new(I::Ring::ZERO)
+    }
+
+    pub const fn one() -> Self {
+        ResidueClass::new(I::Ring::ONE)
+    }
+
+    pub fn inversed(self) -> Self {
+        ResidueClass::new(I::Ring::negate(self.into_representative()))
     }
 }
 
@@ -57,58 +78,19 @@ impl<I: Ideal> PartialEq for ResidueClass<I> {
 impl<I: Ideal> Eq for ResidueClass<I> {}
 
 /// The set of residue classes modulo `I`.
+#[derive(Set)]
+#[set(element = ResidueClass<I>)]
 pub struct ResidueClasses<I: Ideal>(PhantomData<I>);
 
-impl<I: Ideal> Set for ResidueClasses<I> {
-    type Element = ResidueClass<I>;
-}
-
 /// Addition of residue classes.
+#[derive(Associative, BinaryOperator, Commutative)]
+#[operator(domain = ResidueClasses<I>, apply = ResidueClass::<I>::added, identity = ResidueClass::<I>::zero(), inverse = ResidueClass::<I>::inversed)]
 pub struct QuotientAdd<I: Ideal>(PhantomData<I>);
 
-impl<I: Ideal> BinaryOperator for QuotientAdd<I> {
-    type Domain = ResidueClasses<I>;
-
-    fn apply(lhs: ResidueClass<I>, rhs: ResidueClass<I>) -> ResidueClass<I> {
-        ResidueClass::new(I::Ring::add(
-            lhs.into_representative(),
-            rhs.into_representative(),
-        ))
-    }
-}
-
-impl<I: Ideal> Associative for QuotientAdd<I> {}
-impl<I: Ideal> Commutative for QuotientAdd<I> {}
-
-impl<I: Ideal> Identity for QuotientAdd<I> {
-    const IDENTITY: ResidueClass<I> = ResidueClass::new(I::Ring::ZERO);
-}
-
-impl<I: Ideal> Inverse for QuotientAdd<I> {
-    fn inverse(value: ResidueClass<I>) -> ResidueClass<I> {
-        ResidueClass::new(I::Ring::negate(value.into_representative()))
-    }
-}
-
 /// Multiplication of residue classes.
+#[derive(Associative, BinaryOperator)]
+#[operator(apply = ResidueClass::<I>::multiplied, domain = ResidueClasses<I>, identity = ResidueClass::<I>::one())]
 pub struct QuotientMul<I: Ideal>(PhantomData<I>);
-
-impl<I: Ideal> BinaryOperator for QuotientMul<I> {
-    type Domain = ResidueClasses<I>;
-
-    fn apply(lhs: ResidueClass<I>, rhs: ResidueClass<I>) -> ResidueClass<I> {
-        ResidueClass::new(I::Ring::multiply(
-            lhs.into_representative(),
-            rhs.into_representative(),
-        ))
-    }
-}
-
-impl<I: Ideal> Associative for QuotientMul<I> {}
-
-impl<I: Ideal> Identity for QuotientMul<I> {
-    const IDENTITY: ResidueClass<I> = ResidueClass::new(I::Ring::ONE);
-}
 
 impl<I> Commutative for QuotientMul<I>
 where

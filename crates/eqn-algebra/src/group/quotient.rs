@@ -1,13 +1,14 @@
-use std::fmt;
 use std::marker::PhantomData;
 
-use super::{AbelianGroup, Group, NormalSubgroup, Subgroup};
+use super::{Group, NormalSubgroup, Subgroup};
+use crate::group::AbelianGroup;
 use crate::monoid::{Monoid, MonoidElem};
-use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
+use crate::op::{Associative, BinaryOperator, Commutative};
 use crate::set::Set;
 
 /// A left coset of `S`, represented by one element of the parent group.
 /// Representatives `a` and `b` are equal when `a^-1 * b` belongs to `S`.
+#[derive_where::derive_where(Clone, Debug, Eq)]
 pub struct Coset<S: Subgroup> {
     representative: MonoidElem<S::Parent>,
     subgroup: PhantomData<S>,
@@ -28,17 +29,20 @@ impl<S: Subgroup> Coset<S> {
     pub fn into_representative(self) -> MonoidElem<S::Parent> {
         self.representative
     }
-}
 
-impl<S: Subgroup> Clone for Coset<S> {
-    fn clone(&self) -> Self {
-        Self::new(self.representative.clone())
+    pub fn applied(self, rhs: Self) -> Self {
+        Self::new(S::Parent::apply(
+            self.into_representative(),
+            rhs.into_representative(),
+        ))
     }
-}
 
-impl<S: Subgroup> fmt::Debug for Coset<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Coset").field(&self.representative).finish()
+    pub fn inversed(self) -> Self {
+        Self::new(S::Parent::inverse(self.into_representative()))
+    }
+
+    pub const fn identity() -> Self {
+        Self::new(S::Parent::IDENTITY)
     }
 }
 
@@ -52,47 +56,17 @@ impl<S: Subgroup> PartialEq for Coset<S> {
     }
 }
 
-impl<S: Subgroup> Eq for Coset<S> {}
-
 /// The set of left cosets of `S`.
+#[derive(Set)]
+#[set(element = Coset<S>)]
 pub struct Cosets<S: Subgroup>(PhantomData<S>);
 
-impl<S: Subgroup> Set for Cosets<S> {
-    type Element = Coset<S>;
-}
-
 /// Multiplication of cosets of a normal subgroup.
+#[derive(Associative, BinaryOperator)]
+#[operator(domain = Cosets<N>, apply = Coset::applied, identity = Coset::identity(), inverse = Coset::inversed)]
 pub struct QuotientOp<N: NormalSubgroup>(PhantomData<N>);
 
-impl<N: NormalSubgroup> BinaryOperator for QuotientOp<N> {
-    type Domain = Cosets<N>;
-
-    fn apply(lhs: Coset<N>, rhs: Coset<N>) -> Coset<N> {
-        Coset::new(N::Parent::apply(
-            lhs.into_representative(),
-            rhs.into_representative(),
-        ))
-    }
-}
-
-impl<N: NormalSubgroup> Associative for QuotientOp<N> {}
-
-impl<N: NormalSubgroup> Identity for QuotientOp<N> {
-    const IDENTITY: Coset<N> = Coset::new(N::Parent::IDENTITY);
-}
-
-impl<N: NormalSubgroup> Inverse for QuotientOp<N> {
-    fn inverse(value: Coset<N>) -> Coset<N> {
-        Coset::new(N::Parent::inverse(value.into_representative()))
-    }
-}
-
-impl<N> Commutative for QuotientOp<N>
-where
-    N: NormalSubgroup,
-    N::Parent: AbelianGroup,
-{
-}
+impl<N: NormalSubgroup> Commutative for QuotientOp<N> where N::Parent: AbelianGroup {}
 
 /// The quotient of a group by a normal subgroup.
 pub type QuotientGroup<N> = (Cosets<N>, QuotientOp<N>);
@@ -102,6 +76,7 @@ mod tests {
     use eqn_core::set::Z;
 
     use super::*;
+    use crate::group::AbelianGroup;
     use crate::monoid::Submonoid;
     use crate::operator_impl::ZAdd;
 
@@ -215,46 +190,40 @@ mod tests {
                 reflected,
             }
         }
+
+        const fn applied(self, rhs: Self) -> Self {
+            let rhs_rotation = if self.reflected {
+                (3 - rhs.rotation) % 3
+            } else {
+                rhs.rotation
+            };
+            Symmetry::new(
+                (self.rotation + rhs_rotation) % 3,
+                self.reflected ^ rhs.reflected,
+            )
+        }
+
+        const fn identity() -> Self {
+            Self::new(0, false)
+        }
+
+        const fn inversed(self) -> Self {
+            let rotation = if self.reflected {
+                self.rotation
+            } else {
+                (3 - self.rotation) % 3
+            };
+            Self::new(rotation, self.reflected)
+        }
     }
 
     #[derive(Set)]
     #[set(element = Symmetry)]
     struct TriangleSymmetries;
 
+    #[derive(Associative, BinaryOperator)]
+    #[operator(domain = TriangleSymmetries, apply = Symmetry::applied, identity = Symmetry::identity(), inverse = Symmetry::inversed)]
     struct Compose;
-
-    impl BinaryOperator for Compose {
-        type Domain = TriangleSymmetries;
-
-        fn apply(lhs: Symmetry, rhs: Symmetry) -> Symmetry {
-            let rhs_rotation = if lhs.reflected {
-                (3 - rhs.rotation) % 3
-            } else {
-                rhs.rotation
-            };
-            Symmetry::new(
-                (lhs.rotation + rhs_rotation) % 3,
-                lhs.reflected ^ rhs.reflected,
-            )
-        }
-    }
-
-    impl Associative for Compose {}
-
-    impl Identity for Compose {
-        const IDENTITY: Symmetry = Symmetry::new(0, false);
-    }
-
-    impl Inverse for Compose {
-        fn inverse(value: Symmetry) -> Symmetry {
-            let rotation = if value.reflected {
-                value.rotation
-            } else {
-                (3 - value.rotation) % 3
-            };
-            Symmetry::new(rotation, value.reflected)
-        }
-    }
 
     type D3 = (TriangleSymmetries, Compose);
 

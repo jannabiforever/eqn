@@ -11,7 +11,7 @@ use eqn_algebra::field::{
 use eqn_algebra::module::{Module, ModuleElem, ModuleScalar};
 use eqn_algebra::ring::SemiRing;
 use eqn_core::map::Map;
-use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
+use eqn_core::op::{Associative, BinaryOperator, Commutative, Inverse};
 use eqn_core::set::Set;
 
 /// A monic degree-`N` polynomial over `F_P`, stored from constant to leading
@@ -61,6 +61,7 @@ impl<const P: u64, const N: usize> DefiningPolynomial<P, N> for FirstCompatible 
 impl<const P: u64, const N: usize> IrreduciblePolynomial<P, N> for FirstCompatible {}
 
 /// A canonical power-basis representative of a finite-field element.
+#[derive_where::derive_where(Clone, Copy, Eq, PartialEq)]
 pub struct FiniteFieldElement<const P: u64, const N: usize, M = FirstIrreducible> {
     coefficients: [PrimeFieldElement<P>; N],
     modulus: PhantomData<M>,
@@ -126,109 +127,15 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
         }
         result
     }
-}
 
-impl<const P: u64, const N: usize, M> Copy for FiniteFieldElement<P, N, M> {}
-
-impl<const P: u64, const N: usize, M> Clone for FiniteFieldElement<P, N, M> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<const P: u64, const N: usize, M> fmt::Debug for FiniteFieldElement<P, N, M> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("FiniteFieldElement")
-            .field(&self.coefficients)
-            .finish()
-    }
-}
-
-impl<const P: u64, const N: usize, M> PartialEq for FiniteFieldElement<P, N, M> {
-    fn eq(&self, other: &Self) -> bool {
-        self.coefficients == other.coefficients
-    }
-}
-
-impl<const P: u64, const N: usize, M> Eq for FiniteFieldElement<P, N, M> {}
-
-pub struct FiniteFieldElements<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
-
-impl<const P: u64, const N: usize, M> Set for FiniteFieldElements<P, N, M> {
-    type Element = FiniteFieldElement<P, N, M>;
-}
-
-pub struct FiniteFieldAdd<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
-
-impl<const P: u64, const N: usize, M> BinaryOperator for FiniteFieldAdd<P, N, M> {
-    type Domain = FiniteFieldElements<P, N, M>;
-
-    fn apply(
-        lhs: FiniteFieldElement<P, N, M>,
-        rhs: FiniteFieldElement<P, N, M>,
-    ) -> FiniteFieldElement<P, N, M> {
-        FiniteFieldElement::from_coefficients(std::array::from_fn(|i| {
-            lhs.coefficients[i] + rhs.coefficients[i]
-        }))
-    }
-}
-
-impl<const P: u64, const N: usize, M> Associative for FiniteFieldAdd<P, N, M> {}
-impl<const P: u64, const N: usize, M> Commutative for FiniteFieldAdd<P, N, M> {}
-
-impl<const P: u64, const N: usize, M> Identity for FiniteFieldAdd<P, N, M> {
-    const IDENTITY: FiniteFieldElement<P, N, M> = FiniteFieldElement::ZERO;
-}
-
-impl<const P: u64, const N: usize, M> Inverse for FiniteFieldAdd<P, N, M> {
-    fn inverse(value: FiniteFieldElement<P, N, M>) -> FiniteFieldElement<P, N, M> {
-        FiniteFieldElement::from_coefficients(value.coefficients.map(Neg::neg))
-    }
-}
-
-pub struct FiniteFieldMul<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
-
-impl<const P: u64, const N: usize, M> BinaryOperator for FiniteFieldMul<P, N, M>
-where
-    M: IrreduciblePolynomial<P, N>,
-{
-    type Domain = FiniteFieldElements<P, N, M>;
-
-    fn apply(
-        lhs: FiniteFieldElement<P, N, M>,
-        rhs: FiniteFieldElement<P, N, M>,
-    ) -> FiniteFieldElement<P, N, M> {
+    /// The multiplicative inverse, by the extended Euclidean algorithm on
+    /// `F_P[x]`. Panics on zero.
+    pub fn inverse(self) -> Self
+    where
+        M: IrreduciblePolynomial<P, N>,
+    {
         let modulus = modulus::<P, N, M>();
-        let product = poly_mul(&lhs.coefficients, &rhs.coefficients);
-        let (_, remainder) = poly_div_rem(product, modulus);
-        element_from_poly(remainder)
-    }
-}
-
-impl<const P: u64, const N: usize, M> Associative for FiniteFieldMul<P, N, M> where
-    M: IrreduciblePolynomial<P, N>
-{
-}
-
-impl<const P: u64, const N: usize, M> Commutative for FiniteFieldMul<P, N, M> where
-    M: IrreduciblePolynomial<P, N>
-{
-}
-
-impl<const P: u64, const N: usize, M> Identity for FiniteFieldMul<P, N, M>
-where
-    M: IrreduciblePolynomial<P, N>,
-{
-    const IDENTITY: FiniteFieldElement<P, N, M> = FiniteFieldElement::ONE;
-}
-
-impl<const P: u64, const N: usize, M> Inverse for FiniteFieldMul<P, N, M>
-where
-    M: IrreduciblePolynomial<P, N>,
-{
-    fn inverse(value: FiniteFieldElement<P, N, M>) -> FiniteFieldElement<P, N, M> {
-        let modulus = modulus::<P, N, M>();
-        let mut remainder = value.coefficients.to_vec();
+        let mut remainder = self.coefficients.to_vec();
         trim(&mut remainder);
         assert!(!remainder.is_empty(), "zero has no multiplicative inverse");
 
@@ -256,6 +163,81 @@ where
         element_from_poly(inverse)
     }
 }
+
+impl<const P: u64, const N: usize, M> Add for FiniteFieldElement<P, N, M> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        FiniteFieldElement::from_coefficients(std::array::from_fn(|i| {
+            self.coefficients[i] + rhs.coefficients[i]
+        }))
+    }
+}
+
+impl<const P: u64, const N: usize, M> Sub for FiniteFieldElement<P, N, M> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        FiniteFieldAdd::apply(self, FiniteFieldAdd::inverse(rhs))
+    }
+}
+
+impl<const P: u64, const N: usize, M> Mul for FiniteFieldElement<P, N, M>
+where
+    M: IrreduciblePolynomial<P, N>,
+{
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        let modulus = modulus::<P, N, M>();
+        let product = poly_mul(&self.coefficients, &rhs.coefficients);
+        let (_, remainder) = poly_div_rem(product, modulus);
+        element_from_poly(remainder)
+    }
+}
+
+impl<const P: u64, const N: usize, M> Div for FiniteFieldElement<P, N, M>
+where
+    M: IrreduciblePolynomial<P, N>,
+{
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        Mul::mul(self, rhs.inverse())
+    }
+}
+
+impl<const P: u64, const N: usize, M> std::ops::Neg for FiniteFieldElement<P, N, M> {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        FiniteFieldElement::from_coefficients(self.coefficients.map(Neg::neg))
+    }
+}
+
+impl<const P: u64, const N: usize, M> fmt::Debug for FiniteFieldElement<P, N, M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("FiniteFieldElement")
+            .field(&self.coefficients)
+            .finish()
+    }
+}
+
+#[derive(Set)]
+#[set(element = FiniteFieldElement<P, N, M>)]
+pub struct FiniteFieldElements<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
+
+#[derive(Associative, BinaryOperator, Commutative)]
+#[operator(domain = FiniteFieldElements<P, N, M>, apply = FiniteFieldElement::add, identity = FiniteFieldElement::ZERO, inverse = Neg::neg)]
+pub struct FiniteFieldAdd<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
+
+#[derive(Associative, BinaryOperator, Commutative)]
+#[operator(domain = FiniteFieldElements<P, N, M>, apply = Mul::mul, identity = FiniteFieldElement::ONE, inverse = |a| a.inverse())]
+pub struct FiniteFieldMul<
+    const P: u64,
+    const N: usize,
+    M: IrreduciblePolynomial<P, N> = FirstIrreducible,
+>(PhantomData<M>);
 
 /// The quotient field `F_P[x] / (M)` of degree `N`.
 pub struct FiniteField<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
@@ -357,52 +339,6 @@ where
 {
     fn roots() -> Vec<FiniteFieldElement<P, N, M>> {
         Self::roots_of_defining_polynomial()
-    }
-}
-
-impl<const P: u64, const N: usize, M> Add for FiniteFieldElement<P, N, M> {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        FiniteFieldAdd::apply(self, rhs)
-    }
-}
-
-impl<const P: u64, const N: usize, M> Neg for FiniteFieldElement<P, N, M> {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        FiniteFieldAdd::inverse(self)
-    }
-}
-
-impl<const P: u64, const N: usize, M> Sub for FiniteFieldElement<P, N, M> {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        FiniteFieldAdd::apply(self, FiniteFieldAdd::inverse(rhs))
-    }
-}
-
-impl<const P: u64, const N: usize, M> Mul for FiniteFieldElement<P, N, M>
-where
-    M: IrreduciblePolynomial<P, N>,
-{
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        FiniteFieldMul::apply(self, rhs)
-    }
-}
-
-impl<const P: u64, const N: usize, M> Div for FiniteFieldElement<P, N, M>
-where
-    M: IrreduciblePolynomial<P, N>,
-{
-    type Output = Self;
-
-    fn div(self, rhs: Self) -> Self::Output {
-        FiniteFieldMul::apply(self, FiniteFieldMul::inverse(rhs))
     }
 }
 

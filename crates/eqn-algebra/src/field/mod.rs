@@ -5,7 +5,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 use crate::algebra::Algebra;
 use crate::map::Map;
 use crate::module::{Module, ModuleElem, ModuleScalar};
-use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
+use crate::op::{Associative, BinaryOperator, Commutative, Inverse};
 use crate::ring::{Ring, RingElem, Subring};
 use crate::set::Set;
 
@@ -95,7 +95,7 @@ impl<const P: u64> PrimeField<P> {
 }
 
 /// An element of [`PrimeField<P>`].
-#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PrimeFieldElement<const P: u64> {
     value: u64,
 }
@@ -229,57 +229,17 @@ impl<const P: u64> Div for PrimeFieldElement<P> {
 }
 
 /// The set underlying [`PrimeField<P>`].
+#[derive(Set)]
+#[set(element = PrimeFieldElement<P>)]
 pub struct PrimeFieldSet<const P: u64>(PhantomData<PrimeField<P>>);
 
-impl<const P: u64> Set for PrimeFieldSet<P> {
-    type Element = PrimeFieldElement<P>;
-}
-
+#[derive(Associative, BinaryOperator, Commutative)]
+#[operator(domain = PrimeFieldSet<P>, apply = |a, b| a + b, identity = PrimeFieldElement::ZERO, inverse = Neg::neg)]
 pub struct PrimeFieldAdd<const P: u64>(PhantomData<PrimeField<P>>);
 
-impl<const P: u64> BinaryOperator for PrimeFieldAdd<P> {
-    type Domain = PrimeFieldSet<P>;
-
-    fn apply(a: PrimeFieldElement<P>, b: PrimeFieldElement<P>) -> PrimeFieldElement<P> {
-        a + b
-    }
-}
-
-impl<const P: u64> Associative for PrimeFieldAdd<P> {}
-impl<const P: u64> Commutative for PrimeFieldAdd<P> {}
-
-impl<const P: u64> Identity for PrimeFieldAdd<P> {
-    const IDENTITY: PrimeFieldElement<P> = PrimeFieldElement::ZERO;
-}
-
-impl<const P: u64> Inverse for PrimeFieldAdd<P> {
-    fn inverse(a: PrimeFieldElement<P>) -> PrimeFieldElement<P> {
-        -a
-    }
-}
-
+#[derive(Associative, BinaryOperator, Commutative)]
+#[operator(domain = PrimeFieldSet<P>, apply = |a, b| a * b, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse())]
 pub struct PrimeFieldMul<const P: u64>(PhantomData<PrimeField<P>>);
-
-impl<const P: u64> BinaryOperator for PrimeFieldMul<P> {
-    type Domain = PrimeFieldSet<P>;
-
-    fn apply(a: PrimeFieldElement<P>, b: PrimeFieldElement<P>) -> PrimeFieldElement<P> {
-        a * b
-    }
-}
-
-impl<const P: u64> Associative for PrimeFieldMul<P> {}
-impl<const P: u64> Commutative for PrimeFieldMul<P> {}
-
-impl<const P: u64> Identity for PrimeFieldMul<P> {
-    const IDENTITY: PrimeFieldElement<P> = PrimeFieldElement::ONE;
-}
-
-impl<const P: u64> Inverse for PrimeFieldMul<P> {
-    fn inverse(a: PrimeFieldElement<P>) -> PrimeFieldElement<P> {
-        a.inverse()
-    }
-}
 
 impl<const P: u64> crate::ring::SemiRing for PrimeField<P> {
     type Domain = PrimeFieldSet<P>;
