@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 
+use eqn_algebra::module::{Module, ModuleElem, ModuleScalar};
 use eqn_algebra::ring::{CommutativeRing, DifferentialRing, Ring, RingElem, RingExpr, SemiRing};
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::set::Set;
@@ -42,6 +43,16 @@ impl<R: CommutativeRing> SemiRing for PolynomialRing<R> {
     type Domain = Polynomials<R>;
     type Addition = PolyAdd<R>;
     type Multiplication = PolyMul<R>;
+}
+
+impl<R: CommutativeRing> Module for PolynomialRing<R> {
+    type Scalars = R;
+    type Domain = Polynomials<R>;
+    type Addition = PolyAdd<R>;
+
+    fn scale(scalar: ModuleScalar<Self>, value: ModuleElem<Self>) -> ModuleElem<Self> {
+        RingExpr::Mul(vec![RingExpr::Const(scalar), value])
+    }
 }
 
 // ================================================================================
@@ -91,6 +102,8 @@ impl<R: CommutativeRing> DifferentialRing for PolynomialRing<R> {
 
 #[cfg(test)]
 mod tests {
+    use eqn_algebra::algebra::Algebra;
+    use eqn_algebra::module::Module;
     use eqn_algebra::operator_impl::{ZAdd, ZMul};
     use eqn_algebra::rewriter::Rewriter;
     use eqn_algebra::ring::{CommutativeRingRewriter, SemiRing};
@@ -105,17 +118,74 @@ mod tests {
         let y = RingExpr::<(Z, ZAdd, ZMul)>::Symbol(Symbol::new("y"));
 
         assert_eq!(
-            P::add(x.clone(), y.clone()),
+            <P as SemiRing>::add(x.clone(), y.clone()),
             RingExpr::Add(vec![x.clone(), y])
         );
         assert_eq!(P::ONE, RingExpr::Const(1));
-        assert_eq!(P::negate(x.clone()), RingExpr::Neg(Box::new(x)));
+        assert_eq!(<P as Ring>::negate(x.clone()), RingExpr::Neg(Box::new(x)));
     }
 
     #[test]
     fn polynomial_ring_is_commutative() {
         fn assert_commutative_ring<R: CommutativeRing>() {}
         assert_commutative_ring::<PolynomialRing<(Z, ZAdd, ZMul)>>();
+    }
+
+    #[test]
+    fn polynomial_ring_is_an_algebra_over_its_coefficients() {
+        fn assert_algebra<A: Algebra>() {}
+
+        type P = PolynomialRing<(Z, ZAdd, ZMul)>;
+        let x = RingExpr::<(Z, ZAdd, ZMul)>::Symbol(Symbol::new("x"));
+
+        assert_algebra::<P>();
+        assert_eq!(
+            P::scale(3, x.clone()),
+            RingExpr::Mul(vec![RingExpr::Const(3), x])
+        );
+        assert_eq!(norm(P::from_scalar(4)), RingExpr::Const(4));
+    }
+
+    #[test]
+    fn coefficient_action_satisfies_the_algebra_laws() {
+        fn scale(scalar: i64, value: Expr) -> Expr {
+            <Poly as Module>::scale(scalar, value)
+        }
+
+        let p = Expr::Add(vec![x(), c(2)]);
+        let q = Expr::Add(vec![y(), c(-3)]);
+
+        assert_eq!(norm(scale(0, p.clone())), c(0));
+        assert_eq!(norm(scale(1, p.clone())), norm(p.clone()));
+        assert_eq!(
+            norm(scale(2 + 3, p.clone())),
+            norm(<Poly as SemiRing>::add(
+                scale(2, p.clone()),
+                scale(3, p.clone())
+            ))
+        );
+        assert_eq!(
+            norm(scale(2 * 3, p.clone())),
+            norm(scale(2, scale(3, p.clone())))
+        );
+        assert_eq!(
+            norm(scale(2, <Poly as SemiRing>::add(p.clone(), q.clone()))),
+            norm(<Poly as SemiRing>::add(
+                scale(2, p.clone()),
+                scale(2, q.clone())
+            ))
+        );
+
+        let product = <Poly as SemiRing>::multiply(p.clone(), q.clone());
+        let scaled_product = norm(scale(2, product));
+        assert_eq!(
+            scaled_product,
+            norm(<Poly as SemiRing>::multiply(scale(2, p.clone()), q.clone()))
+        );
+        assert_eq!(
+            scaled_product,
+            norm(<Poly as SemiRing>::multiply(p, scale(2, q)))
+        );
     }
 
     type Expr = RingExpr<(Z, ZAdd, ZMul)>;
