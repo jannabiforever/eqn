@@ -1,7 +1,9 @@
 pub use eqn_core::{map, op, rewriter, set, symbol};
 
+pub mod algebra;
 pub mod field;
 pub mod group;
+pub mod module;
 pub mod monoid;
 pub mod operator_impl;
 pub mod ring;
