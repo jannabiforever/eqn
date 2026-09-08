@@ -338,7 +338,7 @@ impl<const P: u64, const N: usize, M> FiniteExtension for FiniteField<P, N, M>
 where
     M: IrreduciblePolynomial<P, N>,
 {
-    const DEGREE: usize = N;
+    type const DEGREE: usize = N;
 }
 
 impl<const P: u64, const N: usize, M> NormalExtension for FiniteField<P, N, M> where
