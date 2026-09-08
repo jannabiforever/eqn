@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::algebra::Algebra;
+use crate::map::Map;
 use crate::module::{Module, ModuleElem, ModuleScalar};
 use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
 use crate::ring::{Ring, RingElem, Subring};
@@ -47,6 +48,37 @@ pub trait FiniteExtension: FieldExtension {
 pub trait AlgebraicExtension: FieldExtension {}
 
 impl<E: FiniteExtension> AlgebraicExtension for E {}
+
+/// An algebraic extension in which every irreducible polynomial having a root
+/// splits completely.
+pub trait NormalExtension: AlgebraicExtension {}
+
+/// An algebraic extension whose elements have separable minimal polynomials.
+pub trait SeparableExtension: AlgebraicExtension {}
+
+/// An extension that is both normal and separable.
+pub trait GaloisExtension: NormalExtension + SeparableExtension {}
+
+impl<E> GaloisExtension for E where E: NormalExtension + SeparableExtension {}
+
+/// A splitting field for the polynomial represented by `P`.
+pub trait SplittingField<P>: NormalExtension {
+    fn roots() -> Vec<RingElem<Self>>;
+}
+
+/// A unital field homomorphism from `D` to `C`.
+pub trait FieldHomomorphism<D: Field, C: Field>: Map<D::Domain, C::Domain> {}
+
+/// A field homomorphism, which is necessarily injective.
+pub trait FieldEmbedding<D: Field, C: Field>: FieldHomomorphism<D, C> {}
+
+impl<T, D, C> FieldEmbedding<D, C> for T
+where
+    D: Field,
+    C: Field,
+    T: FieldHomomorphism<D, C>,
+{
+}
 
 /// Element alias for the base field of an extension.
 pub type BaseFieldElem<E> = RingElem<<E as FieldExtension>::BaseField>;
@@ -273,6 +305,9 @@ impl<const P: u64> FiniteExtension for PrimeField<P> {
     const DEGREE: usize = 1;
 }
 
+impl<const P: u64> NormalExtension for PrimeField<P> {}
+impl<const P: u64> SeparableExtension for PrimeField<P> {}
+
 fn assert_prime<const P: u64>() {
     assert!(is_prime(P), "prime-field characteristic must be prime");
 }
@@ -347,6 +382,13 @@ mod tests {
         assert_eq!(F5::invert(E::new(2)), E::new(3));
         assert_eq!(E::new(3) - E::new(4), E::new(4));
         assert_eq!(E::new(3) / E::new(2), E::new(4));
+    }
+
+    #[test]
+    fn prime_fields_are_galois_extensions() {
+        fn assert_galois<E: GaloisExtension>() {}
+
+        assert_galois::<PrimeField<5>>();
     }
 
     #[test]

@@ -10,9 +10,11 @@ use eqn_core::symbol::Symbol;
 mod finite_field;
 
 pub use finite_field::{
+    CompatibleFiniteField, CompatibleFiniteFieldElement, CompatibleFiniteFieldEmbedding,
     DefiningPolynomial, FiniteField, FiniteFieldAdd, FiniteFieldElement, FiniteFieldElements,
-    FiniteFieldMul, FirstIrreducible, FirstPrimitive, Fq, FqElement, IrreduciblePolynomial,
-    PrimitiveFiniteField, PrimitiveFiniteFieldElement, is_irreducible, is_primitive,
+    FiniteFieldMul, FirstCompatible, FirstIrreducible, FirstPrimitive, Fq, FqElement,
+    IrreduciblePolynomial, PrimitiveFiniteField, PrimitiveFiniteFieldElement, is_irreducible,
+    is_primitive,
 };
 
 /// The set of polynomial expressions over `R`, represented by [`RingExpr`]
