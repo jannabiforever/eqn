@@ -118,11 +118,11 @@ mod tests {
         let y = RingExpr::<(Z, ZAdd, ZMul)>::Symbol(Symbol::new("y"));
 
         assert_eq!(
-            <P as SemiRing>::add(x.clone(), y.clone()),
+            P::add(x.clone(), y.clone()),
             RingExpr::Add(vec![x.clone(), y])
         );
         assert_eq!(P::ONE, RingExpr::Const(1));
-        assert_eq!(<P as Ring>::negate(x.clone()), RingExpr::Neg(Box::new(x)));
+        assert_eq!(P::negate(x.clone()), RingExpr::Neg(Box::new(x)));
     }
 
     #[test]
