@@ -4,9 +4,13 @@ use crate::rewriter::Expression;
 use crate::set::Set;
 use crate::symbol::Symbol;
 
+mod normal;
+mod quotient;
 mod rewriter;
 
 // Re-exports
+pub use normal::NormalSubgroup;
+pub use quotient::{Coset, Cosets, QuotientGroup, QuotientOp};
 pub use rewriter::{AbelianGroupRewriter, GroupRewriter};
 
 /// A group: a set equipped with an associative binary operation, an identity
