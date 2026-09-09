@@ -276,7 +276,7 @@ mod tests {
     #[test]
     fn d_of_x_squared_y_over_int_plane() {
         // d(x^2 · y) = 2xy dx + x^2 dy
-        assert_eq!(int_graded("d(x^2 y)"), int_form("2 x y d(x) + x^2 d(y)"));
+        assert_eq!(int_graded("d(x^2 y)"), int_form("2 x y dx + x^2 dy"));
     }
 
     #[test]
@@ -287,40 +287,37 @@ mod tests {
     #[test]
     fn d_of_wedged_product_over_int_plane() {
         // d(x·y ∧ dx) = -x dx∧dy
-        assert_eq!(int_graded("d(x y ∧ d(x))"), int_form("-1 x d(x) ∧ d(y)"));
+        assert_eq!(int_graded("d(x y ∧ dx)"), int_form("-1 x dx ∧ dy"));
     }
 
     #[test]
     fn d_squared_and_d_const_vanish() {
-        assert_eq!(exterior("d(d(x))"), form("0"));
+        assert_eq!(exterior("d(dx)"), form("0"));
         assert_eq!(exterior("d(7)"), form("0"));
     }
 
     #[test]
     fn leibniz_differentiates_a_product() {
-        assert_eq!(exterior("d(x y)"), form("y d(x) + x d(y)"));
+        assert_eq!(exterior("d(x y)"), form("y dx + x dy"));
     }
 
     #[test]
     fn exterior_keeps_order_and_distributes() {
-        assert_eq!(exterior("d(y) ∧ d(x)"), form("d(y) ∧ d(x)"));
-        assert_eq!(
-            exterior("2 ∧ (x + d(y)) ∧ d(x)"),
-            form("2 x d(x) + 2 d(y) ∧ d(x)")
-        );
+        assert_eq!(exterior("dy ∧ dx"), form("dy ∧ dx"));
+        assert_eq!(exterior("2 ∧ (x + dy) ∧ dx"), form("2 x dx + 2 dy ∧ dx"));
     }
 
     #[test]
     fn graded_commutative_sorts_with_sign() {
-        assert_eq!(graded("d(y) ∧ d(x)"), form("-1 d(x) ∧ d(y)"));
-        assert_eq!(graded("d(x) ∧ d(x)"), form("0"));
-        assert_eq!(graded("d(x) ∧ d(y) + d(y) ∧ d(x)"), form("0"));
-        assert_eq!(graded("d(x) ∧ d(y) + d(x) ∧ d(y)"), form("2 d(x) ∧ d(y)"));
+        assert_eq!(graded("dy ∧ dx"), form("-1 dx ∧ dy"));
+        assert_eq!(graded("dx ∧ dx"), form("0"));
+        assert_eq!(graded("dx ∧ dy + dy ∧ dx"), form("0"));
+        assert_eq!(graded("dx ∧ dy + dx ∧ dy"), form("2 dx ∧ dy"));
     }
 
     #[test]
     fn forms_above_dim_vanish() {
-        assert_eq!(exterior("d(x) ∧ d(y) ∧ d(z)"), form("0"));
+        assert_eq!(exterior("dx ∧ dy ∧ dz"), form("0"));
     }
 
     fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
@@ -336,12 +333,12 @@ mod tests {
         let sources = [
             "0",
             "-(-x)",
-            "-(x d(y))",
-            "d(x d(y))",
-            "d(y) ∧ d(x)",
-            "d(x) ∧ d(y) + d(y) ∧ d(x)",
-            "2 ∧ (x + d(y)) ∧ d(x)",
-            "d(x) ∧ d(y) ∧ d(x)",
+            "-(x dy)",
+            "d(x dy)",
+            "dy ∧ dx",
+            "dx ∧ dy + dy ∧ dx",
+            "2 ∧ (x + dy) ∧ dx",
+            "dx ∧ dy ∧ dx",
             "d(x^2)",
             "d(d(x^2 y))",
         ];
@@ -383,22 +380,22 @@ mod tests {
 
     #[test]
     fn d_of_a_square() {
-        assert_eq!(graded("d(x^2)"), form("2 x d(x)"));
+        assert_eq!(graded("d(x^2)"), form("2 x dx"));
     }
 
     #[test]
     fn d_of_a_square_plus_sin() {
-        assert_eq!(graded("d(x^2 + sin(y))"), form("2 x d(x) + cos(y) d(y)"));
+        assert_eq!(graded("d(x^2 + sin(y))"), form("2 x dx + cos(y) dy"));
     }
 
     #[test]
     fn d_of_a_product() {
-        assert_eq!(graded("d(x y)"), form("y d(x) + x d(y)"));
+        assert_eq!(graded("d(x y)"), form("y dx + x dy"));
     }
 
     #[test]
     fn d_of_wedged_product_form() {
-        assert_eq!(graded("d(x y ∧ d(x))"), form("-1 x d(x) ∧ d(y)"));
+        assert_eq!(graded("d(x y ∧ dx)"), form("-1 x dx ∧ dy"));
     }
 
     #[test]
@@ -408,8 +405,8 @@ mod tests {
 
     #[test]
     fn repeated_atom_and_degree_above_dim_vanish() {
-        assert_eq!(graded("d(x) ∧ d(y) ∧ d(x)"), form("0"));
-        assert_eq!(graded("d(x) ∧ d(y) ∧ d(z)"), form("0"));
+        assert_eq!(graded("dx ∧ dy ∧ dx"), form("0"));
+        assert_eq!(graded("dx ∧ dy ∧ dz"), form("0"));
     }
 
     #[test]
@@ -417,22 +414,19 @@ mod tests {
         // `a` is never a chart coordinate here: a parameter. It sorts before
         // `x` in ElementaryRewriter's structural order (symbols compare by
         // name), so the coefficient is `2 a x`, not `2 x a`.
-        assert_eq!(graded("d(a x^2)"), form("2 a x d(x)"));
-        assert_eq!(graded("d(a)"), form("0"));
+        assert_eq!(graded("d(a x^2)"), form("2 a x dx"));
+        assert_eq!(graded("da"), form("0"));
     }
 
     #[test]
     fn d_only_sees_chart_coordinates() {
         // d(x^2 + y^2) = 2x dx + 2y dy in the (x, y) chart...
-        assert_eq!(graded("d(x^2 + y^2)"), form("2 x d(x) + 2 y d(y)"));
+        assert_eq!(graded("d(x^2 + y^2)"), form("2 x dx + 2 y dy"));
 
         // ...but only 2x dx in the (x, z) chart: `y` is a parameter there,
         // so its whole term drops.
         let xz_chart = GradedCommutativeRewriter::new(xz(), ElementaryRewriter::new());
-        assert_eq!(
-            xz_chart.rewrited_expr(form("d(x^2 + y^2)")),
-            form("2 x d(x)")
-        );
+        assert_eq!(xz_chart.rewrited_expr(form("d(x^2 + y^2)")), form("2 x dx"));
     }
 
     #[test]
@@ -444,9 +438,9 @@ mod tests {
         let f = GradedCommutativeRewriter::new(yx, ElementaryRewriter::new());
 
         // d(x*y) = x dy + y dx
-        assert_eq!(f.rewrited_expr(form("d(x y)")), form("x d(y) + y d(x)"));
+        assert_eq!(f.rewrited_expr(form("d(x y)")), form("x dy + y dx"));
 
         // dx ∧ dy = -(dy ∧ dx): position 1 sorts after position 0.
-        assert_eq!(f.rewrited_expr(form("d(x) ∧ d(y)")), form("-1 d(y) ∧ d(x)"));
+        assert_eq!(f.rewrited_expr(form("dx ∧ dy")), form("-1 dy ∧ dx"));
     }
 }
