@@ -3,12 +3,6 @@
 version = 4
 
 [[package]]
-name = "anyhow"
-version = "1.0.104"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
-
-[[package]]
 name = "derive-where"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -23,7 +17,6 @@ dependencies = [
 name = "eqn-algebra"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "derive-where",
  "eqn-core",
  "eqn-parser",
@@ -36,6 +29,7 @@ dependencies = [
  "derive-where",
  "eqn-algebra",
  "eqn-core",
+ "eqn-parser",
 ]
 
 [[package]]
@@ -54,6 +48,7 @@ dependencies = [
  "eqn-algebra",
  "eqn-analysis",
  "eqn-core",
+ "eqn-parser",
  "eqn-poly",
 ]
 
@@ -69,10 +64,6 @@ dependencies = [
 [[package]]
 name = "eqn-parser"
 version = "0.1.0"
-dependencies = [
- "anyhow",
- "derive-where",
-]
 
 [[package]]
 name = "eqn-poly"

@@ -9,6 +9,7 @@ use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
+mod parse;
 mod rewriter;
 // Re-exports
 pub use rewriter::ElementaryRewriter;
