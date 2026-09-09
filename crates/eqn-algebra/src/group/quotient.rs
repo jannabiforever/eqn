@@ -64,7 +64,7 @@ pub struct Cosets<S: Subgroup>(PhantomData<S>);
 
 /// Multiplication of cosets of a normal subgroup.
 #[derive(Associative, BinaryOperator)]
-#[operator(domain = Cosets<N>, apply = Coset::applied, identity = Coset::identity(), inverse = Coset::inversed)]
+#[operator(domain = Cosets<N>, symbol = <N::Parent as Monoid>::SYMBOL, apply = Coset::applied, identity = Coset::identity(), inverse = Coset::inversed, inverse_symbol = <N::Parent as Group>::INVERSE_SYMBOL)]
 pub struct QuotientOp<N: NormalSubgroup>(PhantomData<N>);
 
 impl<N: NormalSubgroup> Commutative for QuotientOp<N> where N::Parent: AbelianGroup {}
@@ -223,7 +223,7 @@ mod tests {
     struct TriangleSymmetries;
 
     #[derive(Associative, BinaryOperator)]
-    #[operator(domain = TriangleSymmetries, apply = Symmetry::applied, identity = Symmetry::identity(), inverse = Symmetry::inversed)]
+    #[operator(domain = TriangleSymmetries, symbol = "*", apply = Symmetry::applied, identity = Symmetry::identity(), inverse = Symmetry::inversed, inverse_symbol = "/")]
     struct Compose;
 
     type D3 = (TriangleSymmetries, Compose);

@@ -7,9 +7,11 @@ use eqn_parser::{Assoc, Ast, FromAst, FromLiteral, Grammar, ParseError};
 
 use crate::{Elementary, ElementaryExpr};
 
-/// Field arithmetic `+ - * /` with `^n` for any integer literal `n`; `a / b`
-/// is `a * b^-1`. The functions are `exp`, `log`, `sin`, `cos`, and
-/// `D(f, x)` is the unevaluated derivative of `f` with respect to `x`.
+/// The field's own arithmetic spellings
+/// ([`eqn_algebra::ring::SemiRing::ADD_SYMBOL`] and friends, `+ - * /` for the
+/// rationals) with `^n` for any integer literal `n`; `a / b` is `a * b^-1`. The
+/// functions are `exp`, `log`, `sin`, `cos`, and `D(f, x)` is the unevaluated
+/// derivative of `f` with respect to `x`.
 impl<F> FromAst for ElementaryExpr<F>
 where
     F: Field,
@@ -17,12 +19,13 @@ where
 {
     fn grammar() -> Grammar {
         Grammar::new()
-            .infix("+", 1, Assoc::Left)
-            .infix("-", 1, Assoc::Left)
-            .infix("*", 2, Assoc::Left)
-            .infix("/", 2, Assoc::Left)
-            .juxtaposition("*")
+            .infix(F::ADD_SYMBOL, 1, Assoc::Left)
+            .infix(F::SUB_SYMBOL, 1, Assoc::Left)
+            .infix(F::MUL_SYMBOL, 2, Assoc::Left)
+            .infix(F::DIV_SYMBOL, 2, Assoc::Left)
+            .juxtaposition(F::MUL_SYMBOL)
             .prefix("-", 3)
+            .prefix(F::SUB_SYMBOL, 3)
             .infix("^", 4, Assoc::Right)
     }
 
@@ -36,9 +39,11 @@ where
             )),
             Ast::Ident(name) => Ok(Self::Symbol(Symbol::new(name))),
             Ast::Group(inner) => Self::from_ast(*inner),
-            Ast::Prefix(_, inner) => Ok(Self::Neg(Box::new(Self::from_ast(*inner)?))),
-            Ast::Infix(ref op, ..) if op == "+" || op == "-" => ast
-                .operands(sum)
+            Ast::Prefix(op, inner) if op == F::SUB_SYMBOL => {
+                Ok(Self::Neg(Box::new(Self::from_ast(*inner)?)))
+            }
+            Ast::Infix(ref op, ..) if op == F::ADD_SYMBOL || op == F::SUB_SYMBOL => ast
+                .operands(sum::<F>)
                 .into_iter()
                 .map(|(negated, term)| {
                     let term = Self::from_ast(term)?;
@@ -50,8 +55,8 @@ where
                 })
                 .collect::<Result<_, _>>()
                 .map(Self::Add),
-            Ast::Infix(ref op, ..) if op == "*" || op == "/" => ast
-                .operands(product)
+            Ast::Infix(ref op, ..) if op == F::MUL_SYMBOL || op == F::DIV_SYMBOL => ast
+                .operands(product::<F>)
                 .into_iter()
                 .map(|(divided, factor)| {
                     let factor = Self::from_ast(factor)?;
@@ -77,28 +82,32 @@ where
                     exponent,
                 })
             }
-            Ast::Infix(op, ..) | Ast::Postfix(op, _) => Err(ParseError::new(format!(
-                "elementary expressions have no `{op}` operator"
-            ))),
+            Ast::Infix(op, ..) | Ast::Prefix(op, _) | Ast::Postfix(op, _) => Err(ParseError::new(
+                format!("elementary expressions have no `{op}` operator"),
+            )),
             Ast::Call(name, args) => call(name, args),
             Ast::Number(_) => unreachable!("literals are handled above"),
         }
     }
 }
 
-fn sum(op: &str) -> Option<bool> {
-    match op {
-        "+" => Some(false),
-        "-" => Some(true),
-        _ => None,
+fn sum<F: Field>(op: &str) -> Option<bool> {
+    if op == F::ADD_SYMBOL {
+        Some(false)
+    } else if op == F::SUB_SYMBOL {
+        Some(true)
+    } else {
+        None
     }
 }
 
-fn product(op: &str) -> Option<bool> {
-    match op {
-        "*" => Some(false),
-        "/" => Some(true),
-        _ => None,
+fn product<F: Field>(op: &str) -> Option<bool> {
+    if op == F::MUL_SYMBOL {
+        Some(false)
+    } else if op == F::DIV_SYMBOL {
+        Some(true)
+    } else {
+        None
     }
 }
 

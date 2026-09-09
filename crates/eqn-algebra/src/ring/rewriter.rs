@@ -487,11 +487,11 @@ mod tests {
     struct TestDomain;
 
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = TestDomain, apply = Add::add, identity = 0, inverse = |a| -a)]
+    #[operator(domain = TestDomain, symbol = "+", apply = Add::add, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
     struct TestAdd;
 
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = TestDomain, apply = Mul::mul, identity = 1)]
+    #[operator(domain = TestDomain, symbol = "*", apply = Mul::mul, identity = 1)]
     struct TestMul;
 
     struct TestSemiRing;

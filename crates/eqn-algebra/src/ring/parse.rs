@@ -18,21 +18,10 @@ fn exponent(ast: &Ast) -> Result<NonZeroUsize, ParseError> {
         })
 }
 
-fn sum(op: &str) -> Option<bool> {
-    match op {
-        "+" => Some(false),
-        "-" => Some(true),
-        _ => None,
-    }
-}
-
-fn product(op: &str) -> Option<bool> {
-    (op == "*").then_some(false)
-}
-
-/// `+`, `*` (or juxtaposition) and `x^n` for `n >= 1`. Prefix `-` exists
-/// only to spell negative constants: a semi-ring has no inverses, so `-x`
-/// is an error and `a - b` is not even syntax.
+/// [`SemiRing::ADD_SYMBOL`], [`SemiRing::MUL_SYMBOL`] (or juxtaposition)
+/// and `x^n` for `n >= 1`. Prefix `-` exists only to spell negative
+/// constants: a semi-ring has no inverses, so `-x` is an error and `a - b`
+/// is not even syntax.
 impl<SR> FromAst for SemiRingExpr<SR>
 where
     SR: SemiRing,
@@ -40,9 +29,9 @@ where
 {
     fn grammar() -> Grammar {
         Grammar::new()
-            .infix("+", 1, Assoc::Left)
-            .infix("*", 2, Assoc::Left)
-            .juxtaposition("*")
+            .infix(SR::ADD_SYMBOL, 1, Assoc::Left)
+            .infix(SR::MUL_SYMBOL, 2, Assoc::Left)
+            .juxtaposition(SR::MUL_SYMBOL)
             .prefix("-", 3)
             .infix("^", 4, Assoc::Right)
     }
@@ -54,14 +43,14 @@ where
         match ast {
             Ast::Ident(name) => Ok(Self::Symbol(Symbol::new(name))),
             Ast::Group(inner) => Self::from_ast(*inner),
-            Ast::Infix(ref op, ..) if op == "+" => ast
-                .operands(sum)
+            Ast::Infix(ref op, ..) if op == SR::ADD_SYMBOL => ast
+                .operands(|op| (op == SR::ADD_SYMBOL).then_some(false))
                 .into_iter()
                 .map(|(_, term)| Self::from_ast(term))
                 .collect::<Result<_, _>>()
                 .map(Self::Add),
-            Ast::Infix(ref op, ..) if op == "*" => ast
-                .operands(product)
+            Ast::Infix(ref op, ..) if op == SR::MUL_SYMBOL => ast
+                .operands(|op| (op == SR::MUL_SYMBOL).then_some(false))
                 .into_iter()
                 .map(|(_, factor)| Self::from_ast(factor))
                 .collect::<Result<_, _>>()
@@ -91,15 +80,17 @@ where
     }
 }
 
-/// The [`SemiRingExpr`] syntax plus negation: prefix `-`, and `a - b` as
-/// `a + (-b)`.
+/// The [`SemiRingExpr`] syntax plus negation: prefix [`Ring::SUB_SYMBOL`],
+/// and `a - b` as `a + (-b)`.
 impl<R> FromAst for RingExpr<R>
 where
     R: Ring,
     RingElem<R>: FromLiteral,
 {
     fn grammar() -> Grammar {
-        SemiRingExpr::<R>::grammar().infix("-", 1, Assoc::Left)
+        SemiRingExpr::<R>::grammar()
+            .infix(R::SUB_SYMBOL, 1, Assoc::Left)
+            .prefix(R::SUB_SYMBOL, 3)
     }
 
     fn from_ast(ast: Ast) -> Result<Self, ParseError> {
@@ -109,9 +100,9 @@ where
         match ast {
             Ast::Ident(name) => Ok(Self::Symbol(Symbol::new(name))),
             Ast::Group(inner) => Self::from_ast(*inner),
-            Ast::Prefix(_, inner) => Self::from_ast(*inner).map(negate),
-            Ast::Infix(ref op, ..) if op == "+" || op == "-" => ast
-                .operands(sum)
+            Ast::Prefix(op, inner) if op == R::SUB_SYMBOL => Self::from_ast(*inner).map(negate),
+            Ast::Infix(ref op, ..) if op == R::ADD_SYMBOL || op == R::SUB_SYMBOL => ast
+                .operands(sum::<R>)
                 .into_iter()
                 .map(|(negated, term)| {
                     let term = Self::from_ast(term)?;
@@ -119,8 +110,8 @@ where
                 })
                 .collect::<Result<_, _>>()
                 .map(Self::Add),
-            Ast::Infix(ref op, ..) if op == "*" => ast
-                .operands(product)
+            Ast::Infix(ref op, ..) if op == R::MUL_SYMBOL => ast
+                .operands(|op| (op == R::MUL_SYMBOL).then_some(false))
                 .into_iter()
                 .map(|(_, factor)| Self::from_ast(factor))
                 .collect::<Result<_, _>>()
@@ -129,9 +120,9 @@ where
                 exponent: exponent(&exp)?,
                 base: Box::new(Self::from_ast(*base)?),
             }),
-            Ast::Infix(op, ..) | Ast::Postfix(op, _) => Err(ParseError::new(format!(
-                "ring expressions have no `{op}` operator"
-            ))),
+            Ast::Infix(op, ..) | Ast::Prefix(op, _) | Ast::Postfix(op, _) => Err(ParseError::new(
+                format!("ring expressions have no `{op}` operator"),
+            )),
             Ast::Call(name, _) => Err(ParseError::new(format!("unknown function `{name}`"))),
             Ast::Number(_) => unreachable!("literals are handled above"),
         }
@@ -140,6 +131,17 @@ where
 
 fn negate<R: Ring>(expr: RingExpr<R>) -> RingExpr<R> {
     RingExpr::Neg(Box::new(expr))
+}
+
+/// `a + b - c`: the ring's sum, with subtracted terms marked.
+fn sum<R: Ring>(op: &str) -> Option<bool> {
+    if op == R::ADD_SYMBOL {
+        Some(false)
+    } else if op == R::SUB_SYMBOL {
+        Some(true)
+    } else {
+        None
+    }
 }
 
 impl<R> FromStr for RingExpr<R>
