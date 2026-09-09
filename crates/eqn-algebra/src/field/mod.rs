@@ -19,6 +19,9 @@ use crate::ring::{Ring, RingElem, Subring};
 /// element except `ZERO`. `invert(ZERO)` is a contract violation, not an
 /// error; the operator's `Inverse` impl is only consulted for non-zero input.
 pub trait Field: Ring<Multiplication: Commutative + Inverse> {
+    /// Source spelling of division.
+    const DIV_SYMBOL: &'static str = <Self::Multiplication as Inverse>::INVERSE_SYMBOL;
+
     fn invert(a: RingElem<Self>) -> RingElem<Self> {
         <Self::Multiplication as Inverse>::inverse(a)
     }
@@ -248,11 +251,11 @@ impl<const P: u64> Div for PrimeFieldElement<P> {
 pub struct PrimeFieldSet<const P: u64>(PhantomData<PrimeField<P>>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, apply = |a, b| a + b, identity = PrimeFieldElement::ZERO, inverse = Neg::neg)]
+#[operator(domain = PrimeFieldSet<P>, symbol = "+", apply = |a, b| a + b, identity = PrimeFieldElement::ZERO, inverse = Neg::neg, inverse_symbol = "-")]
 pub struct PrimeFieldAdd<const P: u64>(PhantomData<PrimeField<P>>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, apply = |a, b| a * b, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse())]
+#[operator(domain = PrimeFieldSet<P>, symbol = "*", apply = |a, b| a * b, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse(), inverse_symbol = "/")]
 pub struct PrimeFieldMul<const P: u64>(PhantomData<PrimeField<P>>);
 
 impl<const P: u64> crate::ring::SemiRing for PrimeField<P> {

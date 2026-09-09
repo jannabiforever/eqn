@@ -432,21 +432,21 @@ mod tests {
     #[test]
     fn group_rewriter_preserves_order_and_reduces_inverses() {
         assert_eq!(
-            group("1 * 2 * x * inv(x) * inv(x * y)"),
-            expr("3 * inv(y) * inv(x)")
+            group("1 + 2 + x + inv(x) + inv(x + y)"),
+            expr("3 + inv(y) + inv(x)")
         );
     }
 
     #[test]
     fn abelian_group_rewriter_sorts_and_cancels_globally() {
-        assert_eq!(abelian("y * inv(x) * 2 * x * inv(y) * x * -2"), expr("x"));
+        assert_eq!(abelian("y + inv(x) + 2 + x + inv(y) + x + -2"), expr("x"));
     }
 
     #[test]
     fn only_abelian_rewriter_reduces_commutators() {
-        let commutator = "a * b * a^-1 * b^-1";
+        let commutator = "a + b + a^-1 + b^-1";
 
-        assert_eq!(group(commutator), expr("a * b * inv(a) * inv(b)"));
+        assert_eq!(group(commutator), expr("a + b + inv(a) + inv(b)"));
         assert_eq!(
             abelian(commutator),
             Expr::Const(IntegerAdditionGroup::IDENTITY)
@@ -469,16 +469,16 @@ mod tests {
 
     #[test]
     fn group_rewriters_combine_powers_where_allowed() {
-        assert_eq!(group("x^2 * x^-3 * y * x"), expr("inv(x) * y * x"));
-        assert_eq!(abelian("y^2 * x^-3 * x * y"), expr("x^-2 * y^3"));
+        assert_eq!(group("x^2 + x^-3 + y + x"), expr("inv(x) + y + x"));
+        assert_eq!(abelian("y^2 + x^-3 + x + y"), expr("x^-2 + y^3"));
     }
 
     #[test]
     fn only_abelian_rewriter_distributes_powers_over_products() {
-        let power = "(2 * y * inv(x))^3";
+        let power = "(2 + y + inv(x))^3";
 
         assert_eq!(group(power), expr(power));
-        assert_eq!(abelian(power), expr("6 * x^-3 * y^3"));
+        assert_eq!(abelian(power), expr("6 + x^-3 + y^3"));
     }
 
     fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
@@ -496,8 +496,8 @@ mod tests {
             Expr::Op(vec![]),
             expr("x^0"),
             expr("inv(inv(x))"),
-            expr("(x * y)^2"),
-            expr("x * inv(x) * 3 * -3 * x^-2 * inv(x^2) * y * x"),
+            expr("(x + y)^2"),
+            expr("x + inv(x) + 3 + -3 + x^-2 + inv(x^2) + y + x"),
         ];
         for expr in inputs {
             assert_idempotent(&GroupRewriter::new(), expr.clone());

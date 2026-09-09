@@ -1,25 +1,29 @@
 use std::str::FromStr;
 
+use eqn_algebra::ring::{Ring, SemiRing};
 use eqn_parser::{Ast, FromAst, Grammar, ParseError};
 
 use crate::{DifferentialForm, Manifold, ZeroForm};
 
-/// The function ring's own syntax, extended with `∧` (parsed like `*`) and
-/// `d(...)`, the exterior derivative. Any subtree without `d` or `∧` is a
-/// 0-form and is read by the function ring, so `x^2 + sin(y)` means whatever
-/// it means there. At the form level the ring's `+`, `-` and `*` are read as
-/// sum, difference and wedge, so the ring must spell them that way.
+const WEDGE: &str = "∧";
+
+/// The function ring's own syntax, extended with `∧` (parsed like the
+/// ring's product) and `d(...)`, the exterior derivative. Any subtree
+/// without `d` or `∧` is a 0-form and is read by the function ring, so
+/// `x^2 + sin(y)` means whatever it means there. At the form level the
+/// ring's declared sum, difference and product spellings are read as sum,
+/// difference and wedge.
 ///
-/// `*`, juxtaposition and `∧` are all the wedge product, and adjacent
-/// 0-form factors of one product are a single coefficient: `2 x d(x)` is
-/// `(2x) ∧ dx`, as it reads on paper, not `2 ∧ x ∧ dx`.
+/// The product, juxtaposition and `∧` are all the wedge product, and
+/// adjacent 0-form factors of one product are a single coefficient:
+/// `2 x d(x)` is `(2x) ∧ dx`, as it reads on paper, not `2 ∧ x ∧ dx`.
 impl<M> FromAst for DifferentialForm<M>
 where
     M: Manifold,
     ZeroForm<M>: FromAst,
 {
     fn grammar() -> Grammar {
-        ZeroForm::<M>::grammar().alias("∧", "*")
+        ZeroForm::<M>::grammar().alias(WEDGE, mul::<M>())
     }
 
     fn from_ast(ast: Ast) -> Result<Self, ParseError> {
@@ -28,9 +32,11 @@ where
         }
         match ast {
             Ast::Group(inner) => Self::from_ast(*inner),
-            Ast::Prefix(op, inner) if op == "-" => Ok(Self::Neg(Box::new(Self::from_ast(*inner)?))),
-            Ast::Infix(ref op, ..) if op == "+" || op == "-" => ast
-                .operands(sum)
+            Ast::Prefix(op, inner) if op == sub::<M>() => {
+                Ok(Self::Neg(Box::new(Self::from_ast(*inner)?)))
+            }
+            Ast::Infix(ref op, ..) if op == add::<M>() || op == sub::<M>() => ast
+                .operands(sum::<M>)
                 .into_iter()
                 .map(|(negated, term)| {
                     let term = Self::from_ast(term)?;
@@ -42,12 +48,15 @@ where
                 })
                 .collect::<Result<_, _>>()
                 .map(Self::Add),
-            Ast::Infix(ref op, ..) if op == "*" || op == "∧" => {
-                let factors = ast.operands(wedge).into_iter().map(|(_, factor)| factor);
+            Ast::Infix(ref op, ..) if op == mul::<M>() || op == WEDGE => {
+                let factors = ast
+                    .operands(wedge::<M>)
+                    .into_iter()
+                    .map(|(_, factor)| factor);
                 let mut out = Vec::new();
                 for run in runs(factors) {
                     out.push(match run {
-                        Run::Scalars(scalars) => Self::from_ast(product(scalars))?,
+                        Run::Scalars(scalars) => Self::from_ast(product::<M>(scalars))?,
                         Run::Form(form) => Self::from_ast(form)?,
                     });
                 }
@@ -84,21 +93,35 @@ fn contains_form(ast: &Ast) -> bool {
         Ast::Ident(name) => name == "d",
         Ast::Call(name, args) => name == "d" || args.iter().any(contains_form),
         Ast::Group(inner) | Ast::Prefix(_, inner) | Ast::Postfix(_, inner) => contains_form(inner),
-        Ast::Infix(op, ..) if op == "∧" => true,
+        Ast::Infix(op, ..) if op == WEDGE => true,
         Ast::Infix(_, lhs, rhs) => contains_form(lhs) || contains_form(rhs),
     }
 }
 
-fn sum(op: &str) -> Option<bool> {
-    match op {
-        "+" => Some(false),
-        "-" => Some(true),
-        _ => None,
+fn add<M: Manifold>() -> &'static str {
+    <M::Functions as SemiRing>::ADD_SYMBOL
+}
+
+fn sub<M: Manifold>() -> &'static str {
+    <M::Functions as Ring>::SUB_SYMBOL
+}
+
+fn mul<M: Manifold>() -> &'static str {
+    <M::Functions as SemiRing>::MUL_SYMBOL
+}
+
+fn sum<M: Manifold>(op: &str) -> Option<bool> {
+    if op == add::<M>() {
+        Some(false)
+    } else if op == sub::<M>() {
+        Some(true)
+    } else {
+        None
     }
 }
 
-fn wedge(op: &str) -> Option<bool> {
-    matches!(op, "*" | "∧").then_some(false)
+fn wedge<M: Manifold>(op: &str) -> Option<bool> {
+    (op == mul::<M>() || op == WEDGE).then_some(false)
 }
 
 enum Run {
@@ -123,10 +146,10 @@ fn runs(factors: impl Iterator<Item = Ast>) -> Vec<Run> {
 }
 
 /// Rebuilds a left-nested product for the function ring to lower.
-fn product(mut scalars: Vec<Ast>) -> Ast {
+fn product<M: Manifold>(mut scalars: Vec<Ast>) -> Ast {
     let first = scalars.remove(0);
     scalars.into_iter().fold(first, |acc, factor| {
-        Ast::Infix("*".to_owned(), Box::new(acc), Box::new(factor))
+        Ast::Infix(mul::<M>().to_owned(), Box::new(acc), Box::new(factor))
     })
 }
 

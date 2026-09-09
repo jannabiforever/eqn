@@ -24,6 +24,10 @@ pub use rewriter::{AbelianGroupRewriter, GroupRewriter};
 /// denotes [`Monoid::apply`]. Rust cannot verify these laws, so implementations
 /// should cover them with property tests where practical.
 pub trait Group: Monoid<Operator: BinaryOperator + Inverse> {
+    /// Source spelling of "apply to the inverse": `a INVERSE_SYMBOL b` and
+    /// `INVERSE_SYMBOL a`.
+    const INVERSE_SYMBOL: &'static str = <Self::Operator as Inverse>::INVERSE_SYMBOL;
+
     /// Returns the two-sided inverse of `value` under the group's operation.
     fn inverse(value: MonoidElem<Self>) -> MonoidElem<Self> {
         <Self::Operator as Inverse>::inverse(value)
@@ -113,7 +117,7 @@ mod tests {
     pub(super) struct IntegerSet;
 
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = IntegerSet, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
+    #[operator(domain = IntegerSet, symbol = "+", apply = |a, b| a + b, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
     pub(super) struct Addition;
 
     pub(super) type IntegerAdditionGroup = (IntegerSet, Addition);
@@ -187,7 +191,7 @@ mod tests {
     fn descendants_are_preorder_left_to_right() {
         let (x, y) = (expr("x"), expr("y"));
         let (inv, pow) = (expr("inv(x)"), expr("y^2"));
-        let product = expr("inv(x) * y^2");
+        let product = expr("inv(x) + y^2");
 
         assert_eq!(product.children(), [inv.clone(), pow.clone()]);
         assert_eq!(
@@ -210,12 +214,12 @@ mod tests {
 
     #[test]
     fn group_expression_supports_substitution() {
-        let product = expr("x * inv(x) * (x * y)^2");
+        let product = expr("x + inv(x) + (x + y)^2");
 
         assert_eq!(product.degrees_of_freedom(), 2);
         assert_eq!(
             product.substituted(Symbol::new("x"), &expr("4")),
-            expr("4 * inv(4) * (4 * y)^2")
+            expr("4 + inv(4) + (4 + y)^2")
         );
     }
 }

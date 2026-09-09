@@ -68,10 +68,11 @@ fn set_element(input: &DeriveInput) -> syn::Result<Type> {
 
 /// ```ignore
 /// #[derive(BinaryOperator)]
-/// #[operator(domain = Ints, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
+/// #[operator(domain = Ints, symbol = "+", apply = |a, b| a + b, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
 /// struct Add;
 /// ```
-/// `identity` and `inverse` are optional and add `Identity` / `Inverse` impls.
+/// `identity` and `inverse` are optional and add `Identity` / `Inverse` impls;
+/// `inverse` needs `inverse_symbol`.
 #[proc_macro_derive(BinaryOperator, attributes(operator))]
 pub fn derive_binary_operator(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -83,6 +84,7 @@ pub fn derive_binary_operator(input: TokenStream) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let Operator {
         domain,
+        symbol,
         apply,
         identity,
         inverse,
@@ -96,9 +98,10 @@ pub fn derive_binary_operator(input: TokenStream) -> TokenStream {
             }
         }
     });
-    let inverse = inverse.map(|inv| {
+    let inverse = inverse.map(|(inv, sym)| {
         quote! {
             impl #impl_generics ::eqn_core::op::Inverse for #name #ty_generics #where_clause {
+                const INVERSE_SYMBOL: &'static str = #sym;
                 fn inverse(a: #elem) -> #elem {
                     let f: fn(#elem) -> #elem = #inv;
                     f(a)
@@ -109,6 +112,7 @@ pub fn derive_binary_operator(input: TokenStream) -> TokenStream {
     quote! {
         impl #impl_generics ::eqn_core::op::BinaryOperator for #name #ty_generics #where_clause {
             type Domain = #domain;
+            const SYMBOL: &'static str = #symbol;
             fn apply(a: #elem, b: #elem) -> #elem {
                 let f: fn(#elem, #elem) -> #elem = #apply;
                 f(a, b)
@@ -122,9 +126,10 @@ pub fn derive_binary_operator(input: TokenStream) -> TokenStream {
 
 struct Operator {
     domain: Type,
+    symbol: Expr,
     apply: Expr,
     identity: Option<Expr>,
-    inverse: Option<Expr>,
+    inverse: Option<(Expr, Expr)>,
 }
 
 impl Operator {
@@ -136,29 +141,37 @@ impl Operator {
             .ok_or_else(|| {
                 syn::Error::new_spanned(
                     &input.ident,
-                    "missing `#[operator(domain = D, apply = ...)]`",
+                    "missing `#[operator(domain = D, symbol = \"+\", apply = ...)]`",
                 )
             })?;
-        let (mut domain, mut apply, mut identity, mut inverse) = (None, None, None, None);
+        let mut domain: Option<Type> = None;
+        let mut fields: [Option<Expr>; 5] = Default::default();
+        const KEYS: [&str; 5] = ["symbol", "apply", "identity", "inverse", "inverse_symbol"];
         attr.parse_nested_meta(|meta| {
             let value = meta.value()?;
             if meta.path.is_ident("domain") {
                 domain = Some(value.parse()?);
-            } else if meta.path.is_ident("apply") {
-                apply = Some(value.parse()?);
-            } else if meta.path.is_ident("identity") {
-                identity = Some(value.parse()?);
-            } else if meta.path.is_ident("inverse") {
-                inverse = Some(value.parse()?);
-            } else {
-                return Err(meta.error("expected `domain`, `apply`, `identity` or `inverse`"));
+                return Ok(());
+            }
+            match KEYS.iter().position(|key| meta.path.is_ident(key)) {
+                Some(i) => fields[i] = Some(value.parse()?),
+                None => return Err(meta.error(format!("expected `domain` or one of {KEYS:?}"))),
             }
             Ok(())
         })?;
+        let [symbol, apply, identity, inverse, inverse_symbol] = fields;
+        let missing = |what: &str| syn::Error::new_spanned(attr, format!("missing `{what}`"));
+        let domain = domain.ok_or_else(|| missing("domain = D"))?;
+        let inverse = match (inverse, inverse_symbol) {
+            (None, None) => None,
+            (Some(inv), Some(sym)) => Some((inv, sym)),
+            (Some(_), None) => return Err(missing("inverse_symbol = \"-\"")),
+            (None, Some(_)) => return Err(missing("inverse = |a| ...")),
+        };
         Ok(Self {
-            domain: domain.ok_or_else(|| syn::Error::new_spanned(attr, "missing `domain = D`"))?,
-            apply: apply
-                .ok_or_else(|| syn::Error::new_spanned(attr, "missing `apply = |a, b| ...`"))?,
+            domain,
+            symbol: symbol.ok_or_else(|| missing("symbol = \"+\""))?,
+            apply: apply.ok_or_else(|| missing("apply = |a, b| ..."))?,
             identity,
             inverse,
         })

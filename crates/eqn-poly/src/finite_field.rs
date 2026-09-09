@@ -228,11 +228,25 @@ impl<const P: u64, const N: usize, M> fmt::Debug for FiniteFieldElement<P, N, M>
 pub struct FiniteFieldElements<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = FiniteFieldElements<P, N, M>, apply = FiniteFieldElement::add, identity = FiniteFieldElement::ZERO, inverse = Neg::neg)]
+#[operator(
+    domain = FiniteFieldElements<P, N, M>,
+    symbol = "+",
+    apply = Add::add,
+    identity = FiniteFieldElement::ZERO,
+    inverse = Neg::neg,
+    inverse_symbol = "-"
+)]
 pub struct FiniteFieldAdd<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = FiniteFieldElements<P, N, M>, apply = Mul::mul, identity = FiniteFieldElement::ONE, inverse = |a| a.inverse())]
+#[operator(
+    domain = FiniteFieldElements<P, N, M>,
+    symbol = "*",
+    apply = Mul::mul,
+    identity = FiniteFieldElement::ONE,
+    inverse = |a| a.inverse(),
+    inverse_symbol = "/"
+)]
 pub struct FiniteFieldMul<
     const P: u64,
     const N: usize,

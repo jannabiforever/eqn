@@ -5,7 +5,7 @@ use eqn_parser::{Assoc, Ast, FromAst, FromLiteral, Grammar, ParseError};
 
 use super::{Monoid, MonoidElem, MonoidExpr};
 
-/// `+`, `*` and juxtaposition all denote the monoid operation, so an
+/// [`Monoid::SYMBOL`] and juxtaposition denote the monoid operation, so an
 /// additive monoid reads as `x + y` and a multiplicative one as `x * y`.
 /// Chains flatten into one [`MonoidExpr::Op`]; parentheses nest. Prefix `-`
 /// exists only to spell negative constants.
@@ -16,9 +16,8 @@ where
 {
     fn grammar() -> Grammar {
         Grammar::new()
-            .infix("+", 1, Assoc::Left)
-            .infix("*", 2, Assoc::Left)
-            .juxtaposition("*")
+            .infix(M::SYMBOL, 1, Assoc::Left)
+            .juxtaposition(M::SYMBOL)
             .prefix("-", 3)
     }
 
@@ -30,7 +29,7 @@ where
             Ast::Ident(name) => Ok(Self::Symbol(Symbol::new(name))),
             Ast::Group(inner) => Self::from_ast(*inner),
             Ast::Infix(..) => ast
-                .operands(operation)
+                .operands(|op| (op == M::SYMBOL).then_some(false))
                 .into_iter()
                 .map(|(_, operand)| Self::from_ast(operand))
                 .collect::<Result<_, _>>()
@@ -42,10 +41,6 @@ where
             Ast::Number(_) => unreachable!("literals are handled above"),
         }
     }
-}
-
-fn operation(op: &str) -> Option<bool> {
-    matches!(op, "+" | "*").then_some(false)
 }
 
 impl<M> FromStr for MonoidExpr<M>
@@ -74,11 +69,14 @@ mod tests {
     }
 
     #[test]
-    fn plus_star_and_juxtaposition_are_the_operation() {
+    fn symbol_and_juxtaposition_are_the_operation() {
         let expected = Expr::Op(vec![Expr::Const(1), x(), Expr::Const(-2)]);
         assert_eq!("1 + x + -2".parse::<Expr>().unwrap(), expected);
-        assert_eq!("1 * x * -2".parse::<Expr>().unwrap(), expected);
         assert_eq!("1 (x) (-2)".parse::<Expr>().unwrap(), expected);
+        assert_eq!(
+            "1 * x".parse::<Expr>().unwrap_err(),
+            ParseError::at(2, "unexpected `*`")
+        );
     }
 
     #[test]

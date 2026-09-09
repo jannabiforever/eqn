@@ -172,7 +172,7 @@ mod tests {
     struct TestDomain;
 
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = TestDomain, apply = |a, b| a + b, identity = 0)]
+    #[operator(domain = TestDomain, symbol = "+", apply = |a, b| a + b, identity = 0)]
     struct TestOperator;
 
     type Expr = MonoidExpr<(TestDomain, TestOperator)>;

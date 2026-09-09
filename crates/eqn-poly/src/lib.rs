@@ -31,9 +31,11 @@ pub struct Polynomials<R: Ring>(PhantomData<R>);
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
     domain = Polynomials<R>,
+    symbol = R::ADD_SYMBOL,
     apply = |a, b| RingExpr::Add(vec![a, b]),
     identity = RingExpr::Const(R::ZERO),
-    inverse = |a| RingExpr::Neg(Box::new(a))
+    inverse = |a| RingExpr::Neg(Box::new(a)),
+    inverse_symbol = R::SUB_SYMBOL
 )]
 pub struct PolyAdd<R: Ring>(PhantomData<R>);
 
@@ -41,6 +43,7 @@ pub struct PolyAdd<R: Ring>(PhantomData<R>);
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
     domain = Polynomials<R>,
+    symbol = R::MUL_SYMBOL,
     apply = |a, b| RingExpr::Mul(vec![a, b]),
     identity = RingExpr::Const(R::ONE)
 )]
