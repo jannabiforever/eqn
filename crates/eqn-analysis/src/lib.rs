@@ -2,6 +2,7 @@
 // because it would collide with this crate's own private `rewriter` module
 // below.
 use eqn_algebra::field::Field;
+use eqn_algebra::module::{Module, ModuleElem, ModuleScalar};
 use eqn_algebra::ring::{DifferentialRing, RingElem, SemiRing};
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::rewriter::Expression;
@@ -135,6 +136,16 @@ impl<F: Field> SemiRing for ElementaryFunctionRing<F> {
     type Multiplication = ElementaryMul<F>;
 }
 
+impl<F: Field> Module for ElementaryFunctionRing<F> {
+    type Scalars = F;
+    type Domain = ElementaryFunctions<F>;
+    type Addition = ElementaryAdd<F>;
+
+    fn scale(scalar: ModuleScalar<Self>, value: ModuleElem<Self>) -> ModuleElem<Self> {
+        ElementaryExpr::Mul(vec![ElementaryExpr::Const(scalar), value])
+    }
+}
+
 impl<F: Field> DifferentialRing for ElementaryFunctionRing<F> {
     type Index = Symbol<F::Domain>;
 
@@ -143,5 +154,31 @@ impl<F: Field> DifferentialRing for ElementaryFunctionRing<F> {
     /// rewriter uses to eliminate `D` nodes.
     fn derive(a: RingElem<Self>, i: &Self::Index) -> RingElem<Self> {
         rewriter::derivative(a, i)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use eqn_algebra::algebra::Algebra;
+    use eqn_algebra::operator_impl::{QAdd, QMul};
+    use eqn_core::set::{Q, Rational};
+
+    use super::*;
+
+    type Rationals = (Q, QAdd, QMul);
+    type Functions = ElementaryFunctionRing<Rationals>;
+
+    #[test]
+    fn elementary_function_ring_is_an_algebra_over_its_constants() {
+        fn assert_algebra<A: Algebra>() {}
+
+        let x = ElementaryExpr::<Rationals>::Symbol(Symbol::new("x"));
+        let scalar = Rational::from(2);
+
+        assert_algebra::<Functions>();
+        assert_eq!(
+            Functions::scale(scalar.clone(), x.clone()),
+            ElementaryExpr::Mul(vec![ElementaryExpr::Const(scalar), x])
+        );
     }
 }

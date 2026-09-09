@@ -1,12 +1,16 @@
-use crate::monoid::Monoid;
+use crate::monoid::{Monoid, MonoidElem, Submonoid};
 use crate::op::{BinaryOperator, Commutative, Inverse};
 use crate::rewriter::Expression;
 use crate::set::Set;
 use crate::symbol::Symbol;
 
+mod normal;
+mod quotient;
 mod rewriter;
 
 // Re-exports
+pub use normal::NormalSubgroup;
+pub use quotient::{Coset, Cosets, QuotientGroup, QuotientOp};
 pub use rewriter::{AbelianGroupRewriter, GroupRewriter};
 
 /// A group: a set equipped with an associative binary operation, an identity
@@ -19,7 +23,7 @@ pub use rewriter::{AbelianGroupRewriter, GroupRewriter};
 /// should cover them with property tests where practical.
 pub trait Group: Monoid<Operator: BinaryOperator + Inverse> {
     /// Returns the two-sided inverse of `value` under the group's operation.
-    fn inverse(value: <Self::Domain as Set>::Element) -> <Self::Domain as Set>::Element {
+    fn inverse(value: MonoidElem<Self>) -> MonoidElem<Self> {
         <Self::Operator as Inverse>::inverse(value)
     }
 }
@@ -31,6 +35,9 @@ where
     M::Operator: Inverse,
 {
 }
+
+/// A submonoid of a group that is closed under inverses.
+pub trait Subgroup: Submonoid<Parent: Group> {}
 
 /// An abelian group: a group whose operation is commutative.
 ///
@@ -50,7 +57,7 @@ where
 /// it from a [`crate::monoid::MonoidExpr`].
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 pub enum GroupExpr<G: Group> {
-    Const(<G::Domain as Set>::Element),
+    Const(MonoidElem<G>),
     Symbol(Symbol<G::Domain>),
     Inv(Box<GroupExpr<G>>),
     Op(Vec<GroupExpr<G>>),
@@ -108,6 +115,18 @@ mod tests {
 
     pub(super) type IntegerAdditionGroup = (IntegerSet, Addition);
 
+    struct EvenIntegers;
+
+    impl Submonoid for EvenIntegers {
+        type Parent = IntegerAdditionGroup;
+
+        fn contains(value: &MonoidElem<Self::Parent>) -> bool {
+            value % 2 == 0
+        }
+    }
+
+    impl Subgroup for EvenIntegers {}
+
     #[test]
     fn invertible_monoid_is_a_group() {
         assert_eq!(IntegerAdditionGroup::inverse(7), -7);
@@ -126,6 +145,20 @@ mod tests {
                 IntegerAdditionGroup::apply(value, inverse),
                 IntegerAdditionGroup::IDENTITY
             );
+        }
+    }
+
+    #[test]
+    fn even_integers_form_a_subgroup() {
+        fn assert_subgroup<S: Subgroup>() {}
+
+        assert_subgroup::<EvenIntegers>();
+        assert!(EvenIntegers::contains(&IntegerAdditionGroup::IDENTITY));
+
+        for value in [-10, -2, 0, 4, 12] {
+            assert!(EvenIntegers::contains(&IntegerAdditionGroup::inverse(
+                value
+            )));
         }
     }
 

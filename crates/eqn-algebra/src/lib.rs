@@ -1,7 +1,13 @@
+// mgca: `FiniteExtension<M>` hold `M::DIM` coordinates.
+#![feature(min_generic_const_args, macroless_generic_const_args)]
+#![allow(incomplete_features)]
+
 pub use eqn_core::{map, op, rewriter, set, symbol};
 
+pub mod algebra;
 pub mod field;
 pub mod group;
+pub mod module;
 pub mod monoid;
 pub mod operator_impl;
 pub mod ring;
