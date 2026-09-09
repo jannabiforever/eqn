@@ -1,6 +1,7 @@
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::str::FromStr;
 
 use eqn_core::map::Map;
 use eqn_core::op::{Associative, BinaryOperator, Commutative, Inverse};
@@ -178,6 +179,18 @@ impl<const P: u64> From<i64> for PrimeFieldElement<P> {
     }
 }
 
+/// Reads an integer, reduced modulo `P`; negative values are allowed.
+impl<const P: u64> FromStr for PrimeFieldElement<P> {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.parse::<u64>() {
+            Ok(value) => Ok(Self::new(value)),
+            Err(_) => s.parse::<i64>().map(Self::from_i64),
+        }
+    }
+}
+
 impl<const P: u64> Add for PrimeFieldElement<P> {
     type Output = Self;
 
@@ -330,6 +343,15 @@ mod tests {
         assert_eq!(F5::new(7).value(), 2);
         assert_eq!(F5::from_i64(-1).value(), 4);
         assert_eq!(F5::from_i64(-13).value(), 2);
+    }
+
+    #[test]
+    fn prime_field_elements_parse_modulo_p() {
+        type E = PrimeFieldElement<5>;
+
+        assert_eq!("7".parse::<E>().unwrap(), E::new(2));
+        assert_eq!("-1".parse::<E>().unwrap(), E::new(4));
+        assert!("x".parse::<E>().is_err());
     }
 
     #[test]

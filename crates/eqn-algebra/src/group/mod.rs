@@ -6,6 +6,7 @@ use eqn_core::symbol::Symbol;
 use crate::monoid::{Monoid, MonoidElem, Submonoid};
 
 mod normal;
+mod parse;
 mod quotient;
 mod rewriter;
 
@@ -178,24 +179,26 @@ mod tests {
 
     pub(super) type Expr = GroupExpr<IntegerAdditionGroup>;
 
+    pub(super) fn expr(src: &str) -> Expr {
+        src.parse().unwrap()
+    }
+
     #[test]
     fn descendants_are_preorder_left_to_right() {
-        let x = Expr::Symbol(Symbol::new("x"));
-        let y = Expr::Symbol(Symbol::new("y"));
-        let inv = Expr::Inv(Box::new(x.clone()));
-        let pow = Expr::Pow {
-            base: Box::new(y.clone()),
-            exponent: 2,
-        };
-        let expr = Expr::Op(vec![inv.clone(), pow.clone()]);
+        let (x, y) = (expr("x"), expr("y"));
+        let (inv, pow) = (expr("inv(x)"), expr("y^2"));
+        let product = expr("inv(x) * y^2");
 
-        assert_eq!(expr.children(), [inv.clone(), pow.clone()]);
-        assert_eq!(expr.descendants().collect::<Vec<_>>(), [&inv, &x, &pow, &y]);
-        assert_eq!(expr.degrees_of_freedom(), 2);
+        assert_eq!(product.children(), [inv.clone(), pow.clone()]);
+        assert_eq!(
+            product.descendants().collect::<Vec<_>>(),
+            [&inv, &x, &pow, &y]
+        );
+        assert_eq!(product.degrees_of_freedom(), 2);
 
-        let mut expr = expr;
+        let mut product = product;
         let mut seen = vec![];
-        let mut walk = expr.descendants_mut();
+        let mut walk = product.descendants_mut();
         while let Some(e) = walk.next() {
             seen.push(e.clone());
             if matches!(e, Expr::Pow { .. }) {
@@ -207,31 +210,12 @@ mod tests {
 
     #[test]
     fn group_expression_supports_substitution() {
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
-        let expr = Expr::Op(vec![
-            Expr::Symbol(x.clone()),
-            Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
-            Expr::Pow {
-                base: Box::new(Expr::Op(vec![
-                    Expr::Symbol(x.clone()),
-                    Expr::Symbol(y.clone()),
-                ])),
-                exponent: 2,
-            },
-        ]);
+        let product = expr("x * inv(x) * (x * y)^2");
 
-        assert_eq!(expr.degrees_of_freedom(), 2);
-        assert!(
-            expr.substituted(x, &Expr::Const(4))
-                == Expr::Op(vec![
-                    Expr::Const(4),
-                    Expr::Inv(Box::new(Expr::Const(4))),
-                    Expr::Pow {
-                        base: Box::new(Expr::Op(vec![Expr::Const(4), Expr::Symbol(y),])),
-                        exponent: 2,
-                    },
-                ])
+        assert_eq!(product.degrees_of_freedom(), 2);
+        assert_eq!(
+            product.substituted(Symbol::new("x"), &expr("4")),
+            expr("4 * inv(4) * (4 * y)^2")
         );
     }
 }

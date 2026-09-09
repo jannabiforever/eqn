@@ -231,17 +231,16 @@ impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for GradedCommutativ
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroUsize;
-
-    use eqn_algebra::operator_impl::{QAdd, QMul, ZAdd, ZMul};
-    use eqn_algebra::ring::{CommutativeRingRewriter, RingExpr};
-    use eqn_analysis::{ElementaryExpr, ElementaryRewriter};
-    use eqn_core::set::{Q, Rational, Z};
+    use eqn_algebra::ring::CommutativeRingRewriter;
+    use eqn_analysis::ElementaryRewriter;
     use eqn_core::symbol::Symbol;
 
     use super::*;
     use crate::Chart;
     use crate::tests::*;
+
+    type Form = DifferentialForm<Plane>;
+    type IntForm = DifferentialForm<IntPlane>;
 
     fn xy() -> Chart<Plane> {
         Chart::new([Symbol::new("x"), Symbol::new("y")])
@@ -252,207 +251,76 @@ mod tests {
         Chart::new([Symbol::new("x"), Symbol::new("z")])
     }
 
-    fn x() -> ZeroForm<Plane> {
-        ElementaryExpr::Symbol(Symbol::new("x"))
+    fn exterior(src: &str) -> Form {
+        ExteriorRewriter::new(xy(), ElementaryRewriter::new()).rewrited_expr(form(src))
     }
 
-    fn y() -> ZeroForm<Plane> {
-        ElementaryExpr::Symbol(Symbol::new("y"))
-    }
-
-    /// A symbol that is never a chart coordinate in these tests: a
-    /// parameter.
-    fn a() -> ZeroForm<Plane> {
-        ElementaryExpr::Symbol(Symbol::new("a"))
-    }
-
-    fn c(i: i64) -> ZeroForm<Plane> {
-        ElementaryExpr::Const(Rational::from(i))
-    }
-
-    fn sc(e: ZeroForm<Plane>) -> DifferentialForm<Plane> {
-        DifferentialForm::Scalar(e)
-    }
-
-    fn dx() -> DifferentialForm<Plane> {
-        xy().differential(0).unwrap()
-    }
-
-    fn dy() -> DifferentialForm<Plane> {
-        xy().differential(1).unwrap()
-    }
-
-    fn wedge(xs: Vec<DifferentialForm<Plane>>) -> DifferentialForm<Plane> {
-        DifferentialForm::Wedged(xs)
-    }
-
-    fn d(x: DifferentialForm<Plane>) -> DifferentialForm<Plane> {
-        DifferentialForm::Differential(Box::new(x))
-    }
-
-    fn pow(base: ZeroForm<Plane>, exponent: isize) -> ZeroForm<Plane> {
-        ElementaryExpr::Pow {
-            base: Box::new(base),
-            exponent,
-        }
+    fn graded(src: &str) -> Form {
+        GradedCommutativeRewriter::new(xy(), ElementaryRewriter::new()).rewrited_expr(form(src))
     }
 
     // --------------------------------------------------------------------------
-    // IntPlane: the algebraic de Rham complex, `RingExpr<(Z, IntegerAdd,
-    // IntegerMul)>` 0-forms
+    // IntPlane: the algebraic de Rham complex, `RingExpr<(Z, ZAdd, ZMul)>`
+    // 0-forms
     // --------------------------------------------------------------------------
 
     fn ixy() -> Chart<IntPlane> {
         Chart::new([Symbol::new("x"), Symbol::new("y")])
     }
 
-    fn ix() -> ZeroForm<IntPlane> {
-        RingExpr::Symbol(Symbol::new("x"))
-    }
-
-    fn iy() -> ZeroForm<IntPlane> {
-        RingExpr::Symbol(Symbol::new("y"))
-    }
-
-    fn ic(i: i64) -> ZeroForm<IntPlane> {
-        RingExpr::Const(i)
-    }
-
-    fn isc(e: ZeroForm<IntPlane>) -> DifferentialForm<IntPlane> {
-        DifferentialForm::Scalar(e)
-    }
-
-    fn idx() -> DifferentialForm<IntPlane> {
-        ixy().differential(0).unwrap()
-    }
-
-    fn idy() -> DifferentialForm<IntPlane> {
-        ixy().differential(1).unwrap()
-    }
-
-    fn ipow(base: ZeroForm<IntPlane>, exponent: usize) -> ZeroForm<IntPlane> {
-        RingExpr::Pow {
-            base: Box::new(base),
-            exponent: NonZeroUsize::new(exponent).unwrap(),
-        }
+    fn int_graded(src: &str) -> IntForm {
+        GradedCommutativeRewriter::new(ixy(), CommutativeRingRewriter::new())
+            .rewrited_expr(int_form(src))
     }
 
     #[test]
     fn d_of_x_squared_y_over_int_plane() {
         // d(x^2 · y) = 2xy dx + x^2 dy
-        let f = GradedCommutativeRewriter::new(
-            ixy(),
-            CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new(),
-        );
-        let expr = RingExpr::Mul(vec![ipow(ix(), 2), iy()]);
-        assert_eq!(
-            f.rewrited_expr(DifferentialForm::Differential(Box::new(isc(expr)))),
-            DifferentialForm::Add(vec![
-                DifferentialForm::Wedged(vec![isc(RingExpr::Mul(vec![ic(2), ix(), iy()])), idx(),]),
-                DifferentialForm::Wedged(vec![isc(ipow(ix(), 2)), idy()]),
-            ])
-        );
+        assert_eq!(int_graded("d(x^2 y)"), int_form("2 x y d(x) + x^2 d(y)"));
     }
 
     #[test]
     fn d_squared_vanishes_over_int_plane() {
-        // d(d(x^2 · y)) = 0
-        let f = GradedCommutativeRewriter::new(
-            ixy(),
-            CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new(),
-        );
-        let expr = RingExpr::Mul(vec![ipow(ix(), 2), iy()]);
-        let dd = DifferentialForm::Differential(Box::new(DifferentialForm::Differential(
-            Box::new(isc(expr)),
-        )));
-        assert_eq!(f.rewrited_expr(dd), isc(ic(0)));
+        assert_eq!(int_graded("d(d(x^2 y))"), int_form("0"));
     }
 
     #[test]
     fn d_of_wedged_product_over_int_plane() {
         // d(x·y ∧ dx) = -x dx∧dy
-        let f = GradedCommutativeRewriter::new(
-            ixy(),
-            CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new(),
-        );
-        let xy_dx = DifferentialForm::Wedged(vec![isc(RingExpr::Mul(vec![ix(), iy()])), idx()]);
-        assert_eq!(
-            f.rewrited_expr(DifferentialForm::Differential(Box::new(xy_dx))),
-            DifferentialForm::Wedged(vec![isc(RingExpr::Mul(vec![ic(-1), ix()])), idx(), idy(),])
-        );
+        assert_eq!(int_graded("d(x y ∧ d(x))"), int_form("-1 x d(x) ∧ d(y)"));
     }
 
     #[test]
     fn d_squared_and_d_const_vanish() {
-        let f = ExteriorRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-        assert_eq!(f.rewrited_expr(d(dx())), sc(c(0)));
-        assert_eq!(f.rewrited_expr(d(sc(c(7)))), sc(c(0)));
+        assert_eq!(exterior("d(d(x))"), form("0"));
+        assert_eq!(exterior("d(7)"), form("0"));
     }
 
     #[test]
     fn leibniz_differentiates_a_product() {
-        let f = ExteriorRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-        // d(x*y) = y dx + x dy
-        assert_eq!(
-            f.rewrited_expr(d(sc(ElementaryExpr::Mul(vec![x(), y()])))),
-            DifferentialForm::Add(vec![wedge(vec![sc(y()), dx()]), wedge(vec![sc(x()), dy()])])
-        );
+        assert_eq!(exterior("d(x y)"), form("y d(x) + x d(y)"));
     }
 
     #[test]
     fn exterior_keeps_order_and_distributes() {
-        let f = ExteriorRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
+        assert_eq!(exterior("d(y) ∧ d(x)"), form("d(y) ∧ d(x)"));
         assert_eq!(
-            f.rewrited_expr(wedge(vec![dy(), dx()])),
-            wedge(vec![dy(), dx()])
-        );
-        // 2 ∧ (x + dy) ∧ dx = 2x ∧ dx + 2 dy ∧ dx
-        let e = wedge(vec![
-            sc(c(2)),
-            DifferentialForm::Add(vec![sc(x()), dy()]),
-            dx(),
-        ]);
-        assert_eq!(
-            f.rewrited_expr(e),
-            DifferentialForm::Add(vec![
-                wedge(vec![sc(ElementaryExpr::Mul(vec![c(2), x()])), dx()]),
-                wedge(vec![sc(c(2)), dy(), dx()]),
-            ])
+            exterior("2 ∧ (x + d(y)) ∧ d(x)"),
+            form("2 x d(x) + 2 d(y) ∧ d(x)")
         );
     }
 
     #[test]
     fn graded_commutative_sorts_with_sign() {
-        let f = GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-        // dy ∧ dx = -(dx ∧ dy)
-        assert_eq!(
-            f.rewrited_expr(wedge(vec![dy(), dx()])),
-            wedge(vec![sc(c(-1)), dx(), dy()])
-        );
-        // dx ∧ dx = 0
-        assert_eq!(f.rewrited_expr(wedge(vec![dx(), dx()])), sc(c(0)));
-        // dx ∧ dy + dy ∧ dx = 0 ; dx ∧ dy + dx ∧ dy = 2 dx ∧ dy
-        let a = wedge(vec![dx(), dy()]);
-        let b = wedge(vec![dy(), dx()]);
-        assert_eq!(
-            f.rewrited_expr(DifferentialForm::Add(vec![a.clone(), b])),
-            sc(c(0))
-        );
-        assert_eq!(
-            f.rewrited_expr(DifferentialForm::Add(vec![a.clone(), a])),
-            wedge(vec![sc(c(2)), dx(), dy()])
-        );
+        assert_eq!(graded("d(y) ∧ d(x)"), form("-1 d(x) ∧ d(y)"));
+        assert_eq!(graded("d(x) ∧ d(x)"), form("0"));
+        assert_eq!(graded("d(x) ∧ d(y) + d(y) ∧ d(x)"), form("0"));
+        assert_eq!(graded("d(x) ∧ d(y) + d(x) ∧ d(y)"), form("2 d(x) ∧ d(y)"));
     }
 
     #[test]
     fn forms_above_dim_vanish() {
-        let dz = d(sc(ElementaryExpr::Symbol(Symbol::new("z"))));
-        let top = wedge(vec![dx(), dy(), dz]);
-        assert_eq!(
-            ExteriorRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new())
-                .rewrited_expr(top),
-            sc(c(0))
-        );
+        assert_eq!(exterior("d(x) ∧ d(y) ∧ d(z)"), form("0"));
     }
 
     fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
@@ -465,67 +333,45 @@ mod tests {
 
     #[test]
     fn normalize_is_idempotent() {
-        let inputs = [
-            sc(c(0)),
-            DifferentialForm::Add(vec![]),
-            DifferentialForm::Neg(Box::new(DifferentialForm::Neg(Box::new(sc(x()))))),
-            d(wedge(vec![sc(x()), dy()])),
-            wedge(vec![dy(), dx()]),
-            DifferentialForm::Add(vec![wedge(vec![dx(), dy()]), wedge(vec![dy(), dx()])]),
-            wedge(vec![
-                sc(c(2)),
-                DifferentialForm::Add(vec![sc(x()), dy()]),
-                dx(),
-            ]),
-            wedge(vec![dx(), dy(), dx()]),
-            d(sc(pow(x(), 2))),
-            d(d(sc(ElementaryExpr::Mul(vec![pow(x(), 2), y()])))),
+        let sources = [
+            "0",
+            "-(-x)",
+            "-(x d(y))",
+            "d(x d(y))",
+            "d(y) ∧ d(x)",
+            "d(x) ∧ d(y) + d(y) ∧ d(x)",
+            "2 ∧ (x + d(y)) ∧ d(x)",
+            "d(x) ∧ d(y) ∧ d(x)",
+            "d(x^2)",
+            "d(d(x^2 y))",
         ];
+
+        let inputs = sources
+            .iter()
+            .map(|src| form(src))
+            .chain([DifferentialForm::Add(vec![])]);
         for expr in inputs {
             assert_idempotent(
-                &ExteriorRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new()),
+                &ExteriorRewriter::new(xy(), ElementaryRewriter::new()),
                 expr.clone(),
             );
             assert_idempotent(
-                &GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new()),
+                &GradedCommutativeRewriter::new(xy(), ElementaryRewriter::new()),
                 expr,
             );
         }
 
-        let int_inputs = [
-            isc(ic(0)),
-            DifferentialForm::Add(vec![]),
-            DifferentialForm::Neg(Box::new(DifferentialForm::Neg(Box::new(isc(ix()))))),
-            DifferentialForm::Differential(Box::new(DifferentialForm::Wedged(vec![
-                isc(ix()),
-                idy(),
-            ]))),
-            DifferentialForm::Wedged(vec![idy(), idx()]),
-            DifferentialForm::Add(vec![
-                DifferentialForm::Wedged(vec![idx(), idy()]),
-                DifferentialForm::Wedged(vec![idy(), idx()]),
-            ]),
-            DifferentialForm::Wedged(vec![
-                isc(ic(2)),
-                DifferentialForm::Add(vec![isc(ix()), idy()]),
-                idx(),
-            ]),
-            DifferentialForm::Wedged(vec![idx(), idy(), idx()]),
-            DifferentialForm::Differential(Box::new(isc(ipow(ix(), 2)))),
-            DifferentialForm::Differential(Box::new(DifferentialForm::Differential(Box::new(
-                isc(RingExpr::Mul(vec![ipow(ix(), 2), iy()])),
-            )))),
-        ];
+        let int_inputs = sources
+            .iter()
+            .map(|src| int_form(src))
+            .chain([DifferentialForm::Add(vec![])]);
         for expr in int_inputs {
             assert_idempotent(
-                &ExteriorRewriter::new(ixy(), CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new()),
+                &ExteriorRewriter::new(ixy(), CommutativeRingRewriter::new()),
                 expr.clone(),
             );
             assert_idempotent(
-                &GradedCommutativeRewriter::new(
-                    ixy(),
-                    CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new(),
-                ),
+                &GradedCommutativeRewriter::new(ixy(), CommutativeRingRewriter::new()),
                 expr,
             );
         }
@@ -537,138 +383,70 @@ mod tests {
 
     #[test]
     fn d_of_a_square() {
-        // d(x^2) = 2x dx
-        let f = GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-        assert_eq!(
-            f.rewrited_expr(d(sc(pow(x(), 2)))),
-            wedge(vec![sc(ElementaryExpr::Mul(vec![c(2), x()])), dx()])
-        );
+        assert_eq!(graded("d(x^2)"), form("2 x d(x)"));
     }
 
     #[test]
     fn d_of_a_square_plus_sin() {
-        // d(x^2 + sin y) = 2x dx + cos(y) dy
-        let f = GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-        let expr = sc(ElementaryExpr::Add(vec![
-            pow(x(), 2),
-            ElementaryExpr::elementary(eqn_analysis::Elementary::Sin, y()),
-        ]));
-        assert_eq!(
-            f.rewrited_expr(d(expr)),
-            DifferentialForm::Add(vec![
-                wedge(vec![sc(ElementaryExpr::Mul(vec![c(2), x()])), dx()]),
-                wedge(vec![
-                    sc(ElementaryExpr::elementary(
-                        eqn_analysis::Elementary::Cos,
-                        y()
-                    )),
-                    dy()
-                ]),
-            ])
-        );
+        assert_eq!(graded("d(x^2 + sin(y))"), form("2 x d(x) + cos(y) d(y)"));
     }
 
     #[test]
     fn d_of_a_product() {
-        // d(x*y) = y dx + x dy
-        let f = GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-        assert_eq!(
-            f.rewrited_expr(d(sc(ElementaryExpr::Mul(vec![x(), y()])))),
-            DifferentialForm::Add(vec![wedge(vec![sc(y()), dx()]), wedge(vec![sc(x()), dy()])])
-        );
+        assert_eq!(graded("d(x y)"), form("y d(x) + x d(y)"));
     }
 
     #[test]
     fn d_of_wedged_product_form() {
-        // d(xy ∧ dx) = -x dx∧dy
-        let f = GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-        let xy_dx = wedge(vec![sc(ElementaryExpr::Mul(vec![x(), y()])), dx()]);
-        assert_eq!(
-            f.rewrited_expr(d(xy_dx)),
-            wedge(vec![sc(ElementaryExpr::Mul(vec![c(-1), x()])), dx(), dy()])
-        );
+        assert_eq!(graded("d(x y ∧ d(x))"), form("-1 x d(x) ∧ d(y)"));
     }
 
     #[test]
     fn d_squared_via_real_differentiation() {
-        // d(d(x^2 y)) = 0
-        let f = GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-        let expr = sc(ElementaryExpr::Mul(vec![pow(x(), 2), y()]));
-        assert_eq!(f.rewrited_expr(d(d(expr))), sc(c(0)));
+        assert_eq!(graded("d(d(x^2 y))"), form("0"));
     }
 
     #[test]
     fn repeated_atom_and_degree_above_dim_vanish() {
-        let f = GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-        assert_eq!(f.rewrited_expr(wedge(vec![dx(), dy(), dx()])), sc(c(0)));
-
-        let dz = d(sc(ElementaryExpr::Symbol(Symbol::new("z"))));
-        let top = wedge(vec![dx(), dy(), dz]);
-        assert_eq!(f.rewrited_expr(top), sc(c(0)));
+        assert_eq!(graded("d(x) ∧ d(y) ∧ d(x)"), form("0"));
+        assert_eq!(graded("d(x) ∧ d(y) ∧ d(z)"), form("0"));
     }
 
     #[test]
     fn parameters_are_constant_under_d() {
-        let f = GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-
-        // d(a * x^2) = 2a*x dx; `a` sorts before `x` in ElementaryRewriter's
-        // structural order (symbols compare by name), so the coefficient is
-        // `2 * a * x`, not `2 * x * a`.
-        let expr = sc(ElementaryExpr::Mul(vec![a(), pow(x(), 2)]));
-        assert_eq!(
-            f.rewrited_expr(d(expr)),
-            wedge(vec![sc(ElementaryExpr::Mul(vec![c(2), a(), x()])), dx()])
-        );
-
-        // d(a) = 0: `a` is not a chart coordinate.
-        assert_eq!(f.rewrited_expr(d(sc(a()))), sc(c(0)));
+        // `a` is never a chart coordinate here: a parameter. It sorts before
+        // `x` in ElementaryRewriter's structural order (symbols compare by
+        // name), so the coefficient is `2 a x`, not `2 x a`.
+        assert_eq!(graded("d(a x^2)"), form("2 a x d(x)"));
+        assert_eq!(graded("d(a)"), form("0"));
     }
 
     #[test]
     fn d_only_sees_chart_coordinates() {
         // d(x^2 + y^2) = 2x dx + 2y dy in the (x, y) chart...
-        let expr = || sc(ElementaryExpr::Add(vec![pow(x(), 2), pow(y(), 2)]));
-        let xy_chart =
-            GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-        assert_eq!(
-            xy_chart.rewrited_expr(d(expr())),
-            DifferentialForm::Add(vec![
-                wedge(vec![sc(ElementaryExpr::Mul(vec![c(2), x()])), dx()]),
-                wedge(vec![sc(ElementaryExpr::Mul(vec![c(2), y()])), dy()]),
-            ])
-        );
+        assert_eq!(graded("d(x^2 + y^2)"), form("2 x d(x) + 2 y d(y)"));
 
         // ...but only 2x dx in the (x, z) chart: `y` is a parameter there,
         // so its whole term drops.
-        let xz_chart =
-            GradedCommutativeRewriter::new(xz(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
+        let xz_chart = GradedCommutativeRewriter::new(xz(), ElementaryRewriter::new());
         assert_eq!(
-            xz_chart.rewrited_expr(d(expr())),
-            wedge(vec![sc(ElementaryExpr::Mul(vec![c(2), x()])), dx()])
+            xz_chart.rewrited_expr(form("d(x^2 + y^2)")),
+            form("2 x d(x)")
         );
     }
 
     #[test]
     fn chart_order_governs_canonical_order_and_sign() {
-        // chart (y, x): position 0 is y, position 1 is x -- differential(0)
-        // is "dy", differential(1) is "dx", by chart position, not name.
-        let yx = || Chart::<Plane>::new([Symbol::new("y"), Symbol::new("x")]);
-        let dy = || yx().differential(0).unwrap();
-        let dx = || yx().differential(1).unwrap();
-        let f = GradedCommutativeRewriter::new(yx(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
+        // chart (y, x): position 0 is y, position 1 is x. Canonical order
+        // follows chart position, not name, unlike the (x, y) chart used
+        // everywhere else in this file, where the two coincide.
+        let yx = Chart::<Plane>::new([Symbol::new("y"), Symbol::new("x")]);
+        let f = GradedCommutativeRewriter::new(yx, ElementaryRewriter::new());
 
-        // d(x*y) = x dy + y dx: term order follows chart position, unlike
-        // the (x, y) chart used everywhere else in this file, where
-        // position order and alphabetical order coincide.
-        assert_eq!(
-            f.rewrited_expr(d(sc(ElementaryExpr::Mul(vec![x(), y()])))),
-            DifferentialForm::Add(vec![wedge(vec![sc(x()), dy()]), wedge(vec![sc(y()), dx()])])
-        );
+        // d(x*y) = x dy + y dx
+        assert_eq!(f.rewrited_expr(form("d(x y)")), form("x d(y) + y d(x)"));
 
         // dx ∧ dy = -(dy ∧ dx): position 1 sorts after position 0.
-        assert_eq!(
-            f.rewrited_expr(wedge(vec![dx(), dy()])),
-            wedge(vec![sc(c(-1)), dy(), dx()])
-        );
+        assert_eq!(f.rewrited_expr(form("d(x) ∧ d(y)")), form("-1 d(y) ∧ d(x)"));
     }
 }

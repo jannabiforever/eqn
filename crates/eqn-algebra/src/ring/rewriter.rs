@@ -470,7 +470,6 @@ where
 #[cfg(test)]
 mod tests {
     use eqn_core::op::{Associative, BinaryOperator};
-    use eqn_core::symbol::Symbol;
 
     use super::*;
 
@@ -497,191 +496,69 @@ mod tests {
     type Expr = SemiRingExpr<TestSemiRing>;
     type RExpr = RingExpr<TestSemiRing>;
 
-    fn fmt(expr: Expr) -> Expr {
-        SemiRingRewriter::new().rewrited_expr(expr)
+    fn expr(src: &str) -> Expr {
+        src.parse().unwrap()
+    }
+
+    fn ring(src: &str) -> RExpr {
+        src.parse().unwrap()
+    }
+
+    fn semi_ring_rewrite(src: &str) -> Expr {
+        SemiRingRewriter::new().rewrited_expr(expr(src))
+    }
+
+    fn ring_rewrite(src: &str) -> RExpr {
+        RingRewriter::new().rewrited_expr(ring(src))
+    }
+
+    fn commutative_ring_rewrite(src: &str) -> RExpr {
+        CommutativeRingRewriter::new().rewrited_expr(ring(src))
     }
 
     #[test]
     fn test_simplify_add_mul_pow() {
-        let x = Symbol::new("x");
-        // 1 + (2 * 3) + x + 0 + (2)^3  ==>  15 + x
-        let expr = Expr::Add(vec![
-            Expr::Const(1),
-            Expr::Mul(vec![Expr::Const(2), Expr::Const(3)]),
-            Expr::Symbol(x.clone()),
-            Expr::Const(0),
-            Expr::Pow {
-                base: Box::new(Expr::Add(vec![Expr::Const(2)])),
-                exponent: NonZeroUsize::new(3).unwrap(),
-            },
-        ]);
-
-        assert!(fmt(expr) == Expr::Add(vec![Expr::Const(15), Expr::Symbol(x)]));
+        assert_eq!(semi_ring_rewrite("1 + 2 * 3 + x + 0 + 2^3"), expr("15 + x"));
     }
 
     #[test]
     fn test_simplify_mul_annihilation_and_identity() {
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
-
-        // x * 0 * y ==> 0
-        let zero = Expr::Mul(vec![
-            Expr::Symbol(x.clone()),
-            Expr::Const(0),
-            Expr::Symbol(y),
-        ]);
-        assert!(fmt(zero) == Expr::Const(0));
-
-        // 1 * x ==> x
-        let ident = Expr::Mul(vec![Expr::Const(1), Expr::Symbol(x.clone())]);
-        assert!(fmt(ident) == Expr::Symbol(x));
+        assert_eq!(semi_ring_rewrite("x * 0 * y"), expr("0"));
+        assert_eq!(semi_ring_rewrite("1 * x"), expr("x"));
     }
 
     #[test]
     fn test_distribution_and_collection() {
-        let x = Symbol::new("x");
-
-        // (1 + x) * (1 + x) ==> 1 + 2*x + x*x
-        let expr = Expr::Mul(vec![
-            Expr::Add(vec![Expr::Const(1), Expr::Symbol(x.clone())]),
-            Expr::Add(vec![Expr::Const(1), Expr::Symbol(x.clone())]),
-        ]);
-
-        assert!(
-            fmt(expr)
-                == Expr::Add(vec![
-                    Expr::Const(1),
-                    Expr::Mul(vec![Expr::Const(2), Expr::Symbol(x.clone())]),
-                    Expr::Mul(vec![Expr::Symbol(x.clone()), Expr::Symbol(x.clone())]),
-                ])
+        assert_eq!(
+            semi_ring_rewrite("(1 + x) * (1 + x)"),
+            expr("1 + 2 x + x x")
         );
-
-        // x + x + y + x ==> 3*x + y
-        let y = Symbol::new("y");
-        let expr = Expr::Add(vec![
-            Expr::Symbol(x.clone()),
-            Expr::Symbol(x.clone()),
-            Expr::Symbol(y.clone()),
-            Expr::Symbol(x.clone()),
-        ]);
-
-        assert!(
-            fmt(expr)
-                == Expr::Add(vec![
-                    Expr::Mul(vec![Expr::Const(3), Expr::Symbol(x)]),
-                    Expr::Symbol(y),
-                ])
-        );
+        assert_eq!(semi_ring_rewrite("x + x + y + x"), expr("3 x + y"));
     }
 
     #[test]
     fn test_coefficient_folding() {
-        let x = Symbol::new("x");
-
-        // 2*x + 3*x ==> 5*x
-        let expr = Expr::Add(vec![
-            Expr::Mul(vec![Expr::Const(2), Expr::Symbol(x.clone())]),
-            Expr::Mul(vec![Expr::Const(3), Expr::Symbol(x.clone())]),
-        ]);
-        assert!(fmt(expr) == Expr::Mul(vec![Expr::Const(5), Expr::Symbol(x)]));
+        assert_eq!(semi_ring_rewrite("2 x + 3 x"), expr("5 x"));
     }
 
     #[test]
     fn test_simplify_pow() {
-        let x = Symbol::new("x");
-
-        // (x^2)^3 ==> x^6
-        let nested = Expr::Pow {
-            base: Box::new(Expr::Pow {
-                base: Box::new(Expr::Symbol(x.clone())),
-                exponent: NonZeroUsize::new(2).unwrap(),
-            }),
-            exponent: NonZeroUsize::new(3).unwrap(),
-        };
-        assert!(
-            fmt(nested)
-                == Expr::Pow {
-                    base: Box::new(Expr::Symbol(x.clone())),
-                    exponent: NonZeroUsize::new(6).unwrap(),
-                }
-        );
-
-        // x^1 ==> x
-        let first = Expr::Pow {
-            base: Box::new(Expr::Symbol(x.clone())),
-            exponent: NonZeroUsize::new(1).unwrap(),
-        };
-        assert!(fmt(first) == Expr::Symbol(x));
+        assert_eq!(semi_ring_rewrite("(x^2)^3"), expr("x^6"));
+        assert_eq!(semi_ring_rewrite("x^1"), expr("x"));
     }
 
     #[test]
     fn test_ring_rewriter_neg() {
-        let f = RingRewriter::new();
-        let x = Symbol::new("x");
-
-        // x + (-x) ==> 0
-        let cancel = RExpr::Add(vec![
-            RExpr::Symbol(x.clone()),
-            RExpr::Neg(Box::new(RExpr::Symbol(x.clone()))),
-        ]);
-        assert!(f.rewrited_expr(cancel) == RExpr::Const(0));
-
-        // --x ==> x
-        let double = RExpr::Neg(Box::new(RExpr::Neg(Box::new(RExpr::Symbol(x.clone())))));
-        assert!(f.rewrited_expr(double) == RExpr::Symbol(x.clone()));
-
-        // -(3) ==> -3
-        assert!(f.rewrited_expr(RExpr::Neg(Box::new(RExpr::Const(3)))) == RExpr::Const(-3));
-
-        // 2*x + -(5*x) ==> -3*x
-        let diff = RExpr::Add(vec![
-            RExpr::Mul(vec![RExpr::Const(2), RExpr::Symbol(x.clone())]),
-            RExpr::Neg(Box::new(RExpr::Mul(vec![
-                RExpr::Const(5),
-                RExpr::Symbol(x.clone()),
-            ]))),
-        ]);
-        assert!(f.rewrited_expr(diff) == RExpr::Mul(vec![RExpr::Const(-3), RExpr::Symbol(x)]));
+        assert_eq!(ring_rewrite("x + -x"), ring("0"));
+        assert_eq!(ring_rewrite("-(-x)"), ring("x"));
+        assert_eq!(ring_rewrite("-(3)"), ring("-3"));
+        assert_eq!(ring_rewrite("2 x - 5 x"), ring("-3 x"));
     }
 
     #[test]
     fn test_commutative_ring_rewriter() {
-        let f = CommutativeRingRewriter::new();
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
-
-        // x*y + y*x ==> 2*x*y
-        let sum = RExpr::Add(vec![
-            RExpr::Mul(vec![RExpr::Symbol(x.clone()), RExpr::Symbol(y.clone())]),
-            RExpr::Mul(vec![RExpr::Symbol(y.clone()), RExpr::Symbol(x.clone())]),
-        ]);
-        assert!(
-            f.rewrited_expr(sum)
-                == RExpr::Mul(vec![
-                    RExpr::Const(2),
-                    RExpr::Symbol(x.clone()),
-                    RExpr::Symbol(y.clone()),
-                ])
-        );
-
-        // y * x * 2 * x ==> 2 * x^2 * y
-        let prod = RExpr::Mul(vec![
-            RExpr::Symbol(y.clone()),
-            RExpr::Symbol(x.clone()),
-            RExpr::Const(2),
-            RExpr::Symbol(x.clone()),
-        ]);
-        assert!(
-            f.rewrited_expr(prod)
-                == RExpr::Mul(vec![
-                    RExpr::Const(2),
-                    RExpr::Pow {
-                        base: Box::new(RExpr::Symbol(x)),
-                        exponent: NonZeroUsize::new(2).unwrap(),
-                    },
-                    RExpr::Symbol(y),
-                ])
-        );
+        assert_eq!(commutative_ring_rewrite("x y + y x"), ring("2 x y"));
+        assert_eq!(commutative_ring_rewrite("y x 2 x"), ring("2 x^2 y"));
     }
 
     fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
@@ -694,43 +571,23 @@ mod tests {
 
     #[test]
     fn normalize_is_idempotent() {
-        let two = NonZeroUsize::new(2).unwrap();
-        let x = Expr::Symbol(Symbol::new("x"));
-        let y = Expr::Symbol(Symbol::new("y"));
         let semi_ring_inputs = [
-            Expr::Const(0),
+            expr("0"),
             Expr::Add(vec![]),
-            Expr::Add(vec![x.clone(), x.clone(), Expr::Const(2)]),
-            Expr::Mul(vec![
-                Expr::Const(2),
-                Expr::Add(vec![x.clone(), y.clone()]),
-                x.clone(),
-            ]),
-            Expr::Pow {
-                base: Box::new(Expr::Add(vec![x.clone(), y])),
-                exponent: two,
-            },
-            Expr::Mul(vec![x, Expr::Const(0)]),
+            expr("x + x + 2"),
+            expr("2 (x + y) x"),
+            expr("(x + y)^2"),
+            expr("x 0"),
         ];
         for expr in semi_ring_inputs {
             assert_idempotent(&SemiRingRewriter::new(), expr);
         }
 
-        let x = RExpr::Symbol(Symbol::new("x"));
-        let y = RExpr::Symbol(Symbol::new("y"));
-        let neg = |e: RExpr| RExpr::Neg(Box::new(e));
         let ring_inputs = [
-            RExpr::Add(vec![x.clone(), neg(x.clone())]),
-            neg(neg(x.clone())),
-            RExpr::Mul(vec![
-                neg(RExpr::Const(3)),
-                RExpr::Add(vec![x.clone(), neg(y.clone())]),
-                y,
-            ]),
-            RExpr::Pow {
-                base: Box::new(neg(x)),
-                exponent: two,
-            },
+            ring("x + -x"),
+            ring("-(-x)"),
+            ring("-(3) (x - y) y"),
+            ring("(-x)^2"),
         ];
         for expr in ring_inputs {
             assert_idempotent(&RingRewriter::new(), expr.clone());

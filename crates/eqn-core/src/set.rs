@@ -103,6 +103,49 @@ impl From<i64> for Rational {
     }
 }
 
+/// Why a string is not a [`Rational`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ParseRationalError {
+    Int(std::num::ParseIntError),
+    ZeroDenominator,
+}
+
+impl std::fmt::Display for ParseRationalError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Int(e) => e.fmt(f),
+            Self::ZeroDenominator => f.write_str("denominator is zero"),
+        }
+    }
+}
+
+impl std::error::Error for ParseRationalError {}
+
+impl From<std::num::ParseIntError> for ParseRationalError {
+    fn from(e: std::num::ParseIntError) -> Self {
+        Self::Int(e)
+    }
+}
+
+/// Reads an integer (`-3`) or a fraction (`3/4`).
+impl std::str::FromStr for Rational {
+    type Err = ParseRationalError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (numerator, denominator) = match s.split_once('/') {
+            Some((n, d)) => (n.parse()?, d.parse()?),
+            None => (s.parse()?, 1),
+        };
+        if denominator == 0 {
+            return Err(ParseRationalError::ZeroDenominator);
+        }
+        Ok(Self {
+            numerator,
+            denominator,
+        })
+    }
+}
+
 /// A set of all rationals.
 /// TODO: big num
 #[derive(Clone, Set)]
@@ -122,8 +165,45 @@ impl PartialEq for RealNumber {
 
 impl Eq for RealNumber {}
 
+impl std::str::FromStr for RealNumber {
+    type Err = std::num::ParseFloatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse().map(Self)
+    }
+}
+
 /// A set of all real numbers
 /// TODO: big num
 #[derive(Set)]
 #[set(element = RealNumber)]
 pub struct R;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rationals_parse_integers_and_fractions() {
+        assert_eq!("3".parse::<Rational>().unwrap(), Rational::from(3));
+        assert_eq!("-3".parse::<Rational>().unwrap(), Rational::from(-3));
+        assert_eq!(
+            "6/4".parse::<Rational>().unwrap(),
+            Rational {
+                numerator: 3,
+                denominator: 2
+            }
+        );
+        assert_eq!(
+            "1/0".parse::<Rational>().unwrap_err(),
+            ParseRationalError::ZeroDenominator
+        );
+        assert!("1.5".parse::<Rational>().is_err());
+    }
+
+    #[test]
+    fn reals_parse_decimals() {
+        assert_eq!("2.5".parse::<RealNumber>().unwrap(), RealNumber(2.5));
+        assert_eq!("-1".parse::<RealNumber>().unwrap(), RealNumber(-1.0));
+    }
+}
