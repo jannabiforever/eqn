@@ -182,7 +182,7 @@ mod tests {
         let cartesian = Chart::<Plane>::new([Symbol::new("x"), Symbol::new("y")]);
         let polar = Chart::<Plane>::new([Symbol::new("r"), Symbol::new("theta")]);
 
-        assert_eq!(cartesian.differential(0).unwrap(), form("d(x)"));
+        assert_eq!(cartesian.differential(0).unwrap(), form("dx"));
         assert_ne!(cartesian.differential(0), polar.differential(0));
     }
 
@@ -203,7 +203,7 @@ mod tests {
         let xy = Chart::<Plane>::new([Symbol::new("x"), Symbol::new("y")]);
 
         // omega = (x^2 + y) dx
-        let mut omega = form("(x^2 + y) d(x)");
+        let mut omega = form("(x^2 + y) dx");
         assert_eq!(omega.degrees_of_freedom(), 2);
 
         // y := 3  =>  (x^2 + 3) dx
@@ -215,7 +215,7 @@ mod tests {
         let f = GradedCommutativeRewriter::new(xy, ElementaryRewriter::new());
         assert_eq!(
             f.rewrited_expr(omega),
-            f.rewrited_expr(form("(x^2 + 3) d(x)"))
+            f.rewrited_expr(form("(x^2 + 3) dx"))
         );
     }
 }

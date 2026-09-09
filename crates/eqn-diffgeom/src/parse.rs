@@ -8,7 +8,9 @@ use crate::{DifferentialForm, Manifold, ZeroForm};
 const WEDGE: &str = "∧";
 
 /// The function ring's own syntax, extended with `∧` (parsed like the
-/// ring's product) and `d(...)`, the exterior derivative. Any subtree
+/// ring's product) and the exterior derivative `d`, written `dx`, `d x`
+/// or `d(...)`: `d` plus one character is `d` applied to that coordinate,
+/// and a bare `d` applies to the factor that follows it. Any subtree
 /// without `d` or `∧` is a 0-form and is read by the function ring, so
 /// `x^2 + sin(y)` means whatever it means there. At the form level the
 /// ring's declared sum, difference and product spellings are read as sum,
@@ -54,7 +56,7 @@ where
                     .into_iter()
                     .map(|(_, factor)| factor);
                 let mut out = Vec::new();
-                for run in runs(factors) {
+                for run in runs(differentials(factors)) {
                     out.push(match run {
                         Run::Scalars(scalars) => Self::from_ast(product::<M>(scalars))?,
                         Run::Form(form) => Self::from_ast(form)?,
@@ -74,9 +76,15 @@ where
             Ast::Call(name, _) if name == "d" => {
                 Err(ParseError::new("`d(ω)` takes one argument".to_owned()))
             }
-            Ast::Ident(name) => Err(ParseError::new(format!(
-                "`{name}` is the exterior derivative; write `{name}(...)`"
-            ))),
+            Ast::Ident(name) if name == "d" => Err(ParseError::new(
+                "`d` is the exterior derivative; write `dx`, `d x` or `d(...)`".to_owned(),
+            )),
+            Ast::Ident(name) => {
+                let x = coordinate(&name).expect("only `dx` idents are forms");
+                Ok(Self::Differential(Box::new(Self::from_ast(Ast::Ident(
+                    x.to_owned(),
+                ))?)))
+            }
             Ast::Call(..) | Ast::Number(_) => {
                 unreachable!("only `d(...)` and `∧` make a subtree a form")
             }
@@ -84,13 +92,21 @@ where
     }
 }
 
-/// Whether the subtree is a genuine form (contains `d(...)` or `∧`) rather
+/// `dx` -> `x`: the exterior derivative of a one-character coordinate.
+/// Longer names starting with `d` (`delta`, `dx1`) stay ordinary symbols.
+fn coordinate(ident: &str) -> Option<&str> {
+    ident
+        .strip_prefix('d')
+        .filter(|rest| rest.chars().count() == 1)
+}
+
+/// Whether the subtree is a genuine form (contains `d`, `dx` or `∧`) rather
 /// than a 0-form. A bare `d` counts, so it errors instead of becoming a
 /// symbol.
 fn contains_form(ast: &Ast) -> bool {
     match ast {
         Ast::Number(_) => false,
-        Ast::Ident(name) => name == "d",
+        Ast::Ident(name) => name == "d" || coordinate(name).is_some(),
         Ast::Call(name, args) => name == "d" || args.iter().any(contains_form),
         Ast::Group(inner) | Ast::Prefix(_, inner) | Ast::Postfix(_, inner) => contains_form(inner),
         Ast::Infix(op, ..) if op == WEDGE => true,
@@ -124,6 +140,24 @@ fn wedge<M: Manifold>(op: &str) -> Option<bool> {
     (op == mul::<M>() || op == WEDGE).then_some(false)
 }
 
+/// Reads a bare `d` in a product as applying to the factor after it, so
+/// `d x ∧ d y` is `d(x) ∧ d(y)`. A trailing `d` is left to error.
+fn differentials(factors: impl Iterator<Item = Ast>) -> Vec<Ast> {
+    let mut out = Vec::new();
+    let mut pending = 0;
+    for factor in factors {
+        if factor == Ast::Ident("d".to_owned()) {
+            pending += 1;
+            continue;
+        }
+        let applied = (0..pending).fold(factor, |inner, _| Ast::Call("d".to_owned(), vec![inner]));
+        out.push(applied);
+        pending = 0;
+    }
+    out.extend((0..pending).map(|_| Ast::Ident("d".to_owned())));
+    out
+}
+
 enum Run {
     Scalars(Vec<Ast>),
     Form(Ast),
@@ -131,7 +165,7 @@ enum Run {
 
 /// Groups the factors of a product into maximal runs of 0-forms, each
 /// becoming one coefficient, separated by the genuine forms.
-fn runs(factors: impl Iterator<Item = Ast>) -> Vec<Run> {
+fn runs(factors: Vec<Ast>) -> Vec<Run> {
     let mut runs = Vec::new();
     for factor in factors {
         if contains_form(&factor) {
@@ -247,11 +281,45 @@ mod tests {
     }
 
     #[test]
-    fn rejects_what_a_form_cannot_express() {
+    fn differentials_have_three_spellings() {
+        assert_eq!("dx".parse::<Form>().unwrap(), d(sc(x())));
+        assert_eq!("d x".parse::<Form>().unwrap(), d(sc(x())));
+        assert_eq!("d(x)".parse::<Form>().unwrap(), d(sc(x())));
+        assert_eq!("d d x".parse::<Form>().unwrap(), d(d(sc(x()))));
         assert_eq!(
-            "d x".parse::<Form>().unwrap_err(),
-            ParseError::new("`d` is the exterior derivative; write `d(...)`")
+            "dθ".parse::<Form>().unwrap(),
+            d(sc(Fun::Symbol(Symbol::new("θ"))))
         );
+
+        // Only `d` plus one character is a differential; longer names are
+        // symbols.
+        for name in ["ddx", "delta", "dx1"] {
+            assert_eq!(
+                name.parse::<Form>().unwrap(),
+                sc(Fun::Symbol(Symbol::new(name))),
+                "{name}"
+            );
+        }
+
+        // `d` takes the factor right after it; `^` binds tighter still.
+        let expected = Form::Wedged(vec![sc(Fun::Mul(vec![c(2), x()])), d(sc(x())), d(sc(y()))]);
+        assert_eq!("2 x dx dy".parse::<Form>().unwrap(), expected);
+        assert_eq!("2 x d x ∧ d y".parse::<Form>().unwrap(), expected);
+        assert_eq!(
+            "d x^2 + dy".parse::<Form>().unwrap(),
+            Form::Add(vec![d(sc("x^2".parse::<Fun>().unwrap())), d(sc(y())),])
+        );
+    }
+
+    #[test]
+    fn rejects_what_a_form_cannot_express() {
+        for src in ["d", "x d", "d + x"] {
+            assert_eq!(
+                src.parse::<Form>().unwrap_err(),
+                ParseError::new("`d` is the exterior derivative; write `dx`, `d x` or `d(...)`"),
+                "{src}"
+            );
+        }
         assert_eq!(
             "d(x, y)".parse::<Form>().unwrap_err(),
             ParseError::new("`d(ω)` takes one argument")
