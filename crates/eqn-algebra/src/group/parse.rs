@@ -6,10 +6,11 @@ use eqn_parser::{Assoc, Ast, FromAst, FromLiteral, Grammar, ParseError};
 use super::{Group, GroupExpr};
 use crate::monoid::MonoidElem;
 
-/// `+`, `*` and juxtaposition denote the group operation; `-` and `/`
-/// invert their right operand, prefix `-` and `inv(x)` invert, and `x^n`
+/// [`Monoid::SYMBOL`](crate::monoid::Monoid::SYMBOL) and juxtaposition
+/// denote the group operation; infix [`Group::INVERSE_SYMBOL`] inverts its
+/// right operand, prefix `INVERSE_SYMBOL` and `inv(x)` invert, and `x^n`
 /// takes any integer literal exponent. `x^-1` stays a [`GroupExpr::Pow`],
-/// distinct from `inv(x)`.
+/// distinct from `inv(x)`. Prefix `-` always spells negative constants.
 impl<G> FromAst for GroupExpr<G>
 where
     G: Group,
@@ -17,12 +18,11 @@ where
 {
     fn grammar() -> Grammar {
         Grammar::new()
-            .infix("+", 1, Assoc::Left)
-            .infix("-", 1, Assoc::Left)
-            .infix("*", 2, Assoc::Left)
-            .infix("/", 2, Assoc::Left)
-            .juxtaposition("*")
+            .infix(G::SYMBOL, 1, Assoc::Left)
+            .infix(G::INVERSE_SYMBOL, 1, Assoc::Left)
+            .juxtaposition(G::SYMBOL)
             .prefix("-", 3)
+            .prefix(G::INVERSE_SYMBOL, 3)
             .infix("^", 4, Assoc::Right)
     }
 
@@ -33,7 +33,9 @@ where
         match ast {
             Ast::Ident(name) => Ok(Self::Symbol(Symbol::new(name))),
             Ast::Group(inner) => Self::from_ast(*inner),
-            Ast::Prefix(_, inner) => Self::from_ast(*inner).map(inverse),
+            Ast::Prefix(op, inner) if op == G::INVERSE_SYMBOL => {
+                Self::from_ast(*inner).map(inverse)
+            }
             Ast::Infix(op, base, exponent) if op == "^" => {
                 let exponent = exponent.integer("-").ok_or_else(|| {
                     ParseError::new(format!(
@@ -46,7 +48,7 @@ where
                 })
             }
             Ast::Infix(..) => ast
-                .operands(operation)
+                .operands(operation::<G>)
                 .into_iter()
                 .map(|(inverted, operand)| {
                     let operand = Self::from_ast(operand)?;
@@ -54,7 +56,7 @@ where
                 })
                 .collect::<Result<_, _>>()
                 .map(Self::Op),
-            Ast::Postfix(op, _) => Err(ParseError::new(format!(
+            Ast::Prefix(op, _) | Ast::Postfix(op, _) => Err(ParseError::new(format!(
                 "group expressions have no `{op}` operator"
             ))),
             Ast::Call(name, mut args) if name == "inv" && args.len() == 1 => {
@@ -70,11 +72,13 @@ fn inverse<G: Group>(expr: GroupExpr<G>) -> GroupExpr<G> {
     GroupExpr::Inv(Box::new(expr))
 }
 
-fn operation(op: &str) -> Option<bool> {
-    match op {
-        "+" | "*" => Some(false),
-        "-" | "/" => Some(true),
-        _ => None,
+fn operation<G: Group>(op: &str) -> Option<bool> {
+    if op == G::SYMBOL {
+        Some(false)
+    } else if op == G::INVERSE_SYMBOL {
+        Some(true)
+    } else {
+        None
     }
 }
 
@@ -110,10 +114,34 @@ mod tests {
     #[test]
     fn inverses_have_three_spellings() {
         let expected = Expr::Op(vec![x(), inverse(y())]);
-        assert_eq!("x * inv(y)".parse::<Expr>().unwrap(), expected);
+        assert_eq!("x + inv(y)".parse::<Expr>().unwrap(), expected);
         assert_eq!("x + -y".parse::<Expr>().unwrap(), expected);
         assert_eq!("x - y".parse::<Expr>().unwrap(), expected);
-        assert_eq!("x / y".parse::<Expr>().unwrap(), expected);
+    }
+
+    #[test]
+    fn spellings_come_from_the_operator() {
+        type Mul = GroupExpr<(eqn_core::set::Q, crate::operator_impl::QMul)>;
+        let (x, y) = (Mul::Symbol(Symbol::new("x")), Mul::Symbol(Symbol::new("y")));
+        let expected = Mul::Op(vec![x.clone(), Mul::Inv(Box::new(y))]);
+        assert_eq!("x / y".parse::<Mul>().unwrap(), expected);
+        assert_eq!("x * /y".parse::<Mul>().unwrap(), expected);
+        assert_eq!(
+            "x + y".parse::<Mul>().unwrap_err(),
+            ParseError::at(2, "unexpected `+`")
+        );
+        assert_eq!(
+            "-x".parse::<Mul>().unwrap_err(),
+            ParseError::new("group expressions have no `-` operator")
+        );
+        assert_eq!("-3".parse::<Mul>().unwrap(), Mul::Const((-3).into()));
+        assert_eq!(
+            "x^-1".parse::<Mul>().unwrap(),
+            Mul::Pow {
+                base: Box::new(x),
+                exponent: -1
+            }
+        );
     }
 
     #[test]

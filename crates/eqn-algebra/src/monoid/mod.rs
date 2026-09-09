@@ -21,6 +21,9 @@ pub trait Monoid {
 
     const IDENTITY: MonoidElem<Self> = <Self::Operator as Identity>::IDENTITY;
 
+    /// Source spelling of the operation.
+    const SYMBOL: &'static str = <Self::Operator as BinaryOperator>::SYMBOL;
+
     fn apply(lhs: MonoidElem<Self>, rhs: MonoidElem<Self>) -> MonoidElem<Self> {
         <Self::Operator as BinaryOperator>::apply(lhs, rhs)
     }
