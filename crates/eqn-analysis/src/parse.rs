@@ -3,7 +3,7 @@ use std::str::FromStr;
 use eqn_algebra::field::Field;
 use eqn_algebra::ring::RingElem;
 use eqn_core::symbol::Symbol;
-use eqn_parser::{Ast, BinaryOp, FromAst, FromLiteral, ParseError, UnaryOp};
+use eqn_parser::{Assoc, Ast, FromAst, FromLiteral, Grammar, ParseError};
 
 use crate::{Elementary, ElementaryExpr};
 
@@ -15,8 +15,19 @@ where
     F: Field,
     RingElem<F>: FromLiteral,
 {
+    fn grammar() -> Grammar {
+        Grammar::new()
+            .infix("+", 1, Assoc::Left)
+            .infix("-", 1, Assoc::Left)
+            .infix("*", 2, Assoc::Left)
+            .infix("/", 2, Assoc::Left)
+            .juxtaposition("*")
+            .prefix("-", 3)
+            .infix("^", 4, Assoc::Right)
+    }
+
     fn from_ast(ast: Ast) -> Result<Self, ParseError> {
-        if let Some(text) = ast.literal() {
+        if let Some(text) = ast.literal("-") {
             return RingElem::<F>::from_literal(&text).map(Self::Const);
         }
         match ast {
@@ -25,8 +36,8 @@ where
             )),
             Ast::Ident(name) => Ok(Self::Symbol(Symbol::new(name))),
             Ast::Group(inner) => Self::from_ast(*inner),
-            Ast::Unary(UnaryOp::Neg, inner) => Ok(Self::Neg(Box::new(Self::from_ast(*inner)?))),
-            Ast::Binary(BinaryOp::Add | BinaryOp::Sub, ..) => ast
+            Ast::Prefix(_, inner) => Ok(Self::Neg(Box::new(Self::from_ast(*inner)?))),
+            Ast::Infix(ref op, ..) if op == "+" || op == "-" => ast
                 .operands(sum)
                 .into_iter()
                 .map(|(negated, term)| {
@@ -39,7 +50,7 @@ where
                 })
                 .collect::<Result<_, _>>()
                 .map(Self::Add),
-            Ast::Binary(BinaryOp::Mul | BinaryOp::Div, ..) => ast
+            Ast::Infix(ref op, ..) if op == "*" || op == "/" => ast
                 .operands(product)
                 .into_iter()
                 .map(|(divided, factor)| {
@@ -55,8 +66,8 @@ where
                 })
                 .collect::<Result<_, _>>()
                 .map(Self::Mul),
-            Ast::Binary(BinaryOp::Pow, base, exponent) => {
-                let exponent = exponent.integer().ok_or_else(|| {
+            Ast::Infix(op, base, exponent) if op == "^" => {
+                let exponent = exponent.integer("-").ok_or_else(|| {
                     ParseError::new(format!(
                         "exponent must be an integer literal, found `{exponent}`"
                     ))
@@ -66,7 +77,7 @@ where
                     exponent,
                 })
             }
-            Ast::Binary(op, ..) => Err(ParseError::new(format!(
+            Ast::Infix(op, ..) | Ast::Postfix(op, _) => Err(ParseError::new(format!(
                 "elementary expressions have no `{op}` operator"
             ))),
             Ast::Call(name, args) => call(name, args),
@@ -75,18 +86,18 @@ where
     }
 }
 
-fn sum(op: BinaryOp) -> Option<bool> {
+fn sum(op: &str) -> Option<bool> {
     match op {
-        BinaryOp::Add => Some(false),
-        BinaryOp::Sub => Some(true),
+        "+" => Some(false),
+        "-" => Some(true),
         _ => None,
     }
 }
 
-fn product(op: BinaryOp) -> Option<bool> {
+fn product(op: &str) -> Option<bool> {
     match op {
-        BinaryOp::Mul => Some(false),
-        BinaryOp::Div => Some(true),
+        "*" => Some(false),
+        "/" => Some(true),
         _ => None,
     }
 }
@@ -230,7 +241,7 @@ mod tests {
         );
         assert_eq!(
             "x ∧ y".parse::<Expr>().unwrap_err(),
-            ParseError::new("elementary expressions have no `∧` operator")
+            ParseError::at(2, "unexpected `∧`")
         );
         assert_eq!(
             "x^y".parse::<Expr>().unwrap_err(),

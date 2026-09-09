@@ -1,22 +1,16 @@
-//! A Pratt parser over the token stream. Binding powers, low to high: sums,
-//! wedges, products (including juxtaposition), prefix minus, powers.
+//! A Pratt parser over the token stream, driven by a [`Grammar`].
 
-use crate::ParseError;
-use crate::ast::{Ast, BinaryOp, UnaryOp};
+use crate::ast::Ast;
 use crate::lexer::{Token, tokenize};
+use crate::{Grammar, ParseError};
 
-const SUM: (u8, u8) = (1, 2);
-const WEDGE: (u8, u8) = (3, 4);
-const PRODUCT: (u8, u8) = (5, 6);
-const PREFIX: u8 = 7;
-const POWER: (u8, u8) = (10, 9);
-
-/// Parses `src` into an [`Ast`].
-pub fn parse_ast(src: &str) -> Result<Ast, ParseError> {
+/// Parses `src` into an [`Ast`] using `grammar`'s operators.
+pub fn parse_ast(src: &str, grammar: &Grammar) -> Result<Ast, ParseError> {
     let mut parser = Parser {
-        tokens: tokenize(src)?,
+        tokens: tokenize(src, grammar)?,
         pos: 0,
         end: src.len(),
+        grammar,
     };
     let ast = parser.expr(0)?;
     match parser.peek() {
@@ -25,13 +19,26 @@ pub fn parse_ast(src: &str) -> Result<Ast, ParseError> {
     }
 }
 
-struct Parser {
+struct Parser<'g> {
     tokens: Vec<(Token, usize)>,
     pos: usize,
     end: usize,
+    grammar: &'g Grammar,
 }
 
-impl Parser {
+/// What the token after a complete operand does to it.
+enum Continuation {
+    Postfix(String, u16),
+    Infix {
+        op: String,
+        powers: (u16, u16),
+        /// Juxtaposition has no token to consume.
+        explicit: bool,
+    },
+    End,
+}
+
+impl Parser<'_> {
     fn peek(&self) -> Option<(&Token, usize)> {
         self.tokens.get(self.pos).map(|(token, at)| (token, *at))
     }
@@ -61,31 +68,63 @@ impl Parser {
         }
     }
 
-    fn expr(&mut self, min_bp: u8) -> Result<Ast, ParseError> {
+    fn continuation(&self) -> Continuation {
+        match self.peek() {
+            Some((Token::Op(symbol), _)) => {
+                if let Some(power) = self.grammar.postfix_power(symbol) {
+                    Continuation::Postfix(symbol.clone(), power)
+                } else if let Some(powers) = self.grammar.infix_powers(symbol) {
+                    Continuation::Infix {
+                        op: symbol.clone(),
+                        powers,
+                        explicit: true,
+                    }
+                } else {
+                    Continuation::End
+                }
+            }
+            Some((Token::Number(_) | Token::Ident(_) | Token::LParen, _)) => {
+                match self.grammar.juxtaposition_powers() {
+                    Some((symbol, powers)) => Continuation::Infix {
+                        op: symbol.to_owned(),
+                        powers,
+                        explicit: false,
+                    },
+                    None => Continuation::End,
+                }
+            }
+            Some((Token::RParen | Token::Comma, _)) | None => Continuation::End,
+        }
+    }
+
+    fn expr(&mut self, min_power: u16) -> Result<Ast, ParseError> {
         let mut lhs = self.primary()?;
 
-        while let Some((token, _)) = self.peek() {
-            let (op, (lbp, rbp), explicit) = match token {
-                Token::Plus => (BinaryOp::Add, SUM, true),
-                Token::Minus => (BinaryOp::Sub, SUM, true),
-                Token::Wedge => (BinaryOp::Wedge, WEDGE, true),
-                Token::Star => (BinaryOp::Mul, PRODUCT, true),
-                Token::Slash => (BinaryOp::Div, PRODUCT, true),
-                Token::Caret => (BinaryOp::Pow, POWER, true),
-                // Juxtaposition: an atom directly after an expression.
-                Token::Number(_) | Token::Ident(_) | Token::LParen => {
-                    (BinaryOp::Mul, PRODUCT, false)
+        loop {
+            match self.continuation() {
+                Continuation::Postfix(op, power) => {
+                    if power < min_power {
+                        break;
+                    }
+                    self.next();
+                    lhs = Ast::Postfix(op, Box::new(lhs));
                 }
-                Token::RParen | Token::Comma => break,
-            };
-            if lbp < min_bp {
-                break;
+                Continuation::Infix {
+                    op,
+                    powers: (left, right),
+                    explicit,
+                } => {
+                    if left < min_power {
+                        break;
+                    }
+                    if explicit {
+                        self.next();
+                    }
+                    let rhs = self.expr(right)?;
+                    lhs = Ast::Infix(op, Box::new(lhs), Box::new(rhs));
+                }
+                Continuation::End => break,
             }
-            if explicit {
-                self.next();
-            }
-            let rhs = self.expr(rbp)?;
-            lhs = Ast::Binary(op, Box::new(lhs), Box::new(rhs));
         }
 
         Ok(lhs)
@@ -113,10 +152,16 @@ impl Parser {
                 self.expect(Token::RParen)?;
                 Ok(Ast::Group(Box::new(inner)))
             }
-            Token::Minus => {
-                let inner = self.expr(PREFIX)?;
-                Ok(Ast::Unary(UnaryOp::Neg, Box::new(inner)))
-            }
+            Token::Op(symbol) => match self.grammar.prefix_power(&symbol) {
+                Some(power) => {
+                    let inner = self.expr(power)?;
+                    Ok(Ast::Prefix(symbol, Box::new(inner)))
+                }
+                None => Err(ParseError::at(
+                    at,
+                    format!("expected an expression, found `{symbol}`"),
+                )),
+            },
             token => Err(ParseError::at(
                 at,
                 format!("expected an expression, found `{token}`"),
@@ -156,6 +201,29 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Assoc;
+
+    /// The usual arithmetic table, plus `!` postfix and `⊕` infix.
+    fn grammar() -> Grammar {
+        Grammar::new()
+            .infix("+", 1, Assoc::Left)
+            .infix("-", 1, Assoc::Left)
+            .infix("⊕", 1, Assoc::Left)
+            .infix("*", 2, Assoc::Left)
+            .infix("/", 2, Assoc::Left)
+            .juxtaposition("*")
+            .prefix("-", 3)
+            .infix("^", 4, Assoc::Right)
+            .postfix("!", 5)
+    }
+
+    fn parse(src: &str) -> Ast {
+        parse_ast(src, &grammar()).unwrap()
+    }
+
+    fn error(src: &str) -> ParseError {
+        parse_ast(src, &grammar()).unwrap_err()
+    }
 
     fn num(text: &str) -> Ast {
         Ast::Number(text.into())
@@ -165,12 +233,12 @@ mod tests {
         Ast::Ident(name.into())
     }
 
-    fn bin(op: BinaryOp, lhs: Ast, rhs: Ast) -> Ast {
-        Ast::Binary(op, Box::new(lhs), Box::new(rhs))
+    fn infix(op: &str, lhs: Ast, rhs: Ast) -> Ast {
+        Ast::Infix(op.into(), Box::new(lhs), Box::new(rhs))
     }
 
     fn neg(inner: Ast) -> Ast {
-        Ast::Unary(UnaryOp::Neg, Box::new(inner))
+        Ast::Prefix("-".into(), Box::new(inner))
     }
 
     fn group(inner: Ast) -> Ast {
@@ -178,128 +246,103 @@ mod tests {
     }
 
     #[test]
-    fn products_bind_tighter_than_sums() {
-        use BinaryOp::*;
-
+    fn higher_precedence_binds_tighter() {
         assert_eq!(
-            parse_ast("1 + 2 * x").unwrap(),
-            bin(Add, num("1"), bin(Mul, num("2"), id("x")))
+            parse("1 + 2 * x"),
+            infix("+", num("1"), infix("*", num("2"), id("x")))
         );
         assert_eq!(
-            parse_ast("a - b / c").unwrap(),
-            bin(Sub, id("a"), bin(Div, id("b"), id("c")))
-        );
-    }
-
-    #[test]
-    fn sums_and_products_are_left_associative() {
-        use BinaryOp::*;
-
-        assert_eq!(
-            parse_ast("a - b + c").unwrap(),
-            bin(Add, bin(Sub, id("a"), id("b")), id("c"))
+            parse("a - b / c"),
+            infix("-", id("a"), infix("/", id("b"), id("c")))
         );
         assert_eq!(
-            parse_ast("a / b * c").unwrap(),
-            bin(Mul, bin(Div, id("a"), id("b")), id("c"))
+            parse("a ⊕ b * c"),
+            infix("⊕", id("a"), infix("*", id("b"), id("c")))
         );
     }
 
     #[test]
-    fn powers_are_right_associative_and_tightest() {
-        use BinaryOp::*;
-
+    fn left_associative_operators_chain_leftwards() {
         assert_eq!(
-            parse_ast("x ^ 2 ^ 3").unwrap(),
-            bin(Pow, id("x"), bin(Pow, num("2"), num("3")))
+            parse("a - b + c"),
+            infix("+", infix("-", id("a"), id("b")), id("c"))
         );
         assert_eq!(
-            parse_ast("2 * x ^ 2").unwrap(),
-            bin(Mul, num("2"), bin(Pow, id("x"), num("2")))
+            parse("a / b * c"),
+            infix("*", infix("/", id("a"), id("b")), id("c"))
         );
     }
 
     #[test]
-    fn prefix_minus_sits_between_products_and_powers() {
-        use BinaryOp::*;
-
+    fn right_associative_operators_chain_rightwards() {
         assert_eq!(
-            parse_ast("-x ^ 2").unwrap(),
-            neg(bin(Pow, id("x"), num("2")))
+            parse("x ^ 2 ^ 3"),
+            infix("^", id("x"), infix("^", num("2"), num("3")))
         );
         assert_eq!(
-            parse_ast("-2 * x").unwrap(),
-            bin(Mul, neg(num("2")), id("x"))
-        );
-        assert_eq!(
-            parse_ast("2 * -x").unwrap(),
-            bin(Mul, num("2"), neg(id("x")))
-        );
-        assert_eq!(
-            parse_ast("x ^ -2").unwrap(),
-            bin(Pow, id("x"), neg(num("2")))
-        );
-        assert_eq!(parse_ast("--x").unwrap(), neg(neg(id("x"))));
-    }
-
-    #[test]
-    fn juxtaposition_is_multiplication() {
-        use BinaryOp::*;
-
-        assert_eq!(
-            parse_ast("2 x y").unwrap(),
-            bin(Mul, bin(Mul, num("2"), id("x")), id("y"))
-        );
-        assert_eq!(
-            parse_ast("2 x ^ 2").unwrap(),
-            bin(Mul, num("2"), bin(Pow, id("x"), num("2")))
-        );
-        assert_eq!(
-            parse_ast("2(x + 1)").unwrap(),
-            bin(Mul, num("2"), group(bin(Add, id("x"), num("1"))))
+            parse("2 * x ^ 2"),
+            infix("*", num("2"), infix("^", id("x"), num("2")))
         );
     }
 
     #[test]
-    fn wedge_sits_between_sums_and_products() {
-        use BinaryOp::*;
+    fn prefix_operators_take_their_precedence() {
+        assert_eq!(parse("-x ^ 2"), neg(infix("^", id("x"), num("2"))));
+        assert_eq!(parse("-2 * x"), infix("*", neg(num("2")), id("x")));
+        assert_eq!(parse("2 * -x"), infix("*", num("2"), neg(id("x"))));
+        assert_eq!(parse("x ^ -2"), infix("^", id("x"), neg(num("2"))));
+        assert_eq!(parse("--x"), neg(neg(id("x"))));
+    }
 
+    #[test]
+    fn postfix_operators_bind_tightest_here() {
+        let fact = |inner| Ast::Postfix("!".into(), Box::new(inner));
+        assert_eq!(parse("n! + 1"), infix("+", fact(id("n")), num("1")));
+        assert_eq!(parse("-n!"), neg(fact(id("n"))));
         assert_eq!(
-            parse_ast("x * y ∧ d(x) + z").unwrap(),
-            bin(
-                Add,
-                bin(
-                    Wedge,
-                    bin(Mul, id("x"), id("y")),
-                    Ast::Call("d".into(), vec![id("x")])
-                ),
-                id("z")
-            )
+            parse("(n + 1)!"),
+            fact(group(infix("+", id("n"), num("1"))))
         );
-        assert_eq!(parse_ast("a ∧ b").unwrap(), parse_ast("a /\\ b").unwrap());
+    }
+
+    #[test]
+    fn juxtaposition_reads_as_the_chosen_operator() {
+        assert_eq!(
+            parse("2 x y"),
+            infix("*", infix("*", num("2"), id("x")), id("y"))
+        );
+        assert_eq!(
+            parse("2 x ^ 2"),
+            infix("*", num("2"), infix("^", id("x"), num("2")))
+        );
+        assert_eq!(
+            parse("2(x + 1)"),
+            infix("*", num("2"), group(infix("+", id("x"), num("1"))))
+        );
+
+        let no_juxtaposition = Grammar::new().infix("+", 1, Assoc::Left);
+        assert_eq!(
+            parse_ast("2 x", &no_juxtaposition).unwrap_err(),
+            ParseError::at(2, "unexpected `x`")
+        );
     }
 
     #[test]
     fn parentheses_are_kept() {
-        use BinaryOp::*;
-
         assert_eq!(
-            parse_ast("(a + b) + c").unwrap(),
-            bin(Add, group(bin(Add, id("a"), id("b"))), id("c"))
+            parse("(a + b) + c"),
+            infix("+", group(infix("+", id("a"), id("b"))), id("c"))
         );
-        assert_eq!(parse_ast("((x))").unwrap(), group(group(id("x"))));
+        assert_eq!(parse("((x))"), group(group(id("x"))));
     }
 
     #[test]
     fn calls_take_comma_separated_arguments() {
         assert_eq!(
-            parse_ast("f(x, 2 + y) g()").unwrap(),
-            bin(
-                BinaryOp::Mul,
-                Ast::Call(
-                    "f".into(),
-                    vec![id("x"), bin(BinaryOp::Add, num("2"), id("y"))]
-                ),
+            parse("f(x, 2 + y) g()"),
+            infix(
+                "*",
+                Ast::Call("f".into(), vec![id("x"), infix("+", num("2"), id("y"))]),
                 Ast::Call("g".into(), vec![])
             )
         );
@@ -307,74 +350,69 @@ mod tests {
 
     #[test]
     fn literals_and_integers() {
-        assert_eq!(parse_ast("-3").unwrap().literal().as_deref(), Some("-3"));
-        assert_eq!(parse_ast("2.5").unwrap().literal().as_deref(), Some("2.5"));
-        assert_eq!(parse_ast("-(3)").unwrap().literal(), None);
-        assert_eq!(parse_ast("-12").unwrap().integer(), Some(-12));
-        assert_eq!(parse_ast("2.5").unwrap().integer(), None);
-        assert_eq!(parse_ast("x").unwrap().integer(), None);
+        assert_eq!(parse("-3").literal("-").as_deref(), Some("-3"));
+        assert_eq!(parse("2.5").literal("-").as_deref(), Some("2.5"));
+        assert_eq!(parse("-(3)").literal("-"), None);
+        assert_eq!(parse("-12").integer("-"), Some(-12));
+        assert_eq!(parse("2.5").integer("-"), None);
+        assert_eq!(parse("x").integer("-"), None);
     }
 
     #[test]
     fn operands_flatten_chains_but_not_groups() {
-        let sum = |op| match op {
-            BinaryOp::Add => Some(false),
-            BinaryOp::Sub => Some(true),
+        let sum = |op: &str| match op {
+            "+" => Some(false),
+            "-" => Some(true),
             _ => None,
         };
-        let operands = parse_ast("a - b + (c - d) - e * f").unwrap().operands(sum);
         assert_eq!(
-            operands,
+            parse("a - b + (c - d) - e * f").operands(sum),
             vec![
                 (false, id("a")),
                 (true, id("b")),
-                (false, group(bin(BinaryOp::Sub, id("c"), id("d")))),
-                (true, bin(BinaryOp::Mul, id("e"), id("f"))),
+                (false, group(infix("-", id("c"), id("d")))),
+                (true, infix("*", id("e"), id("f"))),
             ]
         );
-        assert_eq!(
-            parse_ast("x").unwrap().operands(sum),
-            vec![(false, id("x"))]
-        );
+        assert_eq!(parse("x").operands(sum), vec![(false, id("x"))]);
     }
 
     #[test]
     fn displays_source_form() {
-        for src in ["1 + 2 * x", "-(x + 1) ^ -2", "f(x, y) * (z)", "a ∧ d(b)"] {
-            assert_eq!(parse_ast(src).unwrap().to_string(), src);
+        for src in ["1 + 2 * x", "-(x + 1) ^ -2", "f(x, y) * (z)", "a ⊕ n!"] {
+            assert_eq!(parse(src).to_string(), src);
         }
-        assert_eq!(parse_ast("2 x").unwrap().to_string(), "2 * x");
+        assert_eq!(parse("2 x").to_string(), "2 * x");
     }
 
     #[test]
     fn reports_errors_with_offsets() {
         assert_eq!(
-            parse_ast("").unwrap_err(),
+            error(""),
             ParseError::at(0, "expected an expression, found end of input")
         );
         assert_eq!(
-            parse_ast("x +").unwrap_err(),
+            error("x +"),
             ParseError::at(3, "expected an expression, found end of input")
         );
         assert_eq!(
-            parse_ast("* x").unwrap_err(),
+            error("* x"),
             ParseError::at(0, "expected an expression, found `*`")
         );
         assert_eq!(
-            parse_ast("(x + 1").unwrap_err(),
+            error("(x + 1"),
             ParseError::at(6, "expected `)`, found end of input")
         );
+        assert_eq!(error("x + 1)"), ParseError::at(5, "unexpected `)`"));
+        let prefix_only = Grammar::new().prefix("¬", 1);
         assert_eq!(
-            parse_ast("x + 1)").unwrap_err(),
-            ParseError::at(5, "unexpected `)`")
+            parse_ast("x ¬ y", &prefix_only).unwrap_err(),
+            ParseError::at(2, "unexpected `¬`")
         );
         assert_eq!(
-            parse_ast("f(x y").unwrap_err(),
+            error("f(x y"),
             ParseError::at(5, "expected `,` or `)`, found end of input")
         );
-        assert_eq!(
-            parse_ast("f(x; y)").unwrap_err(),
-            ParseError::at(3, "unexpected character `;`")
-        );
+        assert_eq!(error("f(x; y)"), ParseError::at(3, "unexpected `;`"));
     }
 }

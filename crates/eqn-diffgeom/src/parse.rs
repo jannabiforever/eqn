@@ -1,13 +1,14 @@
 use std::str::FromStr;
 
-use eqn_parser::{Ast, BinaryOp, FromAst, ParseError, UnaryOp};
+use eqn_parser::{Ast, FromAst, Grammar, ParseError};
 
 use crate::{DifferentialForm, Manifold, ZeroForm};
 
-/// Forms are built from 0-forms with `+`, `-`, `∧` and `d(...)`, the
-/// exterior derivative. Any subtree without `d` or `∧` is a 0-form and is
-/// read by the manifold's function ring, so `x^2 + sin(y)` means whatever it
-/// means there.
+/// The function ring's own syntax, extended with `∧` (parsed like `*`) and
+/// `d(...)`, the exterior derivative. Any subtree without `d` or `∧` is a
+/// 0-form and is read by the function ring, so `x^2 + sin(y)` means whatever
+/// it means there. At the form level the ring's `+`, `-` and `*` are read as
+/// sum, difference and wedge, so the ring must spell them that way.
 ///
 /// `*`, juxtaposition and `∧` are all the wedge product, and adjacent
 /// 0-form factors of one product are a single coefficient: `2 x d(x)` is
@@ -17,14 +18,18 @@ where
     M: Manifold,
     ZeroForm<M>: FromAst,
 {
+    fn grammar() -> Grammar {
+        ZeroForm::<M>::grammar().alias("∧", "*")
+    }
+
     fn from_ast(ast: Ast) -> Result<Self, ParseError> {
         if !contains_form(&ast) {
             return ZeroForm::<M>::from_ast(ast).map(Self::Scalar);
         }
         match ast {
             Ast::Group(inner) => Self::from_ast(*inner),
-            Ast::Unary(UnaryOp::Neg, inner) => Ok(Self::Neg(Box::new(Self::from_ast(*inner)?))),
-            Ast::Binary(BinaryOp::Add | BinaryOp::Sub, ..) => ast
+            Ast::Prefix(op, inner) if op == "-" => Ok(Self::Neg(Box::new(Self::from_ast(*inner)?))),
+            Ast::Infix(ref op, ..) if op == "+" || op == "-" => ast
                 .operands(sum)
                 .into_iter()
                 .map(|(negated, term)| {
@@ -37,7 +42,7 @@ where
                 })
                 .collect::<Result<_, _>>()
                 .map(Self::Add),
-            Ast::Binary(BinaryOp::Mul | BinaryOp::Wedge, ..) => {
+            Ast::Infix(ref op, ..) if op == "*" || op == "∧" => {
                 let factors = ast.operands(wedge).into_iter().map(|(_, factor)| factor);
                 let mut out = Vec::new();
                 for run in runs(factors) {
@@ -51,9 +56,9 @@ where
                     _ => Self::Wedged(out),
                 })
             }
-            Ast::Binary(op, ..) => Err(ParseError::new(format!(
-                "differential forms have no `{op}` operator"
-            ))),
+            Ast::Infix(op, ..) | Ast::Prefix(op, _) | Ast::Postfix(op, _) => Err(ParseError::new(
+                format!("differential forms have no `{op}` operator"),
+            )),
             Ast::Call(name, mut args) if name == "d" && args.len() == 1 => Ok(Self::Differential(
                 Box::new(Self::from_ast(args.pop().unwrap())?),
             )),
@@ -78,22 +83,22 @@ fn contains_form(ast: &Ast) -> bool {
         Ast::Number(_) => false,
         Ast::Ident(name) => name == "d",
         Ast::Call(name, args) => name == "d" || args.iter().any(contains_form),
-        Ast::Group(inner) | Ast::Unary(_, inner) => contains_form(inner),
-        Ast::Binary(BinaryOp::Wedge, ..) => true,
-        Ast::Binary(_, lhs, rhs) => contains_form(lhs) || contains_form(rhs),
+        Ast::Group(inner) | Ast::Prefix(_, inner) | Ast::Postfix(_, inner) => contains_form(inner),
+        Ast::Infix(op, ..) if op == "∧" => true,
+        Ast::Infix(_, lhs, rhs) => contains_form(lhs) || contains_form(rhs),
     }
 }
 
-fn sum(op: BinaryOp) -> Option<bool> {
+fn sum(op: &str) -> Option<bool> {
     match op {
-        BinaryOp::Add => Some(false),
-        BinaryOp::Sub => Some(true),
+        "+" => Some(false),
+        "-" => Some(true),
         _ => None,
     }
 }
 
-fn wedge(op: BinaryOp) -> Option<bool> {
-    matches!(op, BinaryOp::Mul | BinaryOp::Wedge).then_some(false)
+fn wedge(op: &str) -> Option<bool> {
+    matches!(op, "*" | "∧").then_some(false)
 }
 
 enum Run {
@@ -121,7 +126,7 @@ fn runs(factors: impl Iterator<Item = Ast>) -> Vec<Run> {
 fn product(mut scalars: Vec<Ast>) -> Ast {
     let first = scalars.remove(0);
     scalars.into_iter().fold(first, |acc, factor| {
-        Ast::Binary(BinaryOp::Mul, Box::new(acc), Box::new(factor))
+        Ast::Infix("*".to_owned(), Box::new(acc), Box::new(factor))
     })
 }
 

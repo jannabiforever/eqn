@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use eqn_core::symbol::Symbol;
-use eqn_parser::{Ast, BinaryOp, FromAst, FromLiteral, ParseError, UnaryOp};
+use eqn_parser::{Assoc, Ast, FromAst, FromLiteral, Grammar, ParseError};
 
 use super::{Group, GroupExpr};
 use crate::monoid::MonoidElem;
@@ -15,16 +15,27 @@ where
     G: Group,
     MonoidElem<G>: FromLiteral,
 {
+    fn grammar() -> Grammar {
+        Grammar::new()
+            .infix("+", 1, Assoc::Left)
+            .infix("-", 1, Assoc::Left)
+            .infix("*", 2, Assoc::Left)
+            .infix("/", 2, Assoc::Left)
+            .juxtaposition("*")
+            .prefix("-", 3)
+            .infix("^", 4, Assoc::Right)
+    }
+
     fn from_ast(ast: Ast) -> Result<Self, ParseError> {
-        if let Some(text) = ast.literal() {
+        if let Some(text) = ast.literal("-") {
             return MonoidElem::<G>::from_literal(&text).map(Self::Const);
         }
         match ast {
             Ast::Ident(name) => Ok(Self::Symbol(Symbol::new(name))),
             Ast::Group(inner) => Self::from_ast(*inner),
-            Ast::Unary(UnaryOp::Neg, inner) => Self::from_ast(*inner).map(inverse),
-            Ast::Binary(BinaryOp::Pow, base, exponent) => {
-                let exponent = exponent.integer().ok_or_else(|| {
+            Ast::Prefix(_, inner) => Self::from_ast(*inner).map(inverse),
+            Ast::Infix(op, base, exponent) if op == "^" => {
+                let exponent = exponent.integer("-").ok_or_else(|| {
                     ParseError::new(format!(
                         "exponent must be an integer literal, found `{exponent}`"
                     ))
@@ -34,7 +45,7 @@ where
                     exponent,
                 })
             }
-            Ast::Binary(op, ..) if operation(op).is_some() => ast
+            Ast::Infix(..) => ast
                 .operands(operation)
                 .into_iter()
                 .map(|(inverted, operand)| {
@@ -43,7 +54,7 @@ where
                 })
                 .collect::<Result<_, _>>()
                 .map(Self::Op),
-            Ast::Binary(op, ..) => Err(ParseError::new(format!(
+            Ast::Postfix(op, _) => Err(ParseError::new(format!(
                 "group expressions have no `{op}` operator"
             ))),
             Ast::Call(name, mut args) if name == "inv" && args.len() == 1 => {
@@ -59,11 +70,11 @@ fn inverse<G: Group>(expr: GroupExpr<G>) -> GroupExpr<G> {
     GroupExpr::Inv(Box::new(expr))
 }
 
-fn operation(op: BinaryOp) -> Option<bool> {
+fn operation(op: &str) -> Option<bool> {
     match op {
-        BinaryOp::Add | BinaryOp::Mul => Some(false),
-        BinaryOp::Sub | BinaryOp::Div => Some(true),
-        BinaryOp::Pow | BinaryOp::Wedge => None,
+        "+" | "*" => Some(false),
+        "-" | "/" => Some(true),
+        _ => None,
     }
 }
 
@@ -138,7 +149,7 @@ mod tests {
     fn rejects_what_a_group_cannot_express() {
         assert_eq!(
             "x ∧ y".parse::<Expr>().unwrap_err(),
-            ParseError::new("group expressions have no `∧` operator")
+            ParseError::at(2, "unexpected `∧`")
         );
         assert_eq!(
             "inv(x, y)".parse::<Expr>().unwrap_err(),

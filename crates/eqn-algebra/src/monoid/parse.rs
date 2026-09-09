@@ -1,36 +1,42 @@
 use std::str::FromStr;
 
 use eqn_core::symbol::Symbol;
-use eqn_parser::{Ast, BinaryOp, FromAst, FromLiteral, ParseError};
+use eqn_parser::{Assoc, Ast, FromAst, FromLiteral, Grammar, ParseError};
 
 use super::{Monoid, MonoidElem, MonoidExpr};
 
 /// `+`, `*` and juxtaposition all denote the monoid operation, so an
 /// additive monoid reads as `x + y` and a multiplicative one as `x * y`.
-/// Chains flatten into one [`MonoidExpr::Op`]; parentheses nest.
+/// Chains flatten into one [`MonoidExpr::Op`]; parentheses nest. Prefix `-`
+/// exists only to spell negative constants.
 impl<M> FromAst for MonoidExpr<M>
 where
     M: Monoid,
     MonoidElem<M>: FromLiteral,
 {
+    fn grammar() -> Grammar {
+        Grammar::new()
+            .infix("+", 1, Assoc::Left)
+            .infix("*", 2, Assoc::Left)
+            .juxtaposition("*")
+            .prefix("-", 3)
+    }
+
     fn from_ast(ast: Ast) -> Result<Self, ParseError> {
-        if let Some(text) = ast.literal() {
+        if let Some(text) = ast.literal("-") {
             return MonoidElem::<M>::from_literal(&text).map(Self::Const);
         }
         match ast {
             Ast::Ident(name) => Ok(Self::Symbol(Symbol::new(name))),
             Ast::Group(inner) => Self::from_ast(*inner),
-            Ast::Binary(op, ..) if operation(op).is_some() => ast
+            Ast::Infix(..) => ast
                 .operands(operation)
                 .into_iter()
                 .map(|(_, operand)| Self::from_ast(operand))
                 .collect::<Result<_, _>>()
                 .map(Self::Op),
-            Ast::Binary(op, ..) => Err(ParseError::new(format!(
+            Ast::Prefix(op, _) | Ast::Postfix(op, _) => Err(ParseError::new(format!(
                 "monoid expressions have no `{op}` operator"
-            ))),
-            Ast::Unary(op, _) => Err(ParseError::new(format!(
-                "monoid expressions have no prefix `{op}`"
             ))),
             Ast::Call(name, _) => Err(ParseError::new(format!("unknown function `{name}`"))),
             Ast::Number(_) => unreachable!("literals are handled above"),
@@ -38,8 +44,8 @@ where
     }
 }
 
-fn operation(op: BinaryOp) -> Option<bool> {
-    matches!(op, BinaryOp::Add | BinaryOp::Mul).then_some(false)
+fn operation(op: &str) -> Option<bool> {
+    matches!(op, "+" | "*").then_some(false)
 }
 
 impl<M> FromStr for MonoidExpr<M>
@@ -88,15 +94,15 @@ mod tests {
     fn rejects_what_a_monoid_cannot_express() {
         assert_eq!(
             "x - 1".parse::<Expr>().unwrap_err(),
-            ParseError::new("monoid expressions have no `-` operator")
+            ParseError::at(2, "unexpected `-`")
         );
         assert_eq!(
             "x ^ 2".parse::<Expr>().unwrap_err(),
-            ParseError::new("monoid expressions have no `^` operator")
+            ParseError::at(2, "unexpected `^`")
         );
         assert_eq!(
             "-x".parse::<Expr>().unwrap_err(),
-            ParseError::new("monoid expressions have no prefix `-`")
+            ParseError::new("monoid expressions have no `-` operator")
         );
         assert_eq!(
             "inv(x)".parse::<Expr>().unwrap_err(),
