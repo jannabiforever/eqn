@@ -131,7 +131,7 @@ impl<F: Field> ElementaryExpr<F> {
     }
 
     /// Expands the tree into its term list: linearity, `Mul` cartesian product,
-    /// integer powers, elementary-function constant folding and `exp∘log`
+    /// integer powers, elementary-function constant folding and `exp \circ log`
     /// cancellation, and `D` via [`Self::derivative`]. The result is not yet
     /// sorted or merged; that is [`Term::canonical`]'s job.
     fn terms(self) -> Vec<Term<F>> {
@@ -214,7 +214,8 @@ impl<F: Field> ElementaryExpr<F> {
 
     /// `kind(self)` as a term list: folds the four boundary values
     /// (`exp 0 = 1`, `log 1 = 0`, `sin 0 = 0`, `cos 0 = 1`) and cancels
-    /// `exp∘log` and `log∘exp`; otherwise stays one opaque [`Atom::Fn`] factor.
+    /// `exp \circ log` and `log \circ exp`; otherwise stays one opaque
+    /// [`Atom::Fn`] factor.
     fn fn_terms(self, kind: Elementary) -> Vec<Term<F>> {
         use Elementary::{Cos, Exp, Log, Sin};
 
@@ -402,8 +403,8 @@ impl<F: Field> Term<F> {
 /// Canonicalizes [`ElementaryExpr`]s: linearity, integer powers (including
 /// negative, i.e. division), elementary-function folding, and symbolic
 /// differentiation (`D` never survives). The canonical form is a sum of
-/// terms `coeff · Π atomᵢ^eᵢ`, factors and terms sorted structurally with
-/// like ones collected.
+/// terms `coeff \cdot \prod atom_i^e_i`, factors and terms sorted structurally
+/// with like ones collected.
 #[derive_where::derive_where(Default)]
 pub struct ElementaryRewriter<F: Field> {
     _marker: std::marker::PhantomData<F>,

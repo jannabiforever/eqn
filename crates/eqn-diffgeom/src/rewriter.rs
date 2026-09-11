@@ -7,7 +7,7 @@ use crate::{Chart, DifferentialForm, Manifold, ZeroForm};
 // Normalization engine
 // ================================================================================
 
-/// `coeff · dx_{i_1} ∧ ... ∧ dx_{i_n}`
+/// `coeff \cdot dx_{i_1} \wedge ... \wedge dx_{i_n}`
 #[derive_where::derive_where(Clone)]
 struct Term<M: Manifold> {
     coeff: ZeroForm<M>,
@@ -46,7 +46,7 @@ impl<M: Manifold> Term<M> {
     }
 
     /// Sorts `atoms` with the permutation parity, dropping the term if two
-    /// atoms are equal (`dx ∧ dx = 0`).
+    /// atoms are equal (`dx \wedge dx = 0`).
     fn canonical(mut self) -> Option<Self> {
         let mut odd = false;
         for i in 1..self.atoms.len() {
@@ -88,8 +88,8 @@ impl<M: Manifold> Term<M> {
 
 impl<M: Manifold> Term<M> {
     /// Graded commutativity: sorts each term's wedge factors with the
-    /// permutation sign (`dx ∧ dx = 0` drops the term), then sorts terms by
-    /// their atoms and merges equal ones into a single coefficient.
+    /// permutation sign (`dx \wedge dx = 0` drops the term), then sorts terms
+    /// by their atoms and merges equal ones into a single coefficient.
     fn canonicalize(ts: Vec<Self>) -> Vec<Self> {
         let mut ts: Vec<Self> = ts.into_iter().filter_map(Self::canonical).collect();
         ts.sort_by(|a, b| a.atoms.cmp(&b.atoms));
@@ -129,10 +129,11 @@ impl<M: Manifold> DifferentialForm<M> {
         }
     }
 
-    /// Expands the tree into its term list by linearity, distributing `∧` over
-    /// `+` and real differentiation of each coefficient in the given chart;
-    /// terms of degree above `M::DIM` vanish. The canonical form is a flat term
-    /// list, so the tree is consumed rather than edited in place.
+    /// Expands the tree into its term list by linearity, distributing `\wedge`
+    /// over `+` and real differentiation of each coefficient in the given
+    /// chart; terms of degree above `M::DIM` vanish. The canonical form is
+    /// a flat term list, so the tree is consumed rather than edited in
+    /// place.
     fn take_terms(&mut self, chart: &Chart<M>) -> Vec<Term<M>> {
         let taken = std::mem::replace(self, DifferentialForm::Add(Vec::new()));
         taken
@@ -143,9 +144,9 @@ impl<M: Manifold> DifferentialForm<M> {
     }
 
     /// Rebuilds a form from its terms: normalizes each coefficient into the
-    /// algebra's canonical form (this is where `d² = 0` / `dc = 0` fall out, as
-    /// `derive` already produced a real zero for them), then drops terms whose
-    /// coefficient normalizes to zero.
+    /// algebra's canonical form (this is where `d^2 = 0` / `dc = 0` fall out,
+    /// as `derive` already produced a real zero for them), then drops terms
+    /// whose coefficient normalizes to zero.
     fn from_terms<N: Rewriter<Expr = ZeroForm<M>>>(
         mut ts: Vec<Term<M>>,
         chart: &Chart<M>,
@@ -184,8 +185,8 @@ impl<M: Manifold> DifferentialForm<M> {
 // ================================================================================
 
 /// Normalizes by the exterior-algebra laws that need no ordering: linearity,
-/// `∧` distributing over `+`, Leibniz via real differentiation of
-/// coefficients (`d² = 0` and `dc = 0` come from the algebra's `derive`),
+/// `\wedge` distributing over `+`, Leibniz via real differentiation of
+/// coefficients (`d^2 = 0` and `dc = 0` come from the algebra's `derive`),
 /// and vanishing above degree `M::DIM` -- the exterior derivative in
 /// `chart`, with 0-forms canonicalized by `functions`. Wedge factors keep
 /// their written order.
@@ -209,7 +210,7 @@ impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for ExteriorRewriter
 }
 
 /// [`ExteriorRewriter`] plus graded commutativity: wedge factors sort into
-/// a canonical order with the permutation sign, `dx ∧ dx = 0`, and like
+/// a canonical order with the permutation sign, `dx \wedge dx = 0`, and like
 /// terms collect into one coefficient -- the exterior derivative in
 /// `chart`, with 0-forms canonicalized by `functions`.
 pub struct GradedCommutativeRewriter<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> {
@@ -341,7 +342,7 @@ mod tests {
 
     #[test]
     fn d_of_x_squared_y_over_int_plane() {
-        // d(x^2 · y) = 2xy dx + x^2 dy
+        // d(x^2 \cdot y) = 2xy dx + x^2 dy
         let f = GradedCommutativeRewriter::new(
             ixy(),
             CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new(),
@@ -358,7 +359,7 @@ mod tests {
 
     #[test]
     fn d_squared_vanishes_over_int_plane() {
-        // d(d(x^2 · y)) = 0
+        // d(d(x^2 \cdot y)) = 0
         let f = GradedCommutativeRewriter::new(
             ixy(),
             CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new(),
@@ -372,7 +373,7 @@ mod tests {
 
     #[test]
     fn d_of_wedged_product_over_int_plane() {
-        // d(x·y ∧ dx) = -x dx∧dy
+        // d(x \cdot y \wedge dx) = -x dx \wedge dy
         let f = GradedCommutativeRewriter::new(
             ixy(),
             CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new(),
@@ -408,7 +409,7 @@ mod tests {
             f.rewrited_expr(wedge(vec![dy(), dx()])),
             wedge(vec![dy(), dx()])
         );
-        // 2 ∧ (x + dy) ∧ dx = 2x ∧ dx + 2 dy ∧ dx
+        // 2 \wedge (x + dy) \wedge dx = 2x \wedge dx + 2 dy \wedge dx
         let e = wedge(vec![
             sc(c(2)),
             DifferentialForm::Add(vec![sc(x()), dy()]),
@@ -426,14 +427,15 @@ mod tests {
     #[test]
     fn graded_commutative_sorts_with_sign() {
         let f = GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
-        // dy ∧ dx = -(dx ∧ dy)
+        // dy \wedge dx = -(dx \wedge dy)
         assert_eq!(
             f.rewrited_expr(wedge(vec![dy(), dx()])),
             wedge(vec![sc(c(-1)), dx(), dy()])
         );
-        // dx ∧ dx = 0
+        // dx \wedge dx = 0
         assert_eq!(f.rewrited_expr(wedge(vec![dx(), dx()])), sc(c(0)));
-        // dx ∧ dy + dy ∧ dx = 0 ; dx ∧ dy + dx ∧ dy = 2 dx ∧ dy
+        // dx \wedge dy + dy \wedge dx = 0 ; dx \wedge dy + dx \wedge dy = 2 dx
+        // \wedge dy
         let a = wedge(vec![dx(), dy()]);
         let b = wedge(vec![dy(), dx()]);
         assert_eq!(
@@ -582,7 +584,7 @@ mod tests {
 
     #[test]
     fn d_of_wedged_product_form() {
-        // d(xy ∧ dx) = -x dx∧dy
+        // d(xy \wedge dx) = -x dx \wedge dy
         let f = GradedCommutativeRewriter::new(xy(), ElementaryRewriter::<(Q, QAdd, QMul)>::new());
         let xy_dx = wedge(vec![sc(ElementaryExpr::Mul(vec![x(), y()])), dx()]);
         assert_eq!(
@@ -667,7 +669,7 @@ mod tests {
             DifferentialForm::Add(vec![wedge(vec![sc(x()), dy()]), wedge(vec![sc(y()), dx()])])
         );
 
-        // dx ∧ dy = -(dy ∧ dx): position 1 sorts after position 0.
+        // dx \wedge dy = -(dy \wedge dx): position 1 sorts after position 0.
         assert_eq!(
             f.rewrited_expr(wedge(vec![dx(), dy()])),
             wedge(vec![sc(c(-1)), dy(), dx()])

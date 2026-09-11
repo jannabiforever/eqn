@@ -174,7 +174,7 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
         Self::from_polynomial(scaled % &modulus)
     }
 
-    /// The element `value · 1`.
+    /// The element `value \cdot 1`.
     fn from_constant(value: PrimeFieldElement<P>) -> Self {
         let mut coefficients = [PrimeFieldElement::ZERO; N];
         assert!(N > 0, "a field extension must have positive degree");

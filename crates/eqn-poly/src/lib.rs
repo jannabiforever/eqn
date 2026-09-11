@@ -72,7 +72,7 @@ impl<R: CommutativeRing> Module for PolynomialRing<R> {
 // PolynomialRing is a DifferentialRing over its own symbols
 // ================================================================================
 
-/// The free commutative `R`-algebra on its symbols, with `∂/∂s`.
+/// The free commutative `R`-algebra on its symbols, with `\partial/\partial s`.
 impl<R: CommutativeRing> DifferentialRing for PolynomialRing<R> {
     type Index = Symbol<R::Domain>;
 
