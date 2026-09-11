@@ -150,10 +150,10 @@ impl<F: Field> DifferentialRing for ElementaryFunctionRing<F> {
     type Index = Symbol<F::Domain>;
 
     /// The eager form of [`ElementaryExpr::D`]: both funnel through
-    /// [`rewriter::derivative`], the same symbolic differentiation the
+    /// [`ElementaryExpr::derivative`], the same symbolic differentiation the
     /// rewriter uses to eliminate `D` nodes.
     fn derive(a: RingElem<Self>, i: &Self::Index) -> RingElem<Self> {
-        rewriter::derivative(a, i)
+        a.derivative(i)
     }
 }
 

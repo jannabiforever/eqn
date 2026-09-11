@@ -1,373 +1,378 @@
 use super::{AbelianGroup, Group, GroupExpr};
-use crate::flatten;
+use crate::Flatten;
 use crate::rewriter::Rewriter;
 use crate::set::Set;
 
-fn cmp_structural<G: Group>(lhs: &GroupExpr<G>, rhs: &GroupExpr<G>) -> std::cmp::Ordering {
-    const fn rank<G: Group>(expr: &GroupExpr<G>) -> u8 {
-        match expr {
-            GroupExpr::Const(_) => 0,
-            GroupExpr::Symbol(_) => 1,
-            GroupExpr::Inv(_) => 2,
-            GroupExpr::Pow { .. } => 3,
-            GroupExpr::Op(_) => 4,
-        }
-    }
-
-    match (lhs, rhs) {
-        (GroupExpr::Const(_), GroupExpr::Const(_)) => std::cmp::Ordering::Equal,
-        (GroupExpr::Symbol(lhs), GroupExpr::Symbol(rhs)) => lhs.cmp(rhs),
-        (GroupExpr::Inv(lhs), GroupExpr::Inv(rhs)) => cmp_structural(lhs, rhs),
-        (
-            GroupExpr::Pow {
-                base: lhs,
-                exponent: lhs_exponent,
-            },
-            GroupExpr::Pow {
-                base: rhs,
-                exponent: rhs_exponent,
-            },
-        ) => cmp_structural(lhs, rhs).then(lhs_exponent.cmp(rhs_exponent)),
-        (GroupExpr::Op(lhs), GroupExpr::Op(rhs)) => lhs
-            .iter()
-            .zip(rhs)
-            .map(|(lhs, rhs)| cmp_structural(lhs, rhs))
-            .find(|ordering| ordering.is_ne())
-            .unwrap_or(lhs.len().cmp(&rhs.len())),
-        (lhs, rhs) => rank(lhs).cmp(&rank(rhs)),
-    }
-}
-
-fn split_power<G: Group>(expr: GroupExpr<G>) -> (GroupExpr<G>, isize) {
-    match expr {
-        GroupExpr::Inv(base) => (*base, -1),
-        GroupExpr::Pow { base, exponent } => (*base, exponent),
-        base => (base, 1),
-    }
-}
-
-fn power<G: Group>(base: GroupExpr<G>, exponent: isize) -> GroupExpr<G> {
-    match exponent {
-        0 => GroupExpr::Const(G::IDENTITY),
-        1 => base,
-        -1 => GroupExpr::Inv(Box::new(base)),
-        exponent => GroupExpr::Pow {
-            base: Box::new(base),
-            exponent,
-        },
-    }
-}
-
-fn pow_constant<G: Group>(mut base: <G::Domain as Set>::Element, exponent: isize) -> GroupExpr<G> {
-    if exponent.is_negative() {
-        base = G::inverse(base);
-    }
-
-    let mut exponent = exponent.unsigned_abs();
-    let mut value = G::IDENTITY;
-    while exponent != 0 {
-        if exponent % 2 == 1 {
-            value = G::apply(value, base.clone());
-        }
-        exponent /= 2;
-        if exponent != 0 {
-            base = G::apply(base.clone(), base);
-        }
-    }
-    GroupExpr::Const(value)
-}
-
-fn finish<G: Group>(mut exprs: Vec<GroupExpr<G>>) -> GroupExpr<G> {
-    match exprs.len() {
-        0 => GroupExpr::Const(G::IDENTITY),
-        1 => exprs.pop().unwrap(),
-        _ => GroupExpr::Op(exprs),
-    }
-}
-
-/// Moves the expression out, leaving an allocation-free placeholder behind.
-fn take<G: Group>(expr: &mut GroupExpr<G>) -> GroupExpr<G> {
-    std::mem::replace(expr, GroupExpr::Op(Vec::new()))
-}
-
-fn split_op<G: Group>(expr: GroupExpr<G>) -> Result<Vec<GroupExpr<G>>, GroupExpr<G>> {
-    match expr {
-        GroupExpr::Op(inner) => Ok(inner),
-        e => Err(e),
-    }
-}
-
-/// `expr` is `Inv(inner)` with `inner` normalized. Applies the inverse rules
-/// and returns whether the result needs another normalization pass.
-fn reduce_inv<G: Group>(expr: &mut GroupExpr<G>) -> bool {
-    let GroupExpr::Inv(inner) = expr else {
-        unreachable!()
-    };
-    match take(inner) {
-        GroupExpr::Const(value) => {
-            *expr = GroupExpr::Const(G::inverse(value));
-            false
-        }
-        GroupExpr::Inv(e) => {
-            *expr = *e;
-            false
-        }
-        GroupExpr::Pow { base, exponent } => match exponent.checked_neg() {
-            Some(exponent) => {
-                *expr = GroupExpr::Pow { base, exponent };
-                true
+impl<G: Group> GroupExpr<G> {
+    fn cmp_structural(&self, rhs: &Self) -> std::cmp::Ordering {
+        const fn rank<G: Group>(expr: &GroupExpr<G>) -> u8 {
+            match expr {
+                GroupExpr::Const(_) => 0,
+                GroupExpr::Symbol(_) => 1,
+                GroupExpr::Inv(_) => 2,
+                GroupExpr::Pow { .. } => 3,
+                GroupExpr::Op(_) => 4,
             }
-            None => {
-                **inner = GroupExpr::Pow { base, exponent };
+        }
+
+        match (self, rhs) {
+            (GroupExpr::Const(_), GroupExpr::Const(_)) => std::cmp::Ordering::Equal,
+            (GroupExpr::Symbol(lhs), GroupExpr::Symbol(rhs)) => lhs.cmp(rhs),
+            (GroupExpr::Inv(lhs), GroupExpr::Inv(rhs)) => lhs.cmp_structural(rhs),
+            (
+                GroupExpr::Pow {
+                    base: lhs,
+                    exponent: lhs_exponent,
+                },
+                GroupExpr::Pow {
+                    base: rhs,
+                    exponent: rhs_exponent,
+                },
+            ) => lhs.cmp_structural(rhs).then(lhs_exponent.cmp(rhs_exponent)),
+            (GroupExpr::Op(lhs), GroupExpr::Op(rhs)) => lhs
+                .iter()
+                .zip(rhs)
+                .map(|(lhs, rhs)| lhs.cmp_structural(rhs))
+                .find(|ordering| ordering.is_ne())
+                .unwrap_or(lhs.len().cmp(&rhs.len())),
+            (lhs, rhs) => rank(lhs).cmp(&rank(rhs)),
+        }
+    }
+
+    fn split_power(self) -> (Self, isize) {
+        match self {
+            GroupExpr::Inv(base) => (*base, -1),
+            GroupExpr::Pow { base, exponent } => (*base, exponent),
+            base => (base, 1),
+        }
+    }
+
+    fn power(self, exponent: isize) -> Self {
+        match exponent {
+            0 => GroupExpr::Const(G::IDENTITY),
+            1 => self,
+            -1 => GroupExpr::Inv(Box::new(self)),
+            exponent => GroupExpr::Pow {
+                base: Box::new(self),
+                exponent,
+            },
+        }
+    }
+
+    fn pow_constant(mut base: <G::Domain as Set>::Element, exponent: isize) -> Self {
+        if exponent.is_negative() {
+            base = G::inverse(base);
+        }
+
+        let mut exponent = exponent.unsigned_abs();
+        let mut value = G::IDENTITY;
+        while exponent != 0 {
+            if exponent % 2 == 1 {
+                value = G::apply(value, base.clone());
+            }
+            exponent /= 2;
+            if exponent != 0 {
+                base = G::apply(base.clone(), base);
+            }
+        }
+        GroupExpr::Const(value)
+    }
+
+    fn finish(mut exprs: Vec<Self>) -> Self {
+        match exprs.len() {
+            0 => GroupExpr::Const(G::IDENTITY),
+            1 => exprs.pop().unwrap(),
+            _ => GroupExpr::Op(exprs),
+        }
+    }
+
+    /// Moves the expression out, leaving an allocation-free placeholder behind.
+    fn take(&mut self) -> Self {
+        std::mem::replace(self, GroupExpr::Op(Vec::new()))
+    }
+
+    fn split_op(self) -> Result<Vec<Self>, Self> {
+        match self {
+            GroupExpr::Op(inner) => Ok(inner),
+            e => Err(e),
+        }
+    }
+
+    /// `self` is `Inv(inner)` with `inner` normalized. Applies the inverse
+    /// rules and returns whether the result needs another normalization
+    /// pass.
+    fn reduce_inv(&mut self) -> bool {
+        let GroupExpr::Inv(inner) = self else {
+            unreachable!()
+        };
+        match inner.take() {
+            GroupExpr::Const(value) => {
+                *self = GroupExpr::Const(G::inverse(value));
                 false
             }
-        },
-        // (a * b)^-1 = b^-1 * a^-1
-        GroupExpr::Op(exprs) => {
-            *expr = GroupExpr::Op(
-                exprs
-                    .into_iter()
-                    .rev()
-                    .map(|e| GroupExpr::Inv(Box::new(e)))
-                    .collect(),
-            );
-            true
-        }
-        e => {
-            **inner = e;
-            false
-        }
-    }
-}
-
-/// `expr` is `Pow { base, .. }` with `base` normalized. Applies the power rules
-/// shared by every group and returns whether the result needs another
-/// normalization pass.
-fn reduce_pow<G: Group>(expr: &mut GroupExpr<G>) -> bool {
-    let GroupExpr::Pow { base, exponent } = expr else {
-        unreachable!()
-    };
-    let exponent = *exponent;
-    if exponent == 0 {
-        *expr = GroupExpr::Const(G::IDENTITY);
-        return false;
-    }
-
-    match (take(base), exponent) {
-        (GroupExpr::Const(base), exponent) => {
-            *expr = pow_constant::<G>(base, exponent);
-            false
-        }
-        (base, 1) => {
-            *expr = base;
-            false
-        }
-        (base, -1) => {
-            *expr = GroupExpr::Inv(Box::new(base));
-            true
-        }
-        (
-            GroupExpr::Pow {
-                base: inner_base,
-                exponent: inner,
+            GroupExpr::Inv(e) => {
+                *self = *e;
+                false
+            }
+            GroupExpr::Pow { base, exponent } => match exponent.checked_neg() {
+                Some(exponent) => {
+                    *self = GroupExpr::Pow { base, exponent };
+                    true
+                }
+                None => {
+                    **inner = GroupExpr::Pow { base, exponent };
+                    false
+                }
             },
-            outer,
-        ) => match inner.checked_mul(outer) {
-            Some(exponent) => {
-                *expr = GroupExpr::Pow {
-                    base: inner_base,
-                    exponent,
-                };
+            // (a * b)^-1 = b^-1 * a^-1
+            GroupExpr::Op(exprs) => {
+                *self = GroupExpr::Op(
+                    exprs
+                        .into_iter()
+                        .rev()
+                        .map(|e| GroupExpr::Inv(Box::new(e)))
+                        .collect(),
+                );
                 true
             }
-            None => {
-                **base = GroupExpr::Pow {
+            e => {
+                **inner = e;
+                false
+            }
+        }
+    }
+
+    /// `self` is `Pow { base, .. }` with `base` normalized. Applies the power
+    /// rules shared by every group and returns whether the result needs
+    /// another normalization pass.
+    fn reduce_pow(&mut self) -> bool {
+        let GroupExpr::Pow { base, exponent } = self else {
+            unreachable!()
+        };
+        let exponent = *exponent;
+        if exponent == 0 {
+            *self = GroupExpr::Const(G::IDENTITY);
+            return false;
+        }
+
+        match (base.take(), exponent) {
+            (GroupExpr::Const(base), exponent) => {
+                *self = Self::pow_constant(base, exponent);
+                false
+            }
+            (base, 1) => {
+                *self = base;
+                false
+            }
+            (base, -1) => {
+                *self = GroupExpr::Inv(Box::new(base));
+                true
+            }
+            (
+                GroupExpr::Pow {
                     base: inner_base,
                     exponent: inner,
-                };
+                },
+                outer,
+            ) => match inner.checked_mul(outer) {
+                Some(exponent) => {
+                    *self = GroupExpr::Pow {
+                        base: inner_base,
+                        exponent,
+                    };
+                    true
+                }
+                None => {
+                    **base = GroupExpr::Pow {
+                        base: inner_base,
+                        exponent: inner,
+                    };
+                    false
+                }
+            },
+            (GroupExpr::Inv(inner_base), exponent) => match exponent.checked_neg() {
+                Some(exponent) => {
+                    *self = GroupExpr::Pow {
+                        base: inner_base,
+                        exponent,
+                    };
+                    true
+                }
+                None => {
+                    **base = GroupExpr::Inv(inner_base);
+                    false
+                }
+            },
+            (b, _) => {
+                **base = b;
                 false
             }
-        },
-        (GroupExpr::Inv(inner_base), exponent) => match exponent.checked_neg() {
-            Some(exponent) => {
-                *expr = GroupExpr::Pow {
-                    base: inner_base,
-                    exponent,
-                };
-                true
-            }
-            None => {
-                **base = GroupExpr::Inv(inner_base);
-                false
-            }
-        },
-        (b, _) => {
-            **base = b;
-            false
         }
     }
-}
 
-/// Abelian only: `(a * b)^n = a^n * b^n`. Returns whether it rewrote.
-fn distribute_pow<G: AbelianGroup>(expr: &mut GroupExpr<G>) -> bool {
-    let GroupExpr::Pow { base, exponent } = expr else {
-        return false;
-    };
-    if !matches!(**base, GroupExpr::Op(_)) {
-        return false;
-    }
-    let exponent = *exponent;
-    let GroupExpr::Op(factors) = take(base) else {
-        unreachable!()
-    };
-    *expr = GroupExpr::Op(
-        factors
-            .into_iter()
-            .map(|b| GroupExpr::Pow {
-                base: Box::new(b),
-                exponent,
-            })
-            .collect(),
-    );
-    true
-}
+    /// Order-preserving product of normalized factors: drops identities, folds
+    /// *adjacent* constants, cancels *adjacent* inverse pairs, and merges
+    /// *adjacent* equal bases into one power.
+    fn fold_adjacent(factors: impl Iterator<Item = Self>) -> Self {
+        let mut out = Vec::new();
 
-/// Order-preserving product of normalized factors: drops identities, folds
-/// *adjacent* constants, cancels *adjacent* inverse pairs, and merges
-/// *adjacent* equal bases into one power.
-fn fold_adjacent<G: Group>(factors: impl Iterator<Item = GroupExpr<G>>) -> GroupExpr<G> {
-    let mut out = Vec::new();
-
-    for e in factors {
-        if e == GroupExpr::Const(G::IDENTITY) {
-            continue;
-        }
-        match (out.pop(), e) {
-            (Some(GroupExpr::Const(lhs)), GroupExpr::Const(rhs)) => {
-                let value = G::apply(lhs, rhs);
-                if value != G::IDENTITY {
-                    out.push(GroupExpr::Const(value));
-                }
+        for e in factors {
+            if e == GroupExpr::Const(G::IDENTITY) {
+                continue;
             }
-            (Some(lhs), rhs) => {
-                let inverse_pair = matches!(
-                    (&lhs, &rhs),
-                    (GroupExpr::Inv(lhs), rhs) | (rhs, GroupExpr::Inv(lhs))
-                        if lhs.as_ref() == rhs
-                );
-                if inverse_pair {
-                    continue;
-                }
-
-                let (lhs, lhs_exponent) = split_power(lhs);
-                let (rhs, rhs_exponent) = split_power(rhs);
-                if lhs == rhs {
-                    match lhs_exponent.checked_add(rhs_exponent) {
-                        Some(exponent) if exponent != 0 => {
-                            out.push(power(lhs, exponent));
-                        }
-                        Some(_) => {}
-                        None => {
-                            out.push(power(lhs, lhs_exponent));
-                            out.push(power(rhs, rhs_exponent));
-                        }
+            match (out.pop(), e) {
+                (Some(GroupExpr::Const(lhs)), GroupExpr::Const(rhs)) => {
+                    let value = G::apply(lhs, rhs);
+                    if value != G::IDENTITY {
+                        out.push(GroupExpr::Const(value));
                     }
-                } else {
-                    out.push(power(lhs, lhs_exponent));
-                    out.push(power(rhs, rhs_exponent));
+                }
+                (Some(lhs), rhs) => {
+                    let inverse_pair = matches!(
+                        (&lhs, &rhs),
+                        (GroupExpr::Inv(lhs), rhs) | (rhs, GroupExpr::Inv(lhs))
+                            if lhs.as_ref() == rhs
+                    );
+                    if inverse_pair {
+                        continue;
+                    }
+
+                    let (lhs, lhs_exponent) = lhs.split_power();
+                    let (rhs, rhs_exponent) = rhs.split_power();
+                    if lhs == rhs {
+                        match lhs_exponent.checked_add(rhs_exponent) {
+                            Some(exponent) if exponent != 0 => {
+                                out.push(lhs.power(exponent));
+                            }
+                            Some(_) => {}
+                            None => {
+                                out.push(lhs.power(lhs_exponent));
+                                out.push(rhs.power(rhs_exponent));
+                            }
+                        }
+                    } else {
+                        out.push(lhs.power(lhs_exponent));
+                        out.push(rhs.power(rhs_exponent));
+                    }
+                }
+                (None, e) => out.push(e),
+            }
+        }
+
+        Self::finish(out)
+    }
+
+    /// Normalizes in place using the group laws only; factor order is
+    /// preserved. Leaves are untouched, children are normalized where they
+    /// sit, and only nodes whose shape changes are replaced.
+    fn normalize(&mut self) {
+        match self {
+            GroupExpr::Const(_) | GroupExpr::Symbol(_) => {}
+            GroupExpr::Inv(inner) => {
+                inner.normalize();
+                if self.reduce_inv() {
+                    self.normalize();
                 }
             }
-            (None, e) => out.push(e),
-        }
-    }
-
-    finish(out)
-}
-
-/// Abelian product of normalized factors: folds *all* constants into one
-/// leading constant, sums exponents of equal bases wherever they appear, and
-/// sorts the bases structurally.
-fn collect_powers<G: AbelianGroup>(factors: impl Iterator<Item = GroupExpr<G>>) -> GroupExpr<G> {
-    let mut constant = G::IDENTITY;
-    let mut powers: Vec<(GroupExpr<G>, isize)> = Vec::new();
-
-    for e in factors {
-        match e {
-            GroupExpr::Const(value) => constant = G::apply(constant, value),
-            e => {
-                let (base, exponent) = split_power(e);
-                if let Some((_, current)) =
-                    powers.iter_mut().find(|(candidate, _)| *candidate == base)
-                    && let Some(exponent) = current.checked_add(exponent)
-                {
-                    *current = exponent;
-                } else {
-                    powers.push((base, exponent));
+            GroupExpr::Op(exprs) => {
+                exprs.iter_mut().for_each(Self::normalize);
+                *self = Self::fold_adjacent(std::mem::take(exprs).flatten(Self::split_op));
+            }
+            GroupExpr::Pow { base, .. } => {
+                base.normalize();
+                if self.reduce_pow() {
+                    self.normalize();
                 }
             }
         }
     }
-
-    powers.retain(|(_, exponent)| *exponent != 0);
-    powers.sort_by(|(lhs, _), (rhs, _)| cmp_structural(lhs, rhs));
-
-    let mut out = Vec::new();
-    if powers.is_empty() || constant != G::IDENTITY {
-        out.push(GroupExpr::Const(constant));
-    }
-    out.extend(
-        powers
-            .into_iter()
-            .map(|(base, exponent)| power(base, exponent)),
-    );
-    finish(out)
 }
 
-/// Normalizes in place using the group laws only; factor order is preserved.
-/// Leaves are untouched, children are normalized where they sit, and only
-/// nodes whose shape changes are replaced.
-fn normalize<G: Group>(expr: &mut GroupExpr<G>) {
-    match expr {
-        GroupExpr::Const(_) | GroupExpr::Symbol(_) => {}
-        GroupExpr::Inv(inner) => {
-            normalize(inner);
-            if reduce_inv(expr) {
-                normalize(expr);
-            }
+impl<G: AbelianGroup> GroupExpr<G> {
+    /// Abelian only: `(a * b)^n = a^n * b^n`. Returns whether it rewrote.
+    fn distribute_pow(&mut self) -> bool {
+        let GroupExpr::Pow { base, exponent } = self else {
+            return false;
+        };
+        if !matches!(**base, GroupExpr::Op(_)) {
+            return false;
         }
-        GroupExpr::Op(exprs) => {
-            exprs.iter_mut().for_each(normalize);
-            *expr = fold_adjacent(flatten(std::mem::take(exprs), split_op));
-        }
-        GroupExpr::Pow { base, .. } => {
-            normalize(base);
-            if reduce_pow(expr) {
-                normalize(expr);
-            }
-        }
+        let exponent = *exponent;
+        let GroupExpr::Op(factors) = base.take() else {
+            unreachable!()
+        };
+        *self = GroupExpr::Op(
+            factors
+                .into_iter()
+                .map(|b| GroupExpr::Pow {
+                    base: Box::new(b),
+                    exponent,
+                })
+                .collect(),
+        );
+        true
     }
-}
 
-/// [`normalize`] plus the abelian laws: factors commute, so equal bases are
-/// collected globally, constants fold into one, and powers distribute over
-/// products.
-fn normalize_abelian<G: AbelianGroup>(expr: &mut GroupExpr<G>) {
-    match expr {
-        GroupExpr::Const(_) | GroupExpr::Symbol(_) => {}
-        GroupExpr::Inv(inner) => {
-            normalize_abelian(inner);
-            if reduce_inv(expr) {
-                normalize_abelian(expr);
+    /// Abelian product of normalized factors: folds *all* constants into one
+    /// leading constant, sums exponents of equal bases wherever they appear,
+    /// and sorts the bases structurally.
+    fn collect_powers(factors: impl Iterator<Item = Self>) -> Self {
+        let mut constant = G::IDENTITY;
+        let mut powers: Vec<(Self, isize)> = Vec::new();
+
+        for e in factors {
+            match e {
+                GroupExpr::Const(value) => constant = G::apply(constant, value),
+                e => {
+                    let (base, exponent) = e.split_power();
+                    if let Some((_, current)) =
+                        powers.iter_mut().find(|(candidate, _)| *candidate == base)
+                        && let Some(exponent) = current.checked_add(exponent)
+                    {
+                        *current = exponent;
+                    } else {
+                        powers.push((base, exponent));
+                    }
+                }
             }
         }
-        GroupExpr::Op(exprs) => {
-            exprs.iter_mut().for_each(normalize_abelian);
-            *expr = collect_powers(flatten(std::mem::take(exprs), split_op));
+
+        powers.retain(|(_, exponent)| *exponent != 0);
+        powers.sort_by(|(lhs, _), (rhs, _)| lhs.cmp_structural(rhs));
+
+        let mut out = Vec::new();
+        if powers.is_empty() || constant != G::IDENTITY {
+            out.push(GroupExpr::Const(constant));
         }
-        GroupExpr::Pow { base, .. } => {
-            normalize_abelian(base);
-            if reduce_pow(expr) || distribute_pow(expr) {
-                normalize_abelian(expr);
+        out.extend(
+            powers
+                .into_iter()
+                .map(|(base, exponent)| base.power(exponent)),
+        );
+        Self::finish(out)
+    }
+
+    /// [`Self::normalize`] plus the abelian laws: factors commute, so equal
+    /// bases are collected globally, constants fold into one, and powers
+    /// distribute over products.
+    fn normalize_abelian(&mut self) {
+        match self {
+            GroupExpr::Const(_) | GroupExpr::Symbol(_) => {}
+            GroupExpr::Inv(inner) => {
+                inner.normalize_abelian();
+                if self.reduce_inv() {
+                    self.normalize_abelian();
+                }
+            }
+            GroupExpr::Op(exprs) => {
+                exprs.iter_mut().for_each(Self::normalize_abelian);
+                *self = Self::collect_powers(std::mem::take(exprs).flatten(Self::split_op));
+            }
+            GroupExpr::Pow { base, .. } => {
+                base.normalize_abelian();
+                if self.reduce_pow() || self.distribute_pow() {
+                    self.normalize_abelian();
+                }
             }
         }
     }
@@ -389,7 +394,7 @@ impl<G: Group> Rewriter for GroupRewriter<G> {
     type Expr = GroupExpr<G>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
-        normalize(expr);
+        expr.normalize();
     }
 }
 
@@ -410,7 +415,7 @@ impl<G: AbelianGroup> Rewriter for AbelianGroupRewriter<G> {
     type Expr = GroupExpr<G>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
-        normalize_abelian(expr);
+        expr.normalize_abelian();
     }
 }
 
