@@ -86,95 +86,97 @@ impl<M: Manifold> Term<M> {
     }
 }
 
-fn terms<M: Manifold>(expr: DifferentialForm<M>, chart: &Chart<M>) -> Vec<Term<M>> {
-    match expr {
-        DifferentialForm::Scalar(e) => vec![Term {
-            coeff: e,
-            atoms: vec![],
-        }],
-        DifferentialForm::Neg(x) => terms(*x, chart).into_iter().map(Term::negated).collect(),
-        DifferentialForm::Add(xs) => xs.into_iter().flat_map(|x| terms(x, chart)).collect(),
-        DifferentialForm::Wedged(xs) => xs.into_iter().fold(vec![Term::one()], |acc, x| {
-            let rhs = terms(x, chart);
-            acc.iter()
-                .flat_map(|a| rhs.iter().map(move |b| a.wedge(b)))
-                .collect()
-        }),
-        DifferentialForm::Differential(x) => terms(*x, chart)
-            .into_iter()
-            .flat_map(|t| t.differential(chart))
-            .collect(),
+impl<M: Manifold> Term<M> {
+    /// Graded commutativity: sorts each term's wedge factors with the
+    /// permutation sign (`dx ∧ dx = 0` drops the term), then sorts terms by
+    /// their atoms and merges equal ones into a single coefficient.
+    fn canonicalize(ts: Vec<Self>) -> Vec<Self> {
+        let mut ts: Vec<Self> = ts.into_iter().filter_map(Self::canonical).collect();
+        ts.sort_by(|a, b| a.atoms.cmp(&b.atoms));
+        let mut merged: Vec<Self> = vec![];
+        for t in ts {
+            match merged.last_mut() {
+                Some(last) if last.atoms == t.atoms => {
+                    last.coeff = M::Functions::add(last.coeff.clone(), t.coeff);
+                }
+                _ => merged.push(t),
+            }
+        }
+        merged
     }
 }
 
-/// Expands the tree into its term list by linearity, distributing `∧` over
-/// `+` and real differentiation of each coefficient in the given chart;
-/// terms of degree above `M::DIM` vanish. The canonical form is a flat term
-/// list, so the tree is consumed rather than edited in place.
-fn terms_of<M: Manifold>(expr: &mut DifferentialForm<M>, chart: &Chart<M>) -> Vec<Term<M>> {
-    let taken = std::mem::replace(expr, DifferentialForm::Add(Vec::new()));
-    terms(taken, chart)
-        .into_iter()
-        .filter(|t| t.atoms.len() <= M::DIM)
-        .collect()
-}
-
-/// Graded commutativity: sorts each term's wedge factors with the
-/// permutation sign (`dx ∧ dx = 0` drops the term), then sorts terms by
-/// their atoms and merges equal ones into a single coefficient.
-fn canonicalize<M: Manifold>(ts: Vec<Term<M>>) -> Vec<Term<M>> {
-    let mut ts: Vec<Term<M>> = ts.into_iter().filter_map(Term::canonical).collect();
-    ts.sort_by(|a, b| a.atoms.cmp(&b.atoms));
-    let mut merged: Vec<Term<M>> = vec![];
-    for t in ts {
-        match merged.last_mut() {
-            Some(last) if last.atoms == t.atoms => {
-                last.coeff = M::Functions::add(last.coeff.clone(), t.coeff);
-            }
-            _ => merged.push(t),
+impl<M: Manifold> DifferentialForm<M> {
+    fn terms(self, chart: &Chart<M>) -> Vec<Term<M>> {
+        match self {
+            DifferentialForm::Scalar(e) => vec![Term {
+                coeff: e,
+                atoms: vec![],
+            }],
+            DifferentialForm::Neg(x) => x.terms(chart).into_iter().map(Term::negated).collect(),
+            DifferentialForm::Add(xs) => xs.into_iter().flat_map(|x| x.terms(chart)).collect(),
+            DifferentialForm::Wedged(xs) => xs.into_iter().fold(vec![Term::one()], |acc, x| {
+                let rhs = x.terms(chart);
+                acc.iter()
+                    .flat_map(|a| rhs.iter().map(move |b| a.wedge(b)))
+                    .collect()
+            }),
+            DifferentialForm::Differential(x) => x
+                .terms(chart)
+                .into_iter()
+                .flat_map(|t| t.differential(chart))
+                .collect(),
         }
     }
-    merged
-}
 
-/// Rebuilds a form from its terms: normalizes each coefficient into the
-/// algebra's canonical form (this is where `d² = 0` / `dc = 0` fall out, as
-/// `derive` already produced a real zero for them), then drops terms whose
-/// coefficient normalizes to zero.
-fn build_sum<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>>(
-    mut ts: Vec<Term<M>>,
-    chart: &Chart<M>,
-    functions: &N,
-) -> DifferentialForm<M> {
-    for t in &mut ts {
-        functions.rewrite_expr(&mut t.coeff);
+    /// Expands the tree into its term list by linearity, distributing `∧` over
+    /// `+` and real differentiation of each coefficient in the given chart;
+    /// terms of degree above `M::DIM` vanish. The canonical form is a flat term
+    /// list, so the tree is consumed rather than edited in place.
+    fn take_terms(&mut self, chart: &Chart<M>) -> Vec<Term<M>> {
+        let taken = std::mem::replace(self, DifferentialForm::Add(Vec::new()));
+        taken
+            .terms(chart)
+            .into_iter()
+            .filter(|t| t.atoms.len() <= M::DIM)
+            .collect()
     }
-    ts.retain(|t| t.coeff != M::Functions::ZERO);
-    match ts.len() {
-        0 => DifferentialForm::Scalar(M::Functions::ZERO),
-        1 => ts.pop().unwrap().into_form(chart),
-        _ => DifferentialForm::Add(ts.into_iter().map(|t| t.into_form(chart)).collect()),
+
+    /// Rebuilds a form from its terms: normalizes each coefficient into the
+    /// algebra's canonical form (this is where `d² = 0` / `dc = 0` fall out, as
+    /// `derive` already produced a real zero for them), then drops terms whose
+    /// coefficient normalizes to zero.
+    fn from_terms<N: Rewriter<Expr = ZeroForm<M>>>(
+        mut ts: Vec<Term<M>>,
+        chart: &Chart<M>,
+        functions: &N,
+    ) -> Self {
+        for t in &mut ts {
+            functions.rewrite_expr(&mut t.coeff);
+        }
+        ts.retain(|t| t.coeff != M::Functions::ZERO);
+        match ts.len() {
+            0 => DifferentialForm::Scalar(M::Functions::ZERO),
+            1 => ts.pop().unwrap().into_form(chart),
+            _ => DifferentialForm::Add(ts.into_iter().map(|t| t.into_form(chart)).collect()),
+        }
     }
-}
 
-/// Normalizes by the exterior-algebra laws that need no ordering; wedge
-/// factors keep their written order.
-fn normalize<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>>(
-    expr: &mut DifferentialForm<M>,
-    chart: &Chart<M>,
-    functions: &N,
-) {
-    *expr = build_sum(terms_of(expr, chart), chart, functions);
-}
+    /// Normalizes by the exterior-algebra laws that need no ordering; wedge
+    /// factors keep their written order.
+    fn normalize<N: Rewriter<Expr = ZeroForm<M>>>(&mut self, chart: &Chart<M>, functions: &N) {
+        *self = Self::from_terms(self.take_terms(chart), chart, functions);
+    }
 
-/// [`normalize`] plus graded commutativity: wedge factors sort into a
-/// canonical order and like terms collect.
-fn normalize_graded<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>>(
-    expr: &mut DifferentialForm<M>,
-    chart: &Chart<M>,
-    functions: &N,
-) {
-    *expr = build_sum(canonicalize(terms_of(expr, chart)), chart, functions);
+    /// [`Self::normalize`] plus graded commutativity: wedge factors sort into
+    /// a canonical order and like terms collect.
+    fn normalize_graded<N: Rewriter<Expr = ZeroForm<M>>>(
+        &mut self,
+        chart: &Chart<M>,
+        functions: &N,
+    ) {
+        *self = Self::from_terms(Term::canonicalize(self.take_terms(chart)), chart, functions);
+    }
 }
 
 // ================================================================================
@@ -202,7 +204,7 @@ impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for ExteriorRewriter
     type Expr = DifferentialForm<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
-        normalize(expr, &self.chart, &self.functions);
+        expr.normalize(&self.chart, &self.functions);
     }
 }
 
@@ -225,7 +227,7 @@ impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for GradedCommutativ
     type Expr = DifferentialForm<M>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
-        normalize_graded(expr, &self.chart, &self.functions);
+        expr.normalize_graded(&self.chart, &self.functions);
     }
 }
 

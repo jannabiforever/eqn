@@ -80,315 +80,319 @@ impl<F: Field> Term<F> {
     }
 }
 
-/// Structural order used for canonical sorting. Never compares domain
-/// elements: constants tie (at most one constant survives folding within a
-/// term, so the tie is harmless), which keeps `Ord` off the domain.
-fn cmp_structural<F: Field>(a: &ElementaryExpr<F>, b: &ElementaryExpr<F>) -> std::cmp::Ordering {
-    use std::cmp::Ordering;
+impl<F: Field> ElementaryExpr<F> {
+    /// Structural order used for canonical sorting. Never compares domain
+    /// elements: constants tie (at most one constant survives folding within a
+    /// term, so the tie is harmless), which keeps `Ord` off the domain.
+    fn cmp_structural(&self, b: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
 
-    use ElementaryExpr::*;
+        use ElementaryExpr::*;
 
-    const fn rank<F: Field>(e: &ElementaryExpr<F>) -> u8 {
-        match e {
-            Const(_) => 0,
-            Symbol(_) => 1,
-            Pow { .. } => 2,
-            Fn(_, _) => 3,
-            Mul(_) => 4,
-            Add(_) => 5,
-            Neg(_) => 6,
-            D { .. } => 7,
-        }
-    }
-
-    match (a, b) {
-        (Const(_), Const(_)) => Ordering::Equal,
-        (Symbol(s), Symbol(o)) => s.cmp(o),
-        (
-            Pow {
-                base: sb,
-                exponent: se,
-            },
-            Pow {
-                base: ob,
-                exponent: oe,
-            },
-        ) => cmp_structural(sb, ob).then(se.cmp(oe)),
-        (Fn(sk, sa), Fn(ok, oa)) => sk.cmp(ok).then_with(|| cmp_structural(sa, oa)),
-        (Mul(s), Mul(o)) | (Add(s), Add(o)) => s
-            .iter()
-            .zip(o)
-            .map(|(i, j)| cmp_structural(i, j))
-            .find(|c| *c != Ordering::Equal)
-            .unwrap_or(s.len().cmp(&o.len())),
-        (Neg(s), Neg(o)) => cmp_structural(s, o),
-        (D { wrt: sw, inner: si }, D { wrt: ow, inner: oi }) => {
-            sw.cmp(ow).then_with(|| cmp_structural(si, oi))
-        }
-        (a, b) => rank(a).cmp(&rank(b)),
-    }
-}
-
-/// Structural order over atoms: symbols by name, functions by kind then
-/// argument, sums structurally. Ties (e.g. two `Sum`s whose constants
-/// happen to be at the same structural position) are broken by insertion
-/// order in [`canonical`]; merging uses `==`, never this comparator.
-fn cmp_atom<F: Field>(a: &Atom<F>, b: &Atom<F>) -> std::cmp::Ordering {
-    const fn rank<F: Field>(a: &Atom<F>) -> u8 {
-        match a {
-            Atom::Symbol(_) => 0,
-            Atom::Fn(_, _) => 1,
-            Atom::Sum(_) => 2,
-        }
-    }
-
-    match (a, b) {
-        (Atom::Symbol(s), Atom::Symbol(o)) => s.cmp(o),
-        (Atom::Fn(sk, sa), Atom::Fn(ok, oa)) => sk.cmp(ok).then_with(|| cmp_structural(sa, oa)),
-        (Atom::Sum(s), Atom::Sum(o)) => cmp_structural(s, o),
-        (a, b) => rank(a).cmp(&rank(b)),
-    }
-}
-
-/// Lexicographic order over a term's factor list: `cmp_atom` on each atom,
-/// then the exponent, then length.
-fn cmp_term<F: Field>(a: &Term<F>, b: &Term<F>) -> std::cmp::Ordering {
-    use std::cmp::Ordering;
-
-    a.factors
-        .iter()
-        .zip(&b.factors)
-        .map(|((aa, ae), (ba, be))| cmp_atom(aa, ba).then(ae.cmp(be)))
-        .find(|c| *c != Ordering::Equal)
-        .unwrap_or(a.factors.len().cmp(&b.factors.len()))
-}
-
-/// Expands the tree into its term list: linearity, `Mul` cartesian product,
-/// integer powers, elementary-function constant folding and `exp∘log`
-/// cancellation, and `D` via [`derivative`]. The result is not yet sorted or
-/// merged; that is [`canonical`]'s job.
-fn terms<F: Field>(expr: ElementaryExpr<F>) -> Vec<Term<F>> {
-    match expr {
-        ElementaryExpr::Const(c) => vec![Term {
-            coeff: c,
-            factors: vec![],
-        }],
-        ElementaryExpr::Symbol(s) => vec![Term {
-            coeff: F::ONE,
-            factors: vec![(Atom::Symbol(s), 1)],
-        }],
-        ElementaryExpr::Neg(x) => terms(*x).into_iter().map(Term::negated).collect(),
-        ElementaryExpr::Add(xs) => xs.into_iter().flat_map(terms).collect(),
-        ElementaryExpr::Mul(xs) => xs.into_iter().fold(vec![Term::one()], |acc, x| {
-            let rhs = terms(x);
-            acc.iter()
-                .flat_map(|a| rhs.iter().map(move |b| a.mul(b)))
-                .collect()
-        }),
-        ElementaryExpr::Pow { base, exponent } => pow_terms(*base, exponent),
-        ElementaryExpr::Fn(kind, arg) => fn_terms(kind, *arg),
-        ElementaryExpr::D { wrt, inner } => terms(derivative(*inner, &wrt)),
-    }
-}
-
-/// `base^n` as a term list. `n == 0` is one; `n > 0` is repeated
-/// multiplication; `n < 0` inverts (single-term base only -- a genuine sum
-/// stays an opaque [`Atom::Sum`] factor, since a field has no general
-/// `(a + b)^-1` law). Panics if `base` normalizes to zero, matching
-/// [`Field::invert`]'s contract on `ZERO`.
-fn pow_terms<F: Field>(base: ElementaryExpr<F>, n: isize) -> Vec<Term<F>> {
-    let b = canonical(terms(base));
-
-    if n == 0 {
-        return vec![Term::one()];
-    }
-    if n > 0 {
-        let mut acc = vec![Term::one()];
-        for _ in 0..n {
-            acc = acc
-                .iter()
-                .flat_map(|a| b.iter().map(move |c| a.mul(c)))
-                .collect();
-        }
-        return acc;
-    }
-
-    match b.as_slice() {
-        [] => panic!("division by zero"),
-        [t] => {
-            let inv = F::invert(t.coeff.clone());
-            let mut coeff = F::ONE;
-            for _ in 0..n.unsigned_abs() {
-                coeff = F::multiply(coeff, inv.clone());
-            }
-            let factors: Vec<(Atom<F>, isize)> =
-                t.factors.iter().map(|(a, e)| (a.clone(), e * n)).collect();
-            let term = Term { coeff, factors };
-            // A Sum atom must only ever carry a negative exponent; negating
-            // n here can flip an already-negative Sum exponent positive
-            // (e.g. inverting (x+1)^-1), so re-expand instead of keeping it
-            // as an opaque atom.
-            if term
-                .factors
-                .iter()
-                .any(|(a, e)| matches!(a, Atom::Sum(_)) && *e > 0)
-            {
-                terms(term.into_expr())
-            } else {
-                vec![term]
+        const fn rank<F: Field>(e: &ElementaryExpr<F>) -> u8 {
+            match e {
+                Const(_) => 0,
+                Symbol(_) => 1,
+                Pow { .. } => 2,
+                Fn(_, _) => 3,
+                Mul(_) => 4,
+                Add(_) => 5,
+                Neg(_) => 6,
+                D { .. } => 7,
             }
         }
-        _ => vec![Term {
-            coeff: F::ONE,
-            factors: vec![(Atom::Sum(build_sum(b)), n)],
-        }],
-    }
-}
 
-/// `kind(arg)` as a term list: folds the four boundary values
-/// (`exp 0 = 1`, `log 1 = 0`, `sin 0 = 0`, `cos 0 = 1`) and cancels
-/// `exp∘log` and `log∘exp`; otherwise stays one opaque [`Atom::Fn`] factor.
-fn fn_terms<F: Field>(kind: Elementary, arg: ElementaryExpr<F>) -> Vec<Term<F>> {
-    use Elementary::{Cos, Exp, Log, Sin};
-
-    let a = build_sum(canonical(terms(arg)));
-    match (kind, a) {
-        (Exp, ElementaryExpr::Const(c)) if c == F::ZERO => vec![Term::one()],
-        (Log, ElementaryExpr::Const(c)) if c == F::ONE => vec![Term {
-            coeff: F::ZERO,
-            factors: vec![],
-        }],
-        (Sin, ElementaryExpr::Const(c)) if c == F::ZERO => vec![Term {
-            coeff: F::ZERO,
-            factors: vec![],
-        }],
-        (Cos, ElementaryExpr::Const(c)) if c == F::ZERO => vec![Term::one()],
-        (Exp, ElementaryExpr::Fn(Log, u)) => terms(*u),
-        (Log, ElementaryExpr::Fn(Exp, u)) => terms(*u),
-        (k, a) => vec![Term {
-            coeff: F::ONE,
-            factors: vec![(Atom::Fn(k, a), 1)],
-        }],
-    }
-}
-
-/// Symbolic differentiation on the raw tree (no normalization -- `terms`
-/// normalizes the result afterwards). Symbols are independent variables:
-/// `d(other symbol)/dx = 0`.
-pub(crate) fn derivative<F: Field>(
-    expr: ElementaryExpr<F>,
-    wrt: &Symbol<F::Domain>,
-) -> ElementaryExpr<F> {
-    use ElementaryExpr::*;
-
-    match expr {
-        Const(_) => Const(F::ZERO),
-        Symbol(s) => Const(if s == *wrt { F::ONE } else { F::ZERO }),
-        Neg(u) => Neg(Box::new(derivative(*u, wrt))),
-        Add(v) => Add(v.into_iter().map(|u| derivative(u, wrt)).collect()),
-        // Leibniz: d(a_1 * ... * a_n) = sum_i a_1 * ... * (d a_i) * ... * a_n.
-        // Every summand is its own product, so the factor list is cloned
-        // once per summand; that is the size of the output.
-        Mul(v) => Add((0..v.len())
-            .map(|i| {
-                let mut factors = v.clone();
-                factors[i] = derivative(v[i].clone(), wrt);
-                Mul(factors)
-            })
-            .collect()),
-        Pow { base, exponent } => {
-            let d_base = derivative(*base.clone(), wrt);
-            let coeff = if exponent < 0 {
-                F::negate(F::from_usize(exponent.unsigned_abs()))
-            } else {
-                F::from_usize(exponent.unsigned_abs())
-            };
-            Mul(vec![
-                Const(coeff),
+        match (self, b) {
+            (Const(_), Const(_)) => Ordering::Equal,
+            (Symbol(s), Symbol(o)) => s.cmp(o),
+            (
                 Pow {
-                    base,
-                    exponent: exponent - 1,
+                    base: sb,
+                    exponent: se,
                 },
-                d_base,
-            ])
-        }
-        Fn(Elementary::Exp, u) => {
-            let du = derivative(*u.clone(), wrt);
-            Mul(vec![Fn(Elementary::Exp, u), du])
-        }
-        Fn(Elementary::Log, u) => {
-            let du = derivative(*u.clone(), wrt);
-            Mul(vec![
                 Pow {
-                    base: u,
-                    exponent: -1,
+                    base: ob,
+                    exponent: oe,
                 },
-                du,
-            ])
+            ) => sb.cmp_structural(ob).then(se.cmp(oe)),
+            (Fn(sk, sa), Fn(ok, oa)) => sk.cmp(ok).then_with(|| sa.cmp_structural(oa)),
+            (Mul(s), Mul(o)) | (Add(s), Add(o)) => s
+                .iter()
+                .zip(o)
+                .map(|(i, j)| i.cmp_structural(j))
+                .find(|c| *c != Ordering::Equal)
+                .unwrap_or(s.len().cmp(&o.len())),
+            (Neg(s), Neg(o)) => s.cmp_structural(o),
+            (D { wrt: sw, inner: si }, D { wrt: ow, inner: oi }) => {
+                sw.cmp(ow).then_with(|| si.cmp_structural(oi))
+            }
+            (a, b) => rank(a).cmp(&rank(b)),
         }
-        Fn(Elementary::Sin, u) => {
-            let du = derivative(*u.clone(), wrt);
-            Mul(vec![Fn(Elementary::Cos, u), du])
-        }
-        Fn(Elementary::Cos, u) => {
-            let du = derivative(*u.clone(), wrt);
-            Mul(vec![Neg(Box::new(Fn(Elementary::Sin, u))), du])
-        }
-        D { wrt: wrt2, inner } => derivative(derivative(*inner, &wrt2), wrt),
     }
-}
 
-/// Sorts each term's factors by [`cmp_atom`] and merges adjacent factors
-/// whose atoms are `==` (not merely `cmp_atom`-equal -- see [`cmp_atom`]),
-/// dropping exponent zero. Then sorts terms by [`cmp_term`] and merges
-/// adjacent terms whose factor lists are `==`, dropping coefficient zero.
-fn canonical<F: Field>(ts: Vec<Term<F>>) -> Vec<Term<F>> {
-    let mut ts: Vec<Term<F>> = ts
-        .into_iter()
-        .map(|mut t| {
-            t.factors.sort_by(|(a, _), (b, _)| cmp_atom(a, b));
-            let mut merged: Vec<(Atom<F>, isize)> = Vec::new();
-            for (atom, exp) in t.factors {
-                match merged.last_mut() {
-                    Some((last_atom, last_exp)) if *last_atom == atom => *last_exp += exp,
-                    _ => merged.push((atom, exp)),
+    /// Expands the tree into its term list: linearity, `Mul` cartesian product,
+    /// integer powers, elementary-function constant folding and `exp∘log`
+    /// cancellation, and `D` via [`Self::derivative`]. The result is not yet
+    /// sorted or merged; that is [`Term::canonical`]'s job.
+    fn terms(self) -> Vec<Term<F>> {
+        match self {
+            ElementaryExpr::Const(c) => vec![Term {
+                coeff: c,
+                factors: vec![],
+            }],
+            ElementaryExpr::Symbol(s) => vec![Term {
+                coeff: F::ONE,
+                factors: vec![(Atom::Symbol(s), 1)],
+            }],
+            ElementaryExpr::Neg(x) => x.terms().into_iter().map(Term::negated).collect(),
+            ElementaryExpr::Add(xs) => xs.into_iter().flat_map(Self::terms).collect(),
+            ElementaryExpr::Mul(xs) => xs.into_iter().fold(vec![Term::one()], |acc, x| {
+                let rhs = x.terms();
+                acc.iter()
+                    .flat_map(|a| rhs.iter().map(move |b| a.mul(b)))
+                    .collect()
+            }),
+            ElementaryExpr::Pow { base, exponent } => base.pow_terms(exponent),
+            ElementaryExpr::Fn(kind, arg) => arg.fn_terms(kind),
+            ElementaryExpr::D { wrt, inner } => inner.derivative(&wrt).terms(),
+        }
+    }
+
+    /// `self^n` as a term list. `n == 0` is one; `n > 0` is repeated
+    /// multiplication; `n < 0` inverts (single-term base only -- a genuine sum
+    /// stays an opaque [`Atom::Sum`] factor, since a field has no general
+    /// `(a + b)^-1` law). Panics if `self` normalizes to zero, matching
+    /// [`Field::invert`]'s contract on `ZERO`.
+    fn pow_terms(self, n: isize) -> Vec<Term<F>> {
+        let b = Term::canonical(self.terms());
+
+        if n == 0 {
+            return vec![Term::one()];
+        }
+        if n > 0 {
+            let mut acc = vec![Term::one()];
+            for _ in 0..n {
+                acc = acc
+                    .iter()
+                    .flat_map(|a| b.iter().map(move |c| a.mul(c)))
+                    .collect();
+            }
+            return acc;
+        }
+
+        match b.as_slice() {
+            [] => panic!("division by zero"),
+            [t] => {
+                let inv = F::invert(t.coeff.clone());
+                let mut coeff = F::ONE;
+                for _ in 0..n.unsigned_abs() {
+                    coeff = F::multiply(coeff, inv.clone());
+                }
+                let factors: Vec<(Atom<F>, isize)> =
+                    t.factors.iter().map(|(a, e)| (a.clone(), e * n)).collect();
+                let term = Term { coeff, factors };
+                // A Sum atom must only ever carry a negative exponent; negating
+                // n here can flip an already-negative Sum exponent positive
+                // (e.g. inverting (x+1)^-1), so re-expand instead of keeping it
+                // as an opaque atom.
+                if term
+                    .factors
+                    .iter()
+                    .any(|(a, e)| matches!(a, Atom::Sum(_)) && *e > 0)
+                {
+                    term.into_expr().terms()
+                } else {
+                    vec![term]
                 }
             }
-            merged.retain(|(_, e)| *e != 0);
-            t.factors = merged;
-            t
-        })
-        .collect();
-
-    ts.sort_by(cmp_term);
-    let mut out: Vec<Term<F>> = Vec::new();
-    for t in ts {
-        match out.last_mut() {
-            Some(last) if last.factors == t.factors => {
-                last.coeff = F::add(last.coeff.clone(), t.coeff);
-            }
-            _ => out.push(t),
+            _ => vec![Term {
+                coeff: F::ONE,
+                factors: vec![(Atom::Sum(Self::from_terms(b)), n)],
+            }],
         }
     }
-    out.retain(|t| t.coeff != F::ZERO);
-    out
-}
 
-/// Rebuilds an expression from a canonical term list. Never produces `Neg`
-/// or `D`: a negated term shows up as a negative constant coefficient.
-fn build_sum<F: Field>(mut ts: Vec<Term<F>>) -> ElementaryExpr<F> {
-    match ts.len() {
-        0 => ElementaryExpr::Const(F::ZERO),
-        1 => ts.pop().unwrap().into_expr(),
-        _ => ElementaryExpr::Add(ts.into_iter().map(Term::into_expr).collect()),
+    /// `kind(self)` as a term list: folds the four boundary values
+    /// (`exp 0 = 1`, `log 1 = 0`, `sin 0 = 0`, `cos 0 = 1`) and cancels
+    /// `exp∘log` and `log∘exp`; otherwise stays one opaque [`Atom::Fn`] factor.
+    fn fn_terms(self, kind: Elementary) -> Vec<Term<F>> {
+        use Elementary::{Cos, Exp, Log, Sin};
+
+        let a = Self::from_terms(Term::canonical(self.terms()));
+        match (kind, a) {
+            (Exp, ElementaryExpr::Const(c)) if c == F::ZERO => vec![Term::one()],
+            (Log, ElementaryExpr::Const(c)) if c == F::ONE => vec![Term {
+                coeff: F::ZERO,
+                factors: vec![],
+            }],
+            (Sin, ElementaryExpr::Const(c)) if c == F::ZERO => vec![Term {
+                coeff: F::ZERO,
+                factors: vec![],
+            }],
+            (Cos, ElementaryExpr::Const(c)) if c == F::ZERO => vec![Term::one()],
+            (Exp, ElementaryExpr::Fn(Log, u)) => u.terms(),
+            (Log, ElementaryExpr::Fn(Exp, u)) => u.terms(),
+            (k, a) => vec![Term {
+                coeff: F::ONE,
+                factors: vec![(Atom::Fn(k, a), 1)],
+            }],
+        }
+    }
+
+    /// Symbolic differentiation on the raw tree (no normalization -- `terms`
+    /// normalizes the result afterwards). Symbols are independent variables:
+    /// `d(other symbol)/dx = 0`.
+    pub(crate) fn derivative(self, wrt: &Symbol<F::Domain>) -> Self {
+        use ElementaryExpr::*;
+
+        match self {
+            Const(_) => Const(F::ZERO),
+            Symbol(s) => Const(if s == *wrt { F::ONE } else { F::ZERO }),
+            Neg(u) => Neg(Box::new(u.derivative(wrt))),
+            Add(v) => Add(v.into_iter().map(|u| u.derivative(wrt)).collect()),
+            // Leibniz: d(a_1 * ... * a_n) = sum_i a_1 * ... * (d a_i) * ... * a_n.
+            // Every summand is its own product, so the factor list is cloned
+            // once per summand; that is the size of the output.
+            Mul(v) => Add((0..v.len())
+                .map(|i| {
+                    let mut factors = v.clone();
+                    factors[i] = v[i].clone().derivative(wrt);
+                    Mul(factors)
+                })
+                .collect()),
+            Pow { base, exponent } => {
+                let d_base = (*base.clone()).derivative(wrt);
+                let coeff = if exponent < 0 {
+                    F::negate(F::from_usize(exponent.unsigned_abs()))
+                } else {
+                    F::from_usize(exponent.unsigned_abs())
+                };
+                Mul(vec![
+                    Const(coeff),
+                    Pow {
+                        base,
+                        exponent: exponent - 1,
+                    },
+                    d_base,
+                ])
+            }
+            Fn(Elementary::Exp, u) => {
+                let du = (*u.clone()).derivative(wrt);
+                Mul(vec![Fn(Elementary::Exp, u), du])
+            }
+            Fn(Elementary::Log, u) => {
+                let du = (*u.clone()).derivative(wrt);
+                Mul(vec![
+                    Pow {
+                        base: u,
+                        exponent: -1,
+                    },
+                    du,
+                ])
+            }
+            Fn(Elementary::Sin, u) => {
+                let du = (*u.clone()).derivative(wrt);
+                Mul(vec![Fn(Elementary::Cos, u), du])
+            }
+            Fn(Elementary::Cos, u) => {
+                let du = (*u.clone()).derivative(wrt);
+                Mul(vec![Neg(Box::new(Fn(Elementary::Sin, u))), du])
+            }
+            D { wrt: wrt2, inner } => inner.derivative(&wrt2).derivative(wrt),
+        }
+    }
+
+    /// Rebuilds an expression from a canonical term list. Never produces `Neg`
+    /// or `D`: a negated term shows up as a negative constant coefficient.
+    fn from_terms(mut ts: Vec<Term<F>>) -> Self {
+        match ts.len() {
+            0 => ElementaryExpr::Const(F::ZERO),
+            1 => ts.pop().unwrap().into_expr(),
+            _ => ElementaryExpr::Add(ts.into_iter().map(Term::into_expr).collect()),
+        }
+    }
+
+    /// Normalizes in place: expands to a term list and rebuilds the canonical
+    /// sum-of-products form.
+    fn normalize(&mut self) {
+        let taken = std::mem::replace(self, ElementaryExpr::Add(Vec::new()));
+        *self = Self::from_terms(Term::canonical(taken.terms()));
     }
 }
 
-/// Normalizes in place: expands to a term list and rebuilds the canonical
-/// sum-of-products form.
-fn normalize<F: Field>(expr: &mut ElementaryExpr<F>) {
-    let taken = std::mem::replace(expr, ElementaryExpr::Add(Vec::new()));
-    *expr = build_sum(canonical(terms(taken)));
+impl<F: Field> Atom<F> {
+    /// Structural order over atoms: symbols by name, functions by kind then
+    /// argument, sums structurally. Ties (e.g. two `Sum`s whose constants
+    /// happen to be at the same structural position) are broken by insertion
+    /// order in [`Term::canonical`]; merging uses `==`, never this comparator.
+    fn cmp_structural(&self, b: &Self) -> std::cmp::Ordering {
+        const fn rank<F: Field>(a: &Atom<F>) -> u8 {
+            match a {
+                Atom::Symbol(_) => 0,
+                Atom::Fn(_, _) => 1,
+                Atom::Sum(_) => 2,
+            }
+        }
+
+        match (self, b) {
+            (Atom::Symbol(s), Atom::Symbol(o)) => s.cmp(o),
+            (Atom::Fn(sk, sa), Atom::Fn(ok, oa)) => sk.cmp(ok).then_with(|| sa.cmp_structural(oa)),
+            (Atom::Sum(s), Atom::Sum(o)) => s.cmp_structural(o),
+            (a, b) => rank(a).cmp(&rank(b)),
+        }
+    }
+}
+
+impl<F: Field> Term<F> {
+    /// Lexicographic order over a term's factor list: [`Atom::cmp_structural`]
+    /// on each atom, then the exponent, then length.
+    fn cmp_structural(&self, b: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+
+        self.factors
+            .iter()
+            .zip(&b.factors)
+            .map(|((aa, ae), (ba, be))| aa.cmp_structural(ba).then(ae.cmp(be)))
+            .find(|c| *c != Ordering::Equal)
+            .unwrap_or(self.factors.len().cmp(&b.factors.len()))
+    }
+
+    /// Sorts each term's factors by [`Atom::cmp_structural`] and merges
+    /// adjacent factors whose atoms are `==` (not merely comparator-equal --
+    /// see [`Atom::cmp_structural`]), dropping exponent zero. Then sorts terms
+    /// by [`Self::cmp_structural`] and merges adjacent terms whose factor lists
+    /// are `==`, dropping coefficient zero.
+    fn canonical(ts: Vec<Self>) -> Vec<Self> {
+        let mut ts: Vec<Self> = ts
+            .into_iter()
+            .map(|mut t| {
+                t.factors.sort_by(|(a, _), (b, _)| a.cmp_structural(b));
+                let mut merged: Vec<(Atom<F>, isize)> = Vec::new();
+                for (atom, exp) in t.factors {
+                    match merged.last_mut() {
+                        Some((last_atom, last_exp)) if *last_atom == atom => *last_exp += exp,
+                        _ => merged.push((atom, exp)),
+                    }
+                }
+                merged.retain(|(_, e)| *e != 0);
+                t.factors = merged;
+                t
+            })
+            .collect();
+
+        ts.sort_by(Self::cmp_structural);
+        let mut out: Vec<Self> = Vec::new();
+        for t in ts {
+            match out.last_mut() {
+                Some(last) if last.factors == t.factors => {
+                    last.coeff = F::add(last.coeff.clone(), t.coeff);
+                }
+                _ => out.push(t),
+            }
+        }
+        out.retain(|t| t.coeff != F::ZERO);
+        out
+    }
 }
 
 // ================================================================================
@@ -415,7 +419,7 @@ impl<F: Field> Rewriter for ElementaryRewriter<F> {
     type Expr = ElementaryExpr<F>;
 
     fn rewrite_expr(&self, expr: &mut Self::Expr) {
-        normalize(expr);
+        expr.normalize();
     }
 }
 

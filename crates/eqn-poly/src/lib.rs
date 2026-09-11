@@ -17,8 +17,7 @@ pub use finite_field::{
     CompatibleFiniteField, CompatibleFiniteFieldElement, CompatibleFiniteFieldEmbedding,
     DefiningPolynomial, FiniteField, FiniteFieldAdd, FiniteFieldElement, FiniteFieldElements,
     FiniteFieldMul, FirstCompatible, FirstIrreducible, FirstPrimitive, Fq, FqElement,
-    IrreduciblePolynomial, PrimitiveFiniteField, PrimitiveFiniteFieldElement, is_irreducible,
-    is_primitive,
+    IrreduciblePolynomial, Polynomial, PrimitiveFiniteField, PrimitiveFiniteFieldElement,
 };
 
 /// The set of polynomial expressions over `R`, represented by [`RingExpr`]
@@ -73,44 +72,42 @@ impl<R: CommutativeRing> Module for PolynomialRing<R> {
 // PolynomialRing is a DifferentialRing over its own symbols
 // ================================================================================
 
-/// The polynomial derivation on the raw tree
-fn derive<R: CommutativeRing>(expr: RingExpr<R>, wrt: &Symbol<R::Domain>) -> RingExpr<R> {
-    match expr {
-        RingExpr::Const(_) => RingExpr::Const(R::ZERO),
-        RingExpr::Symbol(s) => RingExpr::Const(if s == *wrt { R::ONE } else { R::ZERO }),
-        RingExpr::Neg(inner) => RingExpr::Neg(Box::new(derive(*inner, wrt))),
-        RingExpr::Add(v) => RingExpr::Add(v.into_iter().map(|u| derive(u, wrt)).collect()),
-        // Leibniz
-        RingExpr::Mul(v) => RingExpr::Add(
-            (0..v.len())
-                .map(|i| {
-                    let mut factors = v.clone();
-                    factors[i] = derive(v[i].clone(), wrt);
-                    RingExpr::Mul(factors)
-                })
-                .collect(),
-        ),
-        RingExpr::Pow { base, exponent } => {
-            let d_base = derive((*base).clone(), wrt);
-            let reduced = match NonZeroUsize::new(exponent.get() - 1) {
-                Some(exponent) => RingExpr::Pow { base, exponent },
-                None => RingExpr::Const(R::ONE),
-            };
-            RingExpr::Mul(vec![
-                RingExpr::Const(R::from_usize(exponent.get())),
-                reduced,
-                d_base,
-            ])
-        }
-    }
-}
-
 /// The free commutative `R`-algebra on its symbols, with `∂/∂s`.
 impl<R: CommutativeRing> DifferentialRing for PolynomialRing<R> {
     type Index = Symbol<R::Domain>;
 
-    fn derive(a: RingElem<Self>, i: &Self::Index) -> RingElem<Self> {
-        derive(a, i)
+    /// The polynomial derivation on the raw tree
+    fn derive(a: RingElem<Self>, wrt: &Self::Index) -> RingElem<Self> {
+        match a {
+            RingExpr::Const(_) => RingExpr::Const(R::ZERO),
+            RingExpr::Symbol(s) => RingExpr::Const(if s == *wrt { R::ONE } else { R::ZERO }),
+            RingExpr::Neg(inner) => RingExpr::Neg(Box::new(Self::derive(*inner, wrt))),
+            RingExpr::Add(v) => {
+                RingExpr::Add(v.into_iter().map(|u| Self::derive(u, wrt)).collect())
+            }
+            // Leibniz
+            RingExpr::Mul(v) => RingExpr::Add(
+                (0..v.len())
+                    .map(|i| {
+                        let mut factors = v.clone();
+                        factors[i] = Self::derive(v[i].clone(), wrt);
+                        RingExpr::Mul(factors)
+                    })
+                    .collect(),
+            ),
+            RingExpr::Pow { base, exponent } => {
+                let d_base = Self::derive((*base).clone(), wrt);
+                let reduced = match NonZeroUsize::new(exponent.get() - 1) {
+                    Some(exponent) => RingExpr::Pow { base, exponent },
+                    None => RingExpr::Const(R::ONE),
+                };
+                RingExpr::Mul(vec![
+                    RingExpr::Const(R::from_usize(exponent.get())),
+                    reduced,
+                    d_base,
+                ])
+            }
+        }
     }
 }
 
