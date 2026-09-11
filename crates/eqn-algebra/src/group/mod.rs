@@ -1,10 +1,12 @@
+use eqn_core::op::{BinaryOperator, Commutative, Inverse};
+use eqn_core::rewriter::Expression;
+use eqn_core::set::Set;
+use eqn_core::symbol::Symbol;
+
 use crate::monoid::{Monoid, MonoidElem, Submonoid};
-use crate::op::{BinaryOperator, Commutative, Inverse};
-use crate::rewriter::Expression;
-use crate::set::Set;
-use crate::symbol::Symbol;
 
 mod normal;
+mod parse;
 mod quotient;
 mod rewriter;
 
@@ -22,6 +24,10 @@ pub use rewriter::{AbelianGroupRewriter, GroupRewriter};
 /// denotes [`Monoid::apply`]. Rust cannot verify these laws, so implementations
 /// should cover them with property tests where practical.
 pub trait Group: Monoid<Operator: BinaryOperator + Inverse> {
+    /// Source spelling of "apply to the inverse": `a INVERSE_SYMBOL b` and
+    /// `INVERSE_SYMBOL a`.
+    const INVERSE_SYMBOL: &'static str = <Self::Operator as Inverse>::INVERSE_SYMBOL;
+
     /// Returns the two-sided inverse of `value` under the group's operation.
     fn inverse(value: MonoidElem<Self>) -> MonoidElem<Self> {
         <Self::Operator as Inverse>::inverse(value)
@@ -102,15 +108,16 @@ impl<G: Group> Expression for GroupExpr<G> {
 
 #[cfg(test)]
 mod tests {
+    use eqn_core::op::{Associative, BinaryOperator};
+
     use super::*;
-    use crate::op::{Associative, BinaryOperator};
 
     #[derive(Set)]
     #[set(element = i64)]
     pub(super) struct IntegerSet;
 
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = IntegerSet, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
+    #[operator(domain = IntegerSet, symbol = "+", apply = |a, b| a + b, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
     pub(super) struct Addition;
 
     pub(super) type IntegerAdditionGroup = (IntegerSet, Addition);
@@ -176,24 +183,26 @@ mod tests {
 
     pub(super) type Expr = GroupExpr<IntegerAdditionGroup>;
 
+    pub(super) fn expr(src: &str) -> Expr {
+        src.parse().unwrap()
+    }
+
     #[test]
     fn descendants_are_preorder_left_to_right() {
-        let x = Expr::Symbol(Symbol::new("x"));
-        let y = Expr::Symbol(Symbol::new("y"));
-        let inv = Expr::Inv(Box::new(x.clone()));
-        let pow = Expr::Pow {
-            base: Box::new(y.clone()),
-            exponent: 2,
-        };
-        let expr = Expr::Op(vec![inv.clone(), pow.clone()]);
+        let (x, y) = (expr("x"), expr("y"));
+        let (inv, pow) = (expr("inv(x)"), expr("y^2"));
+        let product = expr("inv(x) + y^2");
 
-        assert_eq!(expr.children(), [inv.clone(), pow.clone()]);
-        assert_eq!(expr.descendants().collect::<Vec<_>>(), [&inv, &x, &pow, &y]);
-        assert_eq!(expr.degrees_of_freedom(), 2);
+        assert_eq!(product.children(), [inv.clone(), pow.clone()]);
+        assert_eq!(
+            product.descendants().collect::<Vec<_>>(),
+            [&inv, &x, &pow, &y]
+        );
+        assert_eq!(product.degrees_of_freedom(), 2);
 
-        let mut expr = expr;
+        let mut product = product;
         let mut seen = vec![];
-        let mut walk = expr.descendants_mut();
+        let mut walk = product.descendants_mut();
         while let Some(e) = walk.next() {
             seen.push(e.clone());
             if matches!(e, Expr::Pow { .. }) {
@@ -205,31 +214,12 @@ mod tests {
 
     #[test]
     fn group_expression_supports_substitution() {
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
-        let expr = Expr::Op(vec![
-            Expr::Symbol(x.clone()),
-            Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
-            Expr::Pow {
-                base: Box::new(Expr::Op(vec![
-                    Expr::Symbol(x.clone()),
-                    Expr::Symbol(y.clone()),
-                ])),
-                exponent: 2,
-            },
-        ]);
+        let product = expr("x + inv(x) + (x + y)^2");
 
-        assert_eq!(expr.degrees_of_freedom(), 2);
-        assert!(
-            expr.substituted(x, &Expr::Const(4))
-                == Expr::Op(vec![
-                    Expr::Const(4),
-                    Expr::Inv(Box::new(Expr::Const(4))),
-                    Expr::Pow {
-                        base: Box::new(Expr::Op(vec![Expr::Const(4), Expr::Symbol(y),])),
-                        exponent: 2,
-                    },
-                ])
+        assert_eq!(product.degrees_of_freedom(), 2);
+        assert_eq!(
+            product.substituted(Symbol::new("x"), &expr("4")),
+            expr("4 + inv(4) + (4 + y)^2")
         );
     }
 }

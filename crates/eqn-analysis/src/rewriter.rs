@@ -421,130 +421,66 @@ impl<F: Field> Rewriter for ElementaryRewriter<F> {
 
 #[cfg(test)]
 mod tests {
-
     use eqn_algebra::operator_impl::{QAdd, QMul};
-    use eqn_core::set::{Q, Rational};
+    use eqn_core::set::Q;
 
     use super::*;
 
     type Expr = ElementaryExpr<(Q, QAdd, QMul)>;
 
-    fn c(i: i64) -> Expr {
-        Expr::Const(Rational {
-            numerator: i,
-            denominator: 1,
-        })
+    fn expr(src: &str) -> Expr {
+        src.parse().unwrap()
     }
 
-    fn xs() -> Symbol<Q> {
-        Symbol::new("x")
-    }
-
-    fn ys() -> Symbol<Q> {
-        Symbol::new("y")
-    }
-
-    fn x() -> Expr {
-        Expr::Symbol(xs())
-    }
-
-    fn y() -> Expr {
-        Expr::Symbol(ys())
-    }
-
-    fn pow(base: Expr, exponent: isize) -> Expr {
-        Expr::Pow {
-            base: Box::new(base),
-            exponent,
-        }
-    }
-
-    fn fnc(kind: Elementary, arg: Expr) -> Expr {
-        Expr::elementary(kind, arg)
-    }
-
-    fn d(wrt: Symbol<Q>, inner: Expr) -> Expr {
-        Expr::d(wrt, inner)
-    }
-
-    fn fmt(expr: Expr) -> Expr {
-        ElementaryRewriter::new().rewrited_expr(expr)
+    fn rewrite(src: &str) -> Expr {
+        ElementaryRewriter::new().rewrited_expr(expr(src))
     }
 
     #[test]
     fn integer_powers() {
-        assert_eq!(fmt(Expr::Mul(vec![x(), pow(x(), -1)])), c(1));
-        assert_eq!(fmt(pow(x(), 0)), c(1));
-        assert_eq!(fmt(Expr::Mul(vec![pow(x(), 3), pow(x(), -1)])), pow(x(), 2));
+        assert_eq!(rewrite("x x^-1"), expr("1"));
+        assert_eq!(rewrite("x^0"), expr("1"));
+        assert_eq!(rewrite("x^3 x^-1"), expr("x^2"));
     }
 
     #[test]
     fn expands_and_collects_a_square() {
-        // (x+1)^2 -> 1 + 2x + x^2. Constant term sorts first (0 factors),
-        // then coeff*x (1 factor, exponent 1), then x^2 (1 factor,
-        // exponent 2) -- canonical order is by factor list, shortest/lowest
-        // exponent first.
-        let expr = pow(Expr::Add(vec![x(), c(1)]), 2);
-        assert_eq!(
-            fmt(expr),
-            Expr::Add(vec![c(1), Expr::Mul(vec![c(2), x()]), pow(x(), 2)])
-        );
+        // Constant term sorts first (0 factors), then coeff*x (1 factor,
+        // exponent 1), then x^2 (1 factor, exponent 2) -- canonical order is
+        // by factor list, shortest/lowest exponent first.
+        assert_eq!(rewrite("(x + 1)^2"), expr("1 + 2 x + x^2"));
     }
 
     #[test]
     fn distinct_sums_with_equal_structure_do_not_merge() {
-        // (x+1)^-1 * (x+2)^-1: both factors are `Sum`s that compare Equal
-        // under cmp_structural (constants always tie), but they are not
-        // Eq, so they must survive as two separate factors, not collapse
-        // into one or cancel.
-        let expr = Expr::Mul(vec![
-            pow(Expr::Add(vec![x(), c(1)]), -1),
-            pow(Expr::Add(vec![x(), c(2)]), -1),
-        ]);
+        // Both factors are `Sum`s that compare Equal under cmp_structural
+        // (constants always tie), but they are not Eq, so they must survive
+        // as two separate factors, not collapse into one or cancel.
         assert_eq!(
-            fmt(expr),
-            Expr::Mul(vec![
-                pow(Expr::Add(vec![c(1), x()]), -1),
-                pow(Expr::Add(vec![c(2), x()]), -1),
-            ])
+            rewrite("(x + 1)^-1 (x + 2)^-1"),
+            expr("(1 + x)^-1 (2 + x)^-1")
         );
     }
 
     #[test]
     fn elementary_function_folding() {
-        assert_eq!(fmt(fnc(Elementary::Exp, fnc(Elementary::Log, x()))), x());
-        assert_eq!(fmt(fnc(Elementary::Exp, c(0))), c(1));
-        assert_eq!(fmt(fnc(Elementary::Log, c(1))), c(0));
-        assert_eq!(fmt(fnc(Elementary::Cos, c(0))), c(1));
+        assert_eq!(rewrite("exp(log(x))"), expr("x"));
+        assert_eq!(rewrite("exp(0)"), expr("1"));
+        assert_eq!(rewrite("log(1)"), expr("0"));
+        assert_eq!(rewrite("cos(0)"), expr("1"));
     }
 
     #[test]
     fn derivatives() {
-        assert_eq!(fmt(d(xs(), pow(x(), 2))), Expr::Mul(vec![c(2), x()]));
-        assert_eq!(
-            fmt(d(xs(), fnc(Elementary::Sin, x()))),
-            fnc(Elementary::Cos, x())
-        );
-        assert_eq!(fmt(d(xs(), Expr::Mul(vec![x(), y()]))), y());
-        assert_eq!(fmt(d(ys(), Expr::Mul(vec![x(), y()]))), x());
-        assert_eq!(fmt(d(xs(), fnc(Elementary::Log, x()))), pow(x(), -1));
-        assert_eq!(
-            fmt(d(xs(), fnc(Elementary::Exp, Expr::Mul(vec![c(2), x()])))),
-            Expr::Mul(vec![c(2), fnc(Elementary::Exp, Expr::Mul(vec![c(2), x()]))])
-        );
-        assert_eq!(
-            fmt(d(xs(), pow(fnc(Elementary::Sin, x()), 2))),
-            Expr::Mul(vec![
-                c(2),
-                fnc(Elementary::Sin, x()),
-                fnc(Elementary::Cos, x())
-            ])
-        );
-        assert_eq!(
-            fmt(d(xs(), d(xs(), pow(x(), 3)))),
-            Expr::Mul(vec![c(6), x()])
-        );
-        assert_eq!(fmt(d(xs(), c(5))), c(0));
+        assert_eq!(rewrite("D(x^2, x)"), expr("2 x"));
+        assert_eq!(rewrite("D(sin(x), x)"), expr("cos(x)"));
+        assert_eq!(rewrite("D(x y, x)"), expr("y"));
+        assert_eq!(rewrite("D(x y, y)"), expr("x"));
+        assert_eq!(rewrite("D(log(x), x)"), expr("x^-1"));
+        assert_eq!(rewrite("D(exp(2 x), x)"), expr("2 exp(2 x)"));
+        assert_eq!(rewrite("D(sin(x)^2, x)"), expr("2 sin(x) cos(x)"));
+        assert_eq!(rewrite("D(D(x^3, x), x)"), expr("6 x"));
+        assert_eq!(rewrite("D(5, x)"), expr("0"));
     }
 
     #[test]
@@ -553,10 +489,16 @@ mod tests {
 
         type Ring = crate::ElementaryFunctionRing<(Q, QAdd, QMul)>;
 
-        assert_eq!(fmt(Ring::derive(x(), &xs())), c(1));
+        let rewriter = ElementaryRewriter::new();
+        let x = Symbol::new("x");
+
         assert_eq!(
-            fmt(Ring::derive(fnc(Elementary::Sin, x()), &xs())),
-            fmt(d(xs(), fnc(Elementary::Sin, x())))
+            rewriter.rewrited_expr(Ring::derive(expr("x"), &x)),
+            expr("1")
+        );
+        assert_eq!(
+            rewriter.rewrited_expr(Ring::derive(expr("sin(x)"), &x)),
+            rewrite("D(sin(x), x)")
         );
     }
 
@@ -570,49 +512,43 @@ mod tests {
 
     #[test]
     fn normalize_is_idempotent() {
-        let f = ElementaryRewriter::new();
         let inputs = [
-            Expr::Mul(vec![x(), pow(x(), -1)]),
-            pow(x(), 0),
-            Expr::Mul(vec![pow(x(), 3), pow(x(), -1)]),
-            pow(Expr::Add(vec![x(), c(1)]), 2),
-            Expr::Mul(vec![
-                pow(Expr::Add(vec![x(), c(1)]), -1),
-                pow(Expr::Add(vec![x(), c(2)]), -1),
-            ]),
-            fnc(Elementary::Exp, fnc(Elementary::Log, x())),
-            fnc(Elementary::Exp, c(0)),
-            fnc(Elementary::Log, c(1)),
-            fnc(Elementary::Cos, c(0)),
-            d(xs(), pow(x(), 2)),
-            d(xs(), fnc(Elementary::Sin, x())),
-            d(xs(), Expr::Mul(vec![x(), y()])),
-            d(xs(), fnc(Elementary::Log, x())),
-            d(xs(), fnc(Elementary::Exp, Expr::Mul(vec![c(2), x()]))),
-            d(xs(), pow(fnc(Elementary::Sin, x()), 2)),
-            d(xs(), d(xs(), pow(x(), 3))),
-            d(xs(), c(5)),
+            "x x^-1",
+            "x^0",
+            "x^3 x^-1",
+            "(x + 1)^2",
+            "(x + 1)^-1 (x + 2)^-1",
+            "exp(log(x))",
+            "exp(0)",
+            "log(1)",
+            "cos(0)",
+            "D(x^2, x)",
+            "D(sin(x), x)",
+            "D(x y, x)",
+            "D(log(x), x)",
+            "D(exp(2 x), x)",
+            "D(sin(x)^2, x)",
+            "D(D(x^3, x), x)",
+            "D(5, x)",
         ];
-        for expr in inputs {
-            assert_idempotent(&f, expr);
+        for input in inputs {
+            assert_idempotent(&ElementaryRewriter::new(), expr(input));
         }
     }
 
     #[test]
     #[should_panic(expected = "division by zero")]
     fn inverting_zero_panics() {
-        fmt(pow(c(0), -1));
+        rewrite("0^-1");
     }
 
     #[test]
     fn inverting_an_inverse_sum_expands() {
-        // ((x+1)^-1)^-2 -- inverting an already-inverted sum flips its
-        // exponent back positive, which must expand rather than survive as
-        // a Sum atom with a positive exponent.
-        let expr = pow(pow(Expr::Add(vec![x(), c(1)]), -1), -2);
-        let expected = fmt(pow(Expr::Add(vec![x(), c(1)]), 2));
-        let actual = fmt(expr.clone());
-        assert_eq!(actual, expected);
-        assert_idempotent(&ElementaryRewriter::new(), expr);
+        // Inverting an already-inverted sum flips its exponent back
+        // positive, which must expand rather than survive as a Sum atom
+        // with a positive exponent.
+        let input = "((x + 1)^-1)^-2";
+        assert_eq!(rewrite(input), rewrite("(x + 1)^2"));
+        assert_idempotent(&ElementaryRewriter::new(), expr(input));
     }
 }

@@ -1,13 +1,15 @@
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::str::FromStr;
+
+use eqn_core::map::Map;
+use eqn_core::op::{Associative, BinaryOperator, Commutative, Inverse};
+use eqn_core::set::Set;
 
 use crate::algebra::Algebra;
-use crate::map::Map;
 use crate::module::{Module, ModuleElem, ModuleScalar};
-use crate::op::{Associative, BinaryOperator, Commutative, Inverse};
 use crate::ring::{Ring, RingElem, Subring};
-use crate::set::Set;
 
 // ================================================================================
 // Field
@@ -17,6 +19,9 @@ use crate::set::Set;
 /// element except `ZERO`. `invert(ZERO)` is a contract violation, not an
 /// error; the operator's `Inverse` impl is only consulted for non-zero input.
 pub trait Field: Ring<Multiplication: Commutative + Inverse> {
+    /// Source spelling of division.
+    const DIV_SYMBOL: &'static str = <Self::Multiplication as Inverse>::INVERSE_SYMBOL;
+
     fn invert(a: RingElem<Self>) -> RingElem<Self> {
         <Self::Multiplication as Inverse>::inverse(a)
     }
@@ -177,6 +182,18 @@ impl<const P: u64> From<i64> for PrimeFieldElement<P> {
     }
 }
 
+/// Reads an integer, reduced modulo `P`; negative values are allowed.
+impl<const P: u64> FromStr for PrimeFieldElement<P> {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.parse::<u64>() {
+            Ok(value) => Ok(Self::new(value)),
+            Err(_) => s.parse::<i64>().map(Self::from_i64),
+        }
+    }
+}
+
 impl<const P: u64> Add for PrimeFieldElement<P> {
     type Output = Self;
 
@@ -234,11 +251,11 @@ impl<const P: u64> Div for PrimeFieldElement<P> {
 pub struct PrimeFieldSet<const P: u64>(PhantomData<PrimeField<P>>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, apply = |a, b| a + b, identity = PrimeFieldElement::ZERO, inverse = Neg::neg)]
+#[operator(domain = PrimeFieldSet<P>, symbol = "+", apply = |a, b| a + b, identity = PrimeFieldElement::ZERO, inverse = Neg::neg, inverse_symbol = "-")]
 pub struct PrimeFieldAdd<const P: u64>(PhantomData<PrimeField<P>>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, apply = |a, b| a * b, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse())]
+#[operator(domain = PrimeFieldSet<P>, symbol = "*", apply = |a, b| a * b, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse(), inverse_symbol = "/")]
 pub struct PrimeFieldMul<const P: u64>(PhantomData<PrimeField<P>>);
 
 impl<const P: u64> crate::ring::SemiRing for PrimeField<P> {
@@ -329,6 +346,15 @@ mod tests {
         assert_eq!(F5::new(7).value(), 2);
         assert_eq!(F5::from_i64(-1).value(), 4);
         assert_eq!(F5::from_i64(-13).value(), 2);
+    }
+
+    #[test]
+    fn prime_field_elements_parse_modulo_p() {
+        type E = PrimeFieldElement<5>;
+
+        assert_eq!("7".parse::<E>().unwrap(), E::new(2));
+        assert_eq!("-1".parse::<E>().unwrap(), E::new(4));
+        assert!("x".parse::<E>().is_err());
     }
 
     #[test]

@@ -8,6 +8,11 @@ use eqn_algebra::ring::{DifferentialRing, RingElem};
 use eqn_core::rewriter::Expression;
 use eqn_core::symbol::Symbol;
 
+mod parse;
+mod rewriter;
+// Re-exports
+pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
+
 pub const WEDGE_CHAR: char = '\u{2227}';
 pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
 
@@ -139,15 +144,12 @@ impl<M: Manifold> Chart<M> {
     }
 }
 
-mod rewriter;
-pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
-
 #[cfg(test)]
 mod tests {
     use eqn_algebra::operator_impl::{QAdd, QMul, ZAdd, ZMul};
-    use eqn_analysis::{ElementaryExpr, ElementaryFunctionRing, ElementaryRewriter};
+    use eqn_analysis::{ElementaryFunctionRing, ElementaryRewriter};
     use eqn_core::rewriter::Rewriter;
-    use eqn_core::set::{Q, Rational, Z};
+    use eqn_core::set::{Q, Z};
     use eqn_poly::PolynomialRing;
 
     use super::*;
@@ -166,8 +168,12 @@ mod tests {
         type const DIM: usize = 2;
     }
 
-    fn constant(c: Rational) -> DifferentialForm<Plane> {
-        DifferentialForm::Scalar(ElementaryExpr::Const(c))
+    pub(super) fn form(src: &str) -> DifferentialForm<Plane> {
+        src.parse().unwrap()
+    }
+
+    pub(super) fn int_form(src: &str) -> DifferentialForm<IntPlane> {
+        src.parse().unwrap()
     }
 
     #[test]
@@ -175,75 +181,40 @@ mod tests {
         let cartesian = Chart::<Plane>::new([Symbol::new("x"), Symbol::new("y")]);
         let polar = Chart::<Plane>::new([Symbol::new("r"), Symbol::new("θ")]);
 
-        assert_eq!(
-            cartesian.differential(0).unwrap(),
-            DifferentialForm::Differential(Box::new(DifferentialForm::Scalar(
-                ElementaryExpr::Symbol(Symbol::new("x"))
-            )))
-        );
+        assert_eq!(cartesian.differential(0).unwrap(), form("dx"));
         assert_ne!(cartesian.differential(0), polar.differential(0));
     }
 
     #[test]
     fn substitute_replaces_coordinate_inside_differential() {
-        let polar = Chart::<Plane>::new([Symbol::new("r"), Symbol::new("θ")]);
         // ω = r ∧ dθ, two free symbols
-        let mut omega = DifferentialForm::Wedged(vec![
-            polar.coordinate(0).unwrap(),
-            polar.differential(1).unwrap(),
-        ]);
+        let mut omega = form("r ∧ dθ");
         assert_eq!(omega.degrees_of_freedom(), 2);
 
         // θ := 3  ⇒  r ∧ d3
-        omega.substitute(Symbol::new("θ"), &constant(Rational::from(3)));
-        assert_eq!(
-            omega,
-            DifferentialForm::Wedged(vec![
-                polar.coordinate(0).unwrap(),
-                DifferentialForm::Differential(Box::new(constant(Rational::from(3)))),
-            ])
-        );
+        omega.substitute(Symbol::new("θ"), &form("3"));
+        assert_eq!(omega, form("r ∧ d(3)"));
         assert_eq!(omega.degrees_of_freedom(), 1);
     }
 
     #[test]
     fn substitute_into_composite_scalar_updates_degrees_of_freedom() {
         let xy = Chart::<Plane>::new([Symbol::new("x"), Symbol::new("y")]);
-        let x = || ElementaryExpr::Symbol(Symbol::new("x"));
-        let y = || ElementaryExpr::Symbol(Symbol::new("y"));
 
         // ω = (x^2 + y) dx
-        let coeff = ElementaryExpr::Add(vec![
-            ElementaryExpr::Pow {
-                base: Box::new(x()),
-                exponent: 2,
-            },
-            y(),
-        ]);
-        let mut omega = DifferentialForm::Wedged(vec![
-            DifferentialForm::Scalar(coeff),
-            xy.differential(0).unwrap(),
-        ]);
+        let mut omega = form("(x^2 + y) dx");
         assert_eq!(omega.degrees_of_freedom(), 2);
 
         // y := 3  ⇒  (x^2 + 3) dx
-        omega.substitute(Symbol::new("y"), &constant(Rational::from(3)));
+        omega.substitute(Symbol::new("y"), &form("3"));
         assert_eq!(omega.degrees_of_freedom(), 1);
-
-        let expected = DifferentialForm::Wedged(vec![
-            DifferentialForm::Scalar(ElementaryExpr::Add(vec![
-                ElementaryExpr::Pow {
-                    base: Box::new(x()),
-                    exponent: 2,
-                },
-                ElementaryExpr::Const(Rational::from(3)),
-            ])),
-            xy.differential(0).unwrap(),
-        ]);
 
         // `substitute` does not normalize; compare after normalizing both
         // sides.
-        let f = GradedCommutativeRewriter::<Plane, _>::new(xy.clone(), ElementaryRewriter::new());
-        assert_eq!(f.rewrited_expr(omega), f.rewrited_expr(expected));
+        let f = GradedCommutativeRewriter::new(xy, ElementaryRewriter::new());
+        assert_eq!(
+            f.rewrited_expr(omega),
+            f.rewrited_expr(form("(x^2 + 3) dx"))
+        );
     }
 }

@@ -1,11 +1,11 @@
-use eqn_core::set::Elem;
+use eqn_core::op::{Associative, BinaryOperator, Identity};
+use eqn_core::rewriter::Expression;
+use eqn_core::set::{Elem, Set};
+use eqn_core::symbol::Symbol;
 
-use crate::op::{Associative, BinaryOperator, Identity};
-use crate::rewriter::Expression;
-use crate::set::Set;
-use crate::symbol::Symbol;
-
+mod parse;
 mod rewriter;
+
 // Re-exports
 pub use rewriter::{CommutativeMonoidRewriter, NonCommutativeMonoidRewriter};
 
@@ -20,6 +20,9 @@ pub trait Monoid {
     type Operator: BinaryOperator<Domain = Self::Domain> + Associative + Identity;
 
     const IDENTITY: MonoidElem<Self> = <Self::Operator as Identity>::IDENTITY;
+
+    /// Source spelling of the operation.
+    const SYMBOL: &'static str = <Self::Operator as BinaryOperator>::SYMBOL;
 
     fn apply(lhs: MonoidElem<Self>, rhs: MonoidElem<Self>) -> MonoidElem<Self> {
         <Self::Operator as BinaryOperator>::apply(lhs, rhs)
@@ -52,6 +55,14 @@ pub enum MonoidExpr<M: Monoid> {
     Op(Vec<MonoidExpr<M>>),
 }
 
+impl<M: Monoid> MonoidExpr<M> {
+    /// Wraps a domain element as a constant expression.
+    #[inline]
+    pub const fn constant(value: MonoidElem<M>) -> Self {
+        Self::Const(value)
+    }
+}
+
 impl<M: Monoid> Expression for MonoidExpr<M> {
     type Domain = M::Domain;
 
@@ -74,14 +85,6 @@ impl<M: Monoid> Expression for MonoidExpr<M> {
             Self::Symbol(s) => Some(s),
             _ => None,
         }
-    }
-}
-
-impl<M: Monoid> MonoidExpr<M> {
-    /// Wraps a domain element as a constant expression.
-    #[inline]
-    pub const fn constant(value: MonoidElem<M>) -> Self {
-        Self::Const(value)
     }
 }
 

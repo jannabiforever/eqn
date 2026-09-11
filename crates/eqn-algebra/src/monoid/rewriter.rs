@@ -1,7 +1,8 @@
+use eqn_core::op::Commutative;
+use eqn_core::rewriter::Rewriter;
+
 use super::{Monoid, MonoidExpr};
 use crate::flatten;
-use crate::op::Commutative;
-use crate::rewriter::Rewriter;
 
 // ================================================================================
 // Normalization engine
@@ -161,55 +162,36 @@ where
 
 #[cfg(test)]
 mod tests {
+    use eqn_core::op::{Associative, BinaryOperator};
+    use eqn_core::set::Set;
+
     use super::*;
-    use crate::op::{Associative, BinaryOperator};
-    use crate::set::Set;
-    use crate::symbol::Symbol;
 
     #[derive(Set)]
     #[set(element = i64)]
     struct TestDomain;
 
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = TestDomain, apply = |a, b| a + b, identity = 0)]
+    #[operator(domain = TestDomain, symbol = "+", apply = |a, b| a + b, identity = 0)]
     struct TestOperator;
+
+    type Expr = MonoidExpr<(TestDomain, TestOperator)>;
+
+    fn expr(src: &str) -> Expr {
+        src.parse().unwrap()
+    }
 
     #[test]
     fn test_simplify_op() {
-        let x = Symbol::new("x");
-        let expr = MonoidExpr::<(TestDomain, TestOperator)>::Op(vec![
-            MonoidExpr::Const(1),
-            MonoidExpr::Const(2),
-            MonoidExpr::Symbol(x.clone()),
-        ]);
-        let simplified = NonCommutativeMonoidRewriter::new().rewrited_expr(expr);
-
-        assert!(simplified == MonoidExpr::Op(vec![MonoidExpr::Const(3), MonoidExpr::Symbol(x),]));
+        let simplified = NonCommutativeMonoidRewriter::new().rewrited_expr(expr("1 + 2 + x"));
+        assert_eq!(simplified, expr("3 + x"));
     }
 
     #[test]
     fn test_simplify_with_commutativity() {
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
-        let expr = MonoidExpr::<(TestDomain, TestOperator)>::Op(vec![
-            MonoidExpr::Const(1),
-            MonoidExpr::Op(vec![MonoidExpr::Const(2), MonoidExpr::Symbol(y.clone())]),
-            MonoidExpr::Const(0),
-            MonoidExpr::Op(vec![MonoidExpr::Symbol(x.clone()), MonoidExpr::Const(3)]),
-            MonoidExpr::Const(4),
-            MonoidExpr::Symbol(x.clone()),
-        ]);
-        let simplified = CommutativeMonoidRewriter::new().rewrited_expr(expr);
-
-        assert!(
-            simplified
-                == MonoidExpr::Op(vec![
-                    MonoidExpr::Const(10),
-                    MonoidExpr::Symbol(x.clone()),
-                    MonoidExpr::Symbol(x),
-                    MonoidExpr::Symbol(y),
-                ])
-        );
+        let simplified = CommutativeMonoidRewriter::new()
+            .rewrited_expr(expr("1 + (2 + y) + 0 + (x + 3) + 4 + x"));
+        assert_eq!(simplified, expr("10 + x + x + y"));
     }
 
     fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
@@ -222,20 +204,11 @@ mod tests {
 
     #[test]
     fn normalize_is_idempotent() {
-        type Expr = MonoidExpr<(TestDomain, TestOperator)>;
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
         let inputs = [
-            Expr::Const(0),
-            Expr::Symbol(x.clone()),
+            expr("0"),
+            expr("x"),
             Expr::Op(vec![]),
-            Expr::Op(vec![
-                Expr::Const(1),
-                Expr::Op(vec![Expr::Const(2), Expr::Symbol(y)]),
-                Expr::Const(0),
-                Expr::Op(vec![Expr::Symbol(x.clone()), Expr::Const(3)]),
-                Expr::Symbol(x),
-            ]),
+            expr("1 + (2 + y) + 0 + (x + 3) + x"),
         ];
         for expr in inputs {
             assert_idempotent(&NonCommutativeMonoidRewriter::new(), expr.clone());

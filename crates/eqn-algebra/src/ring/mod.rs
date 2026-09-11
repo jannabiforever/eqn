@@ -1,14 +1,13 @@
 use std::num::NonZeroUsize;
 
-use eqn_core::set::Elem;
-
-use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
-use crate::rewriter::Expression;
-use crate::set::Set;
-use crate::symbol::Symbol;
+use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
+use eqn_core::rewriter::Expression;
+use eqn_core::set::{Elem, Set};
+use eqn_core::symbol::Symbol;
 
 mod differential;
 mod ideal;
+mod parse;
 mod quotient;
 mod rewriter;
 
@@ -55,6 +54,12 @@ pub trait SemiRing {
 
     /// Multiplication's identity
     const ONE: RingElem<Self> = <Self::Multiplication as Identity>::IDENTITY;
+
+    /// Source spelling of addition.
+    const ADD_SYMBOL: &'static str = <Self::Addition as BinaryOperator>::SYMBOL;
+
+    /// Source spelling of multiplication.
+    const MUL_SYMBOL: &'static str = <Self::Multiplication as BinaryOperator>::SYMBOL;
 
     fn add(a: RingElem<Self>, b: RingElem<Self>) -> RingElem<Self> {
         <Self::Addition as BinaryOperator>::apply(a, b)
@@ -103,7 +108,10 @@ pub trait SubSemiRing {
 }
 
 /// A ring: a semi-ring whose addition also has inverses.
-pub trait Ring: SemiRing {
+pub trait Ring: SemiRing<Addition: Inverse> {
+    /// Source spelling of subtraction and negation.
+    const SUB_SYMBOL: &'static str = <Self::Addition as Inverse>::INVERSE_SYMBOL;
+
     /// The additive inverse.
     fn negate(a: RingElem<Self>) -> RingElem<Self>;
 }

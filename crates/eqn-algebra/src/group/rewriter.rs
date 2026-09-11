@@ -1,7 +1,8 @@
+use eqn_core::rewriter::Rewriter;
+use eqn_core::set::Set;
+
 use super::{AbelianGroup, Group, GroupExpr};
 use crate::flatten;
-use crate::rewriter::Rewriter;
-use crate::set::Set;
 
 fn cmp_structural<G: Group>(lhs: &GroupExpr<G>, rhs: &GroupExpr<G>) -> std::cmp::Ordering {
     const fn rank<G: Group>(expr: &GroupExpr<G>) -> u8 {
@@ -419,227 +420,65 @@ mod tests {
     use super::super::tests::*;
     use super::*;
     use crate::monoid::Monoid;
-    use crate::symbol::Symbol;
+
+    fn group(src: &str) -> Expr {
+        GroupRewriter::new().rewrited_expr(expr(src))
+    }
+
+    fn abelian(src: &str) -> Expr {
+        AbelianGroupRewriter::new().rewrited_expr(expr(src))
+    }
 
     #[test]
     fn group_rewriter_preserves_order_and_reduces_inverses() {
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
-        let expr = Expr::Op(vec![
-            Expr::Const(1),
-            Expr::Const(2),
-            Expr::Symbol(x.clone()),
-            Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
-            Expr::Inv(Box::new(Expr::Op(vec![
-                Expr::Symbol(x.clone()),
-                Expr::Symbol(y.clone()),
-            ]))),
-        ]);
-
-        assert!(
-            GroupRewriter::new().rewrited_expr(expr)
-                == Expr::Op(vec![
-                    Expr::Const(3),
-                    Expr::Inv(Box::new(Expr::Symbol(y))),
-                    Expr::Inv(Box::new(Expr::Symbol(x))),
-                ])
+        assert_eq!(
+            group("1 + 2 + x + inv(x) + inv(x + y)"),
+            expr("3 + inv(y) + inv(x)")
         );
     }
 
     #[test]
     fn abelian_group_rewriter_sorts_and_cancels_globally() {
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
-        let expr = Expr::Op(vec![
-            Expr::Symbol(y.clone()),
-            Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
-            Expr::Const(2),
-            Expr::Symbol(x.clone()),
-            Expr::Inv(Box::new(Expr::Symbol(y))),
-            Expr::Symbol(x.clone()),
-            Expr::Const(-2),
-        ]);
-
-        assert!(AbelianGroupRewriter::new().rewrited_expr(expr) == Expr::Symbol(x));
+        assert_eq!(abelian("y + inv(x) + 2 + x + inv(y) + x + -2"), expr("x"));
     }
 
     #[test]
     fn only_abelian_rewriter_reduces_commutators() {
-        let a = Symbol::new("a");
-        let b = Symbol::new("b");
-        let commutator = Expr::Op(vec![
-            Expr::Symbol(a.clone()),
-            Expr::Symbol(b.clone()),
-            Expr::Pow {
-                base: Box::new(Expr::Symbol(a.clone())),
-                exponent: -1,
-            },
-            Expr::Pow {
-                base: Box::new(Expr::Symbol(b.clone())),
-                exponent: -1,
-            },
-        ]);
+        let commutator = "a + b + a^-1 + b^-1";
 
-        assert!(
-            GroupRewriter::new().rewrited_expr(commutator.clone())
-                == Expr::Op(vec![
-                    Expr::Symbol(a.clone()),
-                    Expr::Symbol(b.clone()),
-                    Expr::Inv(Box::new(Expr::Symbol(a))),
-                    Expr::Inv(Box::new(Expr::Symbol(b))),
-                ])
-        );
-        assert!(
-            AbelianGroupRewriter::new().rewrited_expr(commutator)
-                == Expr::Const(IntegerAdditionGroup::IDENTITY)
+        assert_eq!(group(commutator), expr("a + b + inv(a) + inv(b)"));
+        assert_eq!(
+            abelian(commutator),
+            Expr::Const(IntegerAdditionGroup::IDENTITY)
         );
     }
 
     #[test]
     fn group_rewriter_folds_constant_and_double_inverses() {
-        let x = Symbol::new("x");
-        let formatter = GroupRewriter::new();
-
-        assert!(formatter.rewrited_expr(Expr::Inv(Box::new(Expr::Const(3)))) == Expr::Const(-3));
-        assert!(
-            formatter.rewrited_expr(Expr::Inv(Box::new(Expr::Inv(Box::new(Expr::Symbol(
-                x.clone(),
-            ))))))
-                == Expr::Symbol(x)
-        );
+        assert_eq!(group("inv(3)"), expr("-3"));
+        assert_eq!(group("inv(inv(x))"), expr("x"));
     }
 
     #[test]
     fn group_rewriter_normalizes_powers() {
-        let x = Symbol::new("x");
-        let formatter = GroupRewriter::new();
-
-        assert!(
-            formatter.rewrited_expr(Expr::Pow {
-                base: Box::new(Expr::Const(3)),
-                exponent: -3,
-            }) == Expr::Const(-9)
-        );
-        assert!(
-            formatter.rewrited_expr(Expr::Pow {
-                base: Box::new(Expr::Symbol(x.clone())),
-                exponent: 0,
-            }) == Expr::Const(0)
-        );
-        assert!(
-            formatter.rewrited_expr(Expr::Pow {
-                base: Box::new(Expr::Pow {
-                    base: Box::new(Expr::Symbol(x.clone())),
-                    exponent: 3,
-                }),
-                exponent: -2,
-            }) == Expr::Pow {
-                base: Box::new(Expr::Symbol(x.clone())),
-                exponent: -6,
-            }
-        );
-        assert!(
-            formatter.rewrited_expr(Expr::Inv(Box::new(Expr::Pow {
-                base: Box::new(Expr::Symbol(x.clone())),
-                exponent: 2,
-            }))) == Expr::Pow {
-                base: Box::new(Expr::Symbol(x)),
-                exponent: -2,
-            }
-        );
+        assert_eq!(group("3^-3"), expr("-9"));
+        assert_eq!(group("x^0"), expr("0"));
+        assert_eq!(group("(x^3)^-2"), expr("x^-6"));
+        assert_eq!(group("inv(x^2)"), expr("x^-2"));
     }
 
     #[test]
     fn group_rewriters_combine_powers_where_allowed() {
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
-
-        let non_commutative = Expr::Op(vec![
-            Expr::Pow {
-                base: Box::new(Expr::Symbol(x.clone())),
-                exponent: 2,
-            },
-            Expr::Pow {
-                base: Box::new(Expr::Symbol(x.clone())),
-                exponent: -3,
-            },
-            Expr::Symbol(y.clone()),
-            Expr::Symbol(x.clone()),
-        ]);
-        assert!(
-            GroupRewriter::new().rewrited_expr(non_commutative)
-                == Expr::Op(vec![
-                    Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
-                    Expr::Symbol(y.clone()),
-                    Expr::Symbol(x.clone()),
-                ])
-        );
-
-        let abelian = Expr::Op(vec![
-            Expr::Pow {
-                base: Box::new(Expr::Symbol(y.clone())),
-                exponent: 2,
-            },
-            Expr::Pow {
-                base: Box::new(Expr::Symbol(x.clone())),
-                exponent: -3,
-            },
-            Expr::Symbol(x.clone()),
-            Expr::Symbol(y.clone()),
-        ]);
-        assert!(
-            AbelianGroupRewriter::new().rewrited_expr(abelian)
-                == Expr::Op(vec![
-                    Expr::Pow {
-                        base: Box::new(Expr::Symbol(x)),
-                        exponent: -2,
-                    },
-                    Expr::Pow {
-                        base: Box::new(Expr::Symbol(y)),
-                        exponent: 3,
-                    },
-                ])
-        );
+        assert_eq!(group("x^2 + x^-3 + y + x"), expr("inv(x) + y + x"));
+        assert_eq!(abelian("y^2 + x^-3 + x + y"), expr("x^-2 + y^3"));
     }
 
     #[test]
     fn only_abelian_rewriter_distributes_powers_over_products() {
-        let x = Symbol::new("x");
-        let y = Symbol::new("y");
-        let expr = Expr::Pow {
-            base: Box::new(Expr::Op(vec![
-                Expr::Const(2),
-                Expr::Symbol(y.clone()),
-                Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
-            ])),
-            exponent: 3,
-        };
+        let power = "(2 + y + inv(x))^3";
 
-        assert!(
-            GroupRewriter::new().rewrited_expr(expr.clone())
-                == Expr::Pow {
-                    base: Box::new(Expr::Op(vec![
-                        Expr::Const(2),
-                        Expr::Symbol(y.clone()),
-                        Expr::Inv(Box::new(Expr::Symbol(x.clone()))),
-                    ])),
-                    exponent: 3,
-                }
-        );
-        assert!(
-            AbelianGroupRewriter::new().rewrited_expr(expr)
-                == Expr::Op(vec![
-                    Expr::Const(6),
-                    Expr::Pow {
-                        base: Box::new(Expr::Symbol(x)),
-                        exponent: -3,
-                    },
-                    Expr::Pow {
-                        base: Box::new(Expr::Symbol(y)),
-                        exponent: 3,
-                    },
-                ])
-        );
+        assert_eq!(group(power), expr(power));
+        assert_eq!(abelian(power), expr("6 + x^-3 + y^3"));
     }
 
     fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
@@ -652,29 +491,13 @@ mod tests {
 
     #[test]
     fn normalize_is_idempotent() {
-        let x = Expr::Symbol(Symbol::new("x"));
-        let y = Expr::Symbol(Symbol::new("y"));
-        let pow = |base: Expr, exponent| Expr::Pow {
-            base: Box::new(base),
-            exponent,
-        };
-        let inv = |e: Expr| Expr::Inv(Box::new(e));
         let inputs = [
-            Expr::Const(0),
+            expr("0"),
             Expr::Op(vec![]),
-            pow(x.clone(), 0),
-            inv(inv(x.clone())),
-            pow(Expr::Op(vec![x.clone(), y.clone()]), 2),
-            Expr::Op(vec![
-                x.clone(),
-                inv(x.clone()),
-                Expr::Const(3),
-                Expr::Const(-3),
-                pow(x.clone(), -2),
-                inv(pow(x.clone(), 2)),
-                y,
-                x,
-            ]),
+            expr("x^0"),
+            expr("inv(inv(x))"),
+            expr("(x + y)^2"),
+            expr("x + inv(x) + 3 + -3 + x^-2 + inv(x^2) + y + x"),
         ];
         for expr in inputs {
             assert_idempotent(&GroupRewriter::new(), expr.clone());

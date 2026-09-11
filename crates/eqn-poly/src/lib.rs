@@ -31,9 +31,11 @@ pub struct Polynomials<R: Ring>(PhantomData<R>);
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
     domain = Polynomials<R>,
+    symbol = R::ADD_SYMBOL,
     apply = |a, b| RingExpr::Add(vec![a, b]),
     identity = RingExpr::Const(R::ZERO),
-    inverse = |a| RingExpr::Neg(Box::new(a))
+    inverse = |a| RingExpr::Neg(Box::new(a)),
+    inverse_symbol = R::SUB_SYMBOL
 )]
 pub struct PolyAdd<R: Ring>(PhantomData<R>);
 
@@ -41,6 +43,7 @@ pub struct PolyAdd<R: Ring>(PhantomData<R>);
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
     domain = Polynomials<R>,
+    symbol = R::MUL_SYMBOL,
     apply = |a, b| RingExpr::Mul(vec![a, b]),
     identity = RingExpr::Const(R::ONE)
 )]
@@ -119,45 +122,52 @@ mod tests {
     use eqn_algebra::algebra::Algebra;
     use eqn_algebra::module::Module;
     use eqn_algebra::operator_impl::{ZAdd, ZMul};
-    use eqn_algebra::rewriter::Rewriter;
     use eqn_algebra::ring::{CommutativeRingRewriter, SemiRing};
+    use eqn_core::rewriter::Rewriter;
     use eqn_core::set::Z;
 
     use super::*;
 
+    type Integers = (Z, ZAdd, ZMul);
+    type Expr = RingExpr<Integers>;
+    type Poly = PolynomialRing<Integers>;
+
+    fn expr(src: &str) -> Expr {
+        src.parse().unwrap()
+    }
+
+    fn xs() -> Symbol<Z> {
+        Symbol::new("x")
+    }
+
+    fn ys() -> Symbol<Z> {
+        Symbol::new("y")
+    }
+
+    fn norm(e: Expr) -> Expr {
+        CommutativeRingRewriter::<Integers>::new().rewrited_expr(e)
+    }
+
     #[test]
     fn polynomial_ring_operators_build_trees() {
-        type P = PolynomialRing<(Z, ZAdd, ZMul)>;
-        let x = RingExpr::<(Z, ZAdd, ZMul)>::Symbol(Symbol::new("x"));
-        let y = RingExpr::<(Z, ZAdd, ZMul)>::Symbol(Symbol::new("y"));
-
-        assert_eq!(
-            P::add(x.clone(), y.clone()),
-            RingExpr::Add(vec![x.clone(), y])
-        );
-        assert_eq!(P::ONE, RingExpr::Const(1));
-        assert_eq!(P::negate(x.clone()), RingExpr::Neg(Box::new(x)));
+        assert_eq!(Poly::add(expr("x"), expr("y")), expr("x + y"));
+        assert_eq!(Poly::ONE, expr("1"));
+        assert_eq!(Poly::negate(expr("x")), expr("-x"));
     }
 
     #[test]
     fn polynomial_ring_is_commutative() {
         fn assert_commutative_ring<R: CommutativeRing>() {}
-        assert_commutative_ring::<PolynomialRing<(Z, ZAdd, ZMul)>>();
+        assert_commutative_ring::<Poly>();
     }
 
     #[test]
     fn polynomial_ring_is_an_algebra_over_its_coefficients() {
         fn assert_algebra<A: Algebra>() {}
 
-        type P = PolynomialRing<(Z, ZAdd, ZMul)>;
-        let x = RingExpr::<(Z, ZAdd, ZMul)>::Symbol(Symbol::new("x"));
-
-        assert_algebra::<P>();
-        assert_eq!(
-            P::scale(3, x.clone()),
-            RingExpr::Mul(vec![RingExpr::Const(3), x])
-        );
-        assert_eq!(norm(P::from_scalar(4)), RingExpr::Const(4));
+        assert_algebra::<Poly>();
+        assert_eq!(Poly::scale(3, expr("x")), expr("3 x"));
+        assert_eq!(norm(Poly::from_scalar(4)), expr("4"));
     }
 
     #[test]
@@ -166,10 +176,10 @@ mod tests {
             <Poly as Module>::scale(scalar, value)
         }
 
-        let p = Expr::Add(vec![x(), c(2)]);
-        let q = Expr::Add(vec![y(), c(-3)]);
+        let p = expr("x + 2");
+        let q = expr("y - 3");
 
-        assert_eq!(norm(scale(0, p.clone())), c(0));
+        assert_eq!(norm(scale(0, p.clone())), expr("0"));
         assert_eq!(norm(scale(1, p.clone())), norm(p.clone()));
         assert_eq!(
             norm(scale(2 + 3, p.clone())),
@@ -202,73 +212,29 @@ mod tests {
         );
     }
 
-    type Expr = RingExpr<(Z, ZAdd, ZMul)>;
-    type Poly = PolynomialRing<(Z, ZAdd, ZMul)>;
-
-    fn c(i: i64) -> Expr {
-        Expr::Const(i)
-    }
-
-    fn xs() -> Symbol<Z> {
-        Symbol::new("x")
-    }
-
-    fn ys() -> Symbol<Z> {
-        Symbol::new("y")
-    }
-
-    fn x() -> Expr {
-        Expr::Symbol(xs())
-    }
-
-    fn y() -> Expr {
-        Expr::Symbol(ys())
-    }
-
-    fn pow(base: Expr, exponent: usize) -> Expr {
-        Expr::Pow {
-            base: Box::new(base),
-            exponent: NonZeroUsize::new(exponent).unwrap(),
-        }
-    }
-
-    fn norm(e: Expr) -> Expr {
-        CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new().rewrited_expr(e)
-    }
-
     #[test]
     fn derive_of_a_power() {
-        // d(x^2)/dx = 2x
-        assert_eq!(
-            norm(Poly::derive(pow(x(), 2), &xs())),
-            Expr::Mul(vec![c(2), x()])
-        );
+        assert_eq!(norm(Poly::derive(expr("x^2"), &xs())), expr("2 x"));
     }
 
     #[test]
     fn derive_of_a_product() {
-        // d(x*y)/dx = y
-        assert_eq!(norm(Poly::derive(Expr::Mul(vec![x(), y()]), &xs())), y());
+        assert_eq!(norm(Poly::derive(expr("x y"), &xs())), expr("y"));
     }
 
     #[test]
     fn derive_of_a_sum_only_sees_its_own_variable() {
-        // d(x^3 + y)/dy = 1
-        let expr = Expr::Add(vec![pow(x(), 3), y()]);
-        assert_eq!(norm(Poly::derive(expr, &ys())), c(1));
+        assert_eq!(norm(Poly::derive(expr("x^3 + y"), &ys())), expr("1"));
     }
 
     #[test]
     fn derive_of_a_constant_is_zero() {
-        assert_eq!(norm(Poly::derive(c(5), &xs())), c(0));
+        assert_eq!(norm(Poly::derive(expr("5"), &xs())), expr("0"));
     }
 
     #[test]
     fn is_zero_and_is_one_after_normalizing() {
-        let zero = norm(Expr::Add(vec![x(), Expr::Neg(Box::new(x()))]));
-        assert_eq!(zero, Expr::Const(<(Z, ZAdd, ZMul) as SemiRing>::ZERO));
-
-        let one = norm(Expr::Mul(vec![c(1), c(1)]));
-        assert_eq!(one, Expr::Const(<(Z, ZAdd, ZMul) as SemiRing>::ONE));
+        assert_eq!(norm(expr("x + -x")), Expr::Const(Integers::ZERO));
+        assert_eq!(norm(expr("1 * 1")), Expr::Const(Integers::ONE));
     }
 }
