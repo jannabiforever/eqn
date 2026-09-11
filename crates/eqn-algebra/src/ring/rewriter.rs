@@ -475,6 +475,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::ops::{Add, Mul};
+
     use super::*;
     use crate::op::{Associative, BinaryOperator};
     use crate::symbol::Symbol;
@@ -484,11 +486,11 @@ mod tests {
     struct TestDomain;
 
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = TestDomain, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
+    #[operator(domain = TestDomain, apply = Add::add, identity = 0, inverse = |a| -a)]
     struct TestAdd;
 
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = TestDomain, apply = |a, b| a * b, identity = 1)]
+    #[operator(domain = TestDomain, apply = Mul::mul, identity = 1)]
     struct TestMul;
 
     struct TestSemiRing;

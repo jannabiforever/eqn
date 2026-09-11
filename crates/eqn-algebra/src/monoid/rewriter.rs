@@ -161,6 +161,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Add;
+
     use super::*;
     use crate::op::{Associative, BinaryOperator};
     use crate::set::Set;
@@ -171,7 +173,7 @@ mod tests {
     struct TestDomain;
 
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = TestDomain, apply = |a, b| a + b, identity = 0)]
+    #[operator(domain = TestDomain, apply = Add::add, identity = 0)]
     struct TestOperator;
 
     #[test]

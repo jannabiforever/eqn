@@ -251,11 +251,11 @@ impl<const P: u64> Div for PrimeFieldElement<P> {
 pub struct PrimeFieldSet<const P: u64>(PhantomData<PrimeField<P>>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, apply = |a, b| a + b, identity = PrimeFieldElement::ZERO, inverse = Neg::neg)]
+#[operator(domain = PrimeFieldSet<P>, apply = Add::add, identity = PrimeFieldElement::ZERO, inverse = Neg::neg)]
 pub struct PrimeFieldAdd<const P: u64>(PhantomData<PrimeField<P>>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, apply = |a, b| a * b, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse())]
+#[operator(domain = PrimeFieldSet<P>, apply = Mul::mul, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse())]
 pub struct PrimeFieldMul<const P: u64>(PhantomData<PrimeField<P>>);
 
 impl<const P: u64> crate::ring::SemiRing for PrimeField<P> {
