@@ -89,8 +89,25 @@ pub type BaseFieldElem<E> = RingElem<<E as FieldExtension>::BaseField>;
 pub struct PrimeField<const P: u64>(PhantomData<PrimeFieldSet<P>>);
 
 impl<const P: u64> PrimeField<P> {
+    /// TODO: Use a faster primality test algorithm
+    /// Thought of using Miller-Rabin, but a slight problem is to define the
+    /// bounds on determining how many primes to test
     pub const fn is_valid() -> bool {
-        is_prime(P)
+        if P < 2 {
+            return false;
+        }
+        let mut divisor = 2;
+        while divisor <= P / divisor {
+            if P.is_multiple_of(divisor) {
+                return false;
+            }
+            divisor += 1;
+        }
+        true
+    }
+
+    pub const fn assert_valid() {
+        assert!(Self::is_valid(), "prime-field characteristic must be prime");
     }
 }
 
@@ -106,13 +123,13 @@ impl<const P: u64> PrimeFieldElement<P> {
     pub const ONE: Self = Self { value: 1 };
 
     pub fn new(value: u64) -> Self {
-        assert_prime::<P>();
+        PrimeField::<P>::assert_valid();
         Self { value: value % P }
     }
 
     /// TODO: Implement as bignum
     pub fn from_i64(value: i64) -> Self {
-        assert_prime::<P>();
+        PrimeField::<P>::assert_valid();
         let modulus = i128::from(P);
         let value = i128::from(value).rem_euclid(modulus) as u64;
         Self { value }
@@ -143,13 +160,13 @@ impl<const P: u64> PrimeFieldElement<P> {
     }
 
     pub fn inverse(self) -> Self {
-        assert_prime::<P>();
+        PrimeField::<P>::assert_valid();
         assert!(!self.is_zero(), "zero has no multiplicative inverse");
         self.pow(P - 2)
     }
 
     fn product(self, rhs: Self) -> Self {
-        assert_prime::<P>();
+        PrimeField::<P>::assert_valid();
         let value = (u128::from(self.value) * u128::from(rhs.value)) % u128::from(P);
         Self {
             value: value as u64,
@@ -181,7 +198,7 @@ impl<const P: u64> Add for PrimeFieldElement<P> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
-        assert_prime::<P>();
+        PrimeField::<P>::assert_valid();
         let value = (u128::from(self.value) + u128::from(rhs.value)) % u128::from(P);
         Self {
             value: value as u64,
@@ -201,7 +218,7 @@ impl<const P: u64> Neg for PrimeFieldElement<P> {
     type Output = Self;
 
     fn neg(self) -> Self {
-        assert_prime::<P>();
+        PrimeField::<P>::assert_valid();
         if self.is_zero() {
             self
         } else {
@@ -234,11 +251,11 @@ impl<const P: u64> Div for PrimeFieldElement<P> {
 pub struct PrimeFieldSet<const P: u64>(PhantomData<PrimeField<P>>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, apply = |a, b| a + b, identity = PrimeFieldElement::ZERO, inverse = Neg::neg)]
+#[operator(domain = PrimeFieldSet<P>, apply = Add::add, identity = PrimeFieldElement::ZERO, inverse = Neg::neg)]
 pub struct PrimeFieldAdd<const P: u64>(PhantomData<PrimeField<P>>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, apply = |a, b| a * b, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse())]
+#[operator(domain = PrimeFieldSet<P>, apply = Mul::mul, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse())]
 pub struct PrimeFieldMul<const P: u64>(PhantomData<PrimeField<P>>);
 
 impl<const P: u64> crate::ring::SemiRing for PrimeField<P> {
@@ -267,27 +284,6 @@ impl<const P: u64> FiniteExtension for PrimeField<P> {
 
 impl<const P: u64> NormalExtension for PrimeField<P> {}
 impl<const P: u64> SeparableExtension for PrimeField<P> {}
-
-fn assert_prime<const P: u64>() {
-    assert!(is_prime(P), "prime-field characteristic must be prime");
-}
-
-/// TODO: Use a faster primality test algorithm
-/// Thought of using Miller-Rabin, but a slight problem is to define the bounds
-/// on determining how many primes to test
-const fn is_prime(value: u64) -> bool {
-    if value < 2 {
-        return false;
-    }
-    let mut divisor = 2;
-    while divisor <= value / divisor {
-        if value.is_multiple_of(divisor) {
-            return false;
-        }
-        divisor += 1;
-    }
-    true
-}
 
 #[cfg(test)]
 mod tests {
