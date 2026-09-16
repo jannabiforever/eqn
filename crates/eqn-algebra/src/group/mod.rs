@@ -102,6 +102,8 @@ impl<G: Group> Expression for GroupExpr<G> {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Add;
+
     use super::*;
     use crate::op::{Associative, BinaryOperator};
 
@@ -110,7 +112,7 @@ mod tests {
     pub(super) struct IntegerSet;
 
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = IntegerSet, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
+    #[operator(domain = IntegerSet, apply = Add::add, identity = 0, inverse = |a| -a)]
     pub(super) struct Addition;
 
     pub(super) type IntegerAdditionGroup = (IntegerSet, Addition);

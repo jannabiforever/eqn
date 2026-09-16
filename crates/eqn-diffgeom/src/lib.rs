@@ -108,8 +108,9 @@ where
     }
 }
 
-/// A coordinate chart: names, for each position `i`, the derivation `∂_i`
-/// and the coordinate function `xⁱ`. The contract is `∂_i xʲ = δ_ij`.
+/// A coordinate chart: names, for each position `i`, the derivation
+/// `\partial_i` and the coordinate function `x^i`. The contract is `\partial_i
+/// x^j = \delta_ij`.
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq; Coordinate<M>)]
 pub struct Chart<M: Manifold> {
     coordinates: [Coordinate<M>; M::DIM],
@@ -173,7 +174,7 @@ mod tests {
     #[test]
     fn two_charts_on_the_plane() {
         let cartesian = Chart::<Plane>::new([Symbol::new("x"), Symbol::new("y")]);
-        let polar = Chart::<Plane>::new([Symbol::new("r"), Symbol::new("θ")]);
+        let polar = Chart::<Plane>::new([Symbol::new("r"), Symbol::new("theta")]);
 
         assert_eq!(
             cartesian.differential(0).unwrap(),
@@ -186,16 +187,16 @@ mod tests {
 
     #[test]
     fn substitute_replaces_coordinate_inside_differential() {
-        let polar = Chart::<Plane>::new([Symbol::new("r"), Symbol::new("θ")]);
-        // ω = r ∧ dθ, two free symbols
+        let polar = Chart::<Plane>::new([Symbol::new("r"), Symbol::new("theta")]);
+        // omega = r \wedge dtheta, two free symbols
         let mut omega = DifferentialForm::Wedged(vec![
             polar.coordinate(0).unwrap(),
             polar.differential(1).unwrap(),
         ]);
         assert_eq!(omega.degrees_of_freedom(), 2);
 
-        // θ := 3  ⇒  r ∧ d3
-        omega.substitute(Symbol::new("θ"), &constant(Rational::from(3)));
+        // theta := 3  =>  r \wedge d3
+        omega.substitute(Symbol::new("theta"), &constant(Rational::from(3)));
         assert_eq!(
             omega,
             DifferentialForm::Wedged(vec![
@@ -212,7 +213,7 @@ mod tests {
         let x = || ElementaryExpr::Symbol(Symbol::new("x"));
         let y = || ElementaryExpr::Symbol(Symbol::new("y"));
 
-        // ω = (x^2 + y) dx
+        // omega = (x^2 + y) dx
         let coeff = ElementaryExpr::Add(vec![
             ElementaryExpr::Pow {
                 base: Box::new(x()),
@@ -226,7 +227,7 @@ mod tests {
         ]);
         assert_eq!(omega.degrees_of_freedom(), 2);
 
-        // y := 3  ⇒  (x^2 + 3) dx
+        // y := 3  =>  (x^2 + 3) dx
         omega.substitute(Symbol::new("y"), &constant(Rational::from(3)));
         assert_eq!(omega.degrees_of_freedom(), 1);
 

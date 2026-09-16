@@ -1,19 +1,21 @@
+use std::ops::{Add, Mul, Neg};
+
 use eqn_core::set::{Q, Rational, Z};
 
 use crate::op::{Associative, BinaryOperator, Commutative};
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = Q, apply = |a, b| a + b, identity = Rational::ZERO, inverse = std::ops::Neg::neg)]
+#[operator(domain = Q, apply = Add::add, identity = Rational::ZERO, inverse = Neg::neg)]
 pub struct QAdd;
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = Q, apply = |a, b| a * b, identity = Rational::ONE, inverse = Rational::recip)]
+#[operator(domain = Q, apply = Mul::mul, identity = Rational::ONE, inverse = Rational::recip)]
 pub struct QMul;
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = Z, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
+#[operator(domain = Z, apply = Add::add, identity = 0, inverse = Neg::neg)]
 pub struct ZAdd;
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = Z, apply = |a, b| a * b, identity = 1)]
+#[operator(domain = Z, apply = Mul::mul, identity = 1)]
 pub struct ZMul;

@@ -1,3 +1,5 @@
+use std::ops::{Add, Neg};
+
 use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
 use eqn_core::set::Set;
 
@@ -6,16 +8,16 @@ use eqn_core::set::Set;
 struct Ints;
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = Ints, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
-struct Add;
+#[operator(domain = Ints, apply = Add::add, identity = 0, inverse = Neg::neg)]
+struct AddSome;
 
 fn requires<Op: Associative + Commutative>() {}
 
 #[test]
 fn derives_marker_traits() {
-    requires::<Add>();
+    requires::<AddSome>();
     let _: <Ints as Set>::Element = 1i64;
-    assert_eq!(Add::apply(2, 3), 5);
-    assert_eq!(Add::IDENTITY, 0);
-    assert_eq!(Add::inverse(4), -4);
+    assert_eq!(AddSome::apply(2, 3), 5);
+    assert_eq!(AddSome::IDENTITY, 0);
+    assert_eq!(AddSome::inverse(4), -4);
 }

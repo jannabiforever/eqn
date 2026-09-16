@@ -68,7 +68,7 @@ fn set_element(input: &DeriveInput) -> syn::Result<Type> {
 
 /// ```ignore
 /// #[derive(BinaryOperator)]
-/// #[operator(domain = Ints, apply = |a, b| a + b, identity = 0, inverse = |a| -a)]
+/// #[operator(domain = Ints, apply = Add::add, identity = 0, inverse = |a| -a)]
 /// struct Add;
 /// ```
 /// `identity` and `inverse` are optional and add `Identity` / `Inverse` impls.
