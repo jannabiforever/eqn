@@ -146,8 +146,8 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
 
         let mut old_r = modulus.clone();
         let mut r = remainder;
-        let mut old_t = Polynomial::zero();
-        let mut t = Polynomial::one();
+        let mut old_t = UnivariatePolynomial::zero();
+        let mut t = UnivariatePolynomial::one();
 
         while !r.is_zero() {
             let (quotient, next_r) = old_r.div_rem(&r);
@@ -164,7 +164,7 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
             "defining polynomial must be irreducible"
         );
         let scale = old_r.coefficients()[0].inverse();
-        let scaled = Polynomial::new(
+        let scaled = UnivariatePolynomial::new(
             old_t
                 .into_coefficients()
                 .into_iter()
@@ -183,7 +183,7 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
     }
 
     /// The power-basis element of a polynomial of degree below `N`.
-    fn from_polynomial(polynomial: Polynomial<P>) -> Self {
+    fn from_polynomial(polynomial: UnivariatePolynomial<P>) -> Self {
         let mut coefficients = [PrimeFieldElement::ZERO; N];
         for (target, coefficient) in coefficients.iter_mut().zip(polynomial.into_coefficients()) {
             *target = coefficient;
@@ -191,8 +191,8 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
         Self::from_coefficients(coefficients)
     }
 
-    fn into_polynomial(self) -> Polynomial<P> {
-        Polynomial::new(self.coefficients.to_vec())
+    fn into_polynomial(self) -> UnivariatePolynomial<P> {
+        UnivariatePolynomial::new(self.coefficients.to_vec())
     }
 }
 
@@ -276,7 +276,7 @@ impl<const P: u64, const N: usize, M> FiniteField<P, N, M>
 where
     M: IrreduciblePolynomial<P, N>,
 {
-    pub fn modulus() -> Polynomial<P> {
+    pub fn modulus() -> UnivariatePolynomial<P> {
         assert!(
             PrimeField::<P>::is_valid(),
             "finite-field characteristic must be prime"
@@ -292,7 +292,7 @@ where
             Some(&PrimeFieldElement::ONE),
             "defining polynomial must be monic"
         );
-        Polynomial::new(coefficients)
+        UnivariatePolynomial::new(coefficients)
     }
 
     pub fn modulus_is_irreducible() -> bool {
@@ -300,11 +300,11 @@ where
     }
 
     pub fn generator() -> FiniteFieldElement<P, N, M> {
-        FiniteFieldElement::from_polynomial(Polynomial::x() % &Self::modulus())
+        FiniteFieldElement::from_polynomial(UnivariatePolynomial::x() % &Self::modulus())
     }
 
     pub fn evaluate_base_polynomial(
-        polynomial: &Polynomial<P>,
+        polynomial: &UnivariatePolynomial<P>,
         value: FiniteFieldElement<P, N, M>,
     ) -> FiniteFieldElement<P, N, M> {
         polynomial
@@ -419,9 +419,9 @@ impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
             SOURCE_DEGREE > 0 && TARGET_DEGREE > 0 && TARGET_DEGREE.is_multiple_of(SOURCE_DEGREE),
             "source degree must divide target degree"
         );
-        let source_order = Polynomial::<P>::extension_order(SOURCE_DEGREE)
+        let source_order = UnivariatePolynomial::<P>::extension_order(SOURCE_DEGREE)
             .expect("finite-field order is too large");
-        let target_order = Polynomial::<P>::extension_order(TARGET_DEGREE)
+        let target_order = UnivariatePolynomial::<P>::extension_order(TARGET_DEGREE)
             .expect("finite-field order is too large");
         let generator_image = CompatibleFiniteField::<P, TARGET_DEGREE>::generator()
             .pow((target_order - 1) / (source_order - 1));
@@ -476,12 +476,12 @@ impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
 {
 }
 
-/// A polynomial over `F_P`, stored from constant to leading coefficient with
-/// no trailing zeros, so the zero polynomial is empty.
+/// A polynomial in one variable over `F_P`, stored from constant to leading
+/// coefficient with no trailing zeros, so the zero polynomial is empty.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct Polynomial<const P: u64>(Vec<PrimeFieldElement<P>>);
+pub struct UnivariatePolynomial<const P: u64>(Vec<PrimeFieldElement<P>>);
 
-impl<const P: u64> Polynomial<P> {
+impl<const P: u64> UnivariatePolynomial<P> {
     pub fn new(coefficients: Vec<PrimeFieldElement<P>>) -> Self {
         let mut polynomial = Self(coefficients);
         polynomial.trim();
@@ -682,7 +682,7 @@ impl<const P: u64> Polynomial<P> {
     }
 }
 
-impl<const P: u64> Add for Polynomial<P> {
+impl<const P: u64> Add for UnivariatePolynomial<P> {
     type Output = Self;
 
     fn add(mut self, rhs: Self) -> Self {
@@ -695,7 +695,7 @@ impl<const P: u64> Add for Polynomial<P> {
     }
 }
 
-impl<const P: u64> Sub for Polynomial<P> {
+impl<const P: u64> Sub for UnivariatePolynomial<P> {
     type Output = Self;
 
     fn sub(mut self, rhs: Self) -> Self {
@@ -708,7 +708,7 @@ impl<const P: u64> Sub for Polynomial<P> {
     }
 }
 
-impl<const P: u64> Neg for Polynomial<P> {
+impl<const P: u64> Neg for UnivariatePolynomial<P> {
     type Output = Self;
 
     fn neg(self) -> Self {
@@ -716,12 +716,12 @@ impl<const P: u64> Neg for Polynomial<P> {
     }
 }
 
-impl<const P: u64> Mul for &Polynomial<P> {
-    type Output = Polynomial<P>;
+impl<const P: u64> Mul for &UnivariatePolynomial<P> {
+    type Output = UnivariatePolynomial<P>;
 
-    fn mul(self, rhs: Self) -> Polynomial<P> {
+    fn mul(self, rhs: Self) -> UnivariatePolynomial<P> {
         if self.is_zero() || rhs.is_zero() {
-            return Polynomial::zero();
+            return UnivariatePolynomial::zero();
         }
         let mut product = vec![PrimeFieldElement::ZERO; self.0.len() + rhs.0.len() - 1];
         for (i, &a) in self.0.iter().enumerate() {
@@ -729,11 +729,11 @@ impl<const P: u64> Mul for &Polynomial<P> {
                 product[i + j] = product[i + j] + a * b;
             }
         }
-        Polynomial::new(product)
+        UnivariatePolynomial::new(product)
     }
 }
 
-impl<const P: u64> Rem<&Polynomial<P>> for Polynomial<P> {
+impl<const P: u64> Rem<&UnivariatePolynomial<P>> for UnivariatePolynomial<P> {
     type Output = Self;
 
     fn rem(self, modulus: &Self) -> Self {
@@ -751,13 +751,13 @@ enum PolynomialSelection {
 impl PolynomialSelection {
     /// The first monic polynomial of the given degree matching this selection,
     /// in base-`P` coefficient order.
-    fn generate<const P: u64>(self, degree: usize) -> Polynomial<P> {
+    fn generate<const P: u64>(self, degree: usize) -> UnivariatePolynomial<P> {
         static CACHE: OnceLock<Mutex<HashMap<(u64, usize, PolynomialSelection), Vec<u64>>>> =
             OnceLock::new();
         let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
 
         if let Some(coefficients) = cache.lock().unwrap().get(&(P, degree, self)).cloned() {
-            return Polynomial::new(
+            return UnivariatePolynomial::new(
                 coefficients
                     .into_iter()
                     .map(PrimeFieldElement::new)
@@ -771,7 +771,7 @@ impl PolynomialSelection {
             "finite-field characteristic must be prime"
         );
 
-        let polynomial = Polynomial::<P>::monic(degree)
+        let polynomial = UnivariatePolynomial::<P>::monic(degree)
             .find(|candidate| match self {
                 PolynomialSelection::Irreducible => candidate.is_irreducible(),
                 PolynomialSelection::Primitive => candidate.is_primitive(),
@@ -823,12 +823,12 @@ mod tests {
 
     #[test]
     fn generated_modulus_is_deterministic_and_irreducible() {
-        let expected = Polynomial::new([1, 1, 1].map(PrimeFieldElement::new).to_vec());
+        let expected = UnivariatePolynomial::new([1, 1, 1].map(PrimeFieldElement::new).to_vec());
         assert_eq!(Fq::<2, 2>::modulus(), expected);
         assert!(Fq::<2, 2>::modulus_is_irreducible());
         assert_eq!(Fq::<2, 2>::modulus(), Fq::<2, 2>::modulus());
 
-        let expected = Polynomial::new([1, 1, 0, 1].map(PrimeFieldElement::new).to_vec());
+        let expected = UnivariatePolynomial::new([1, 1, 0, 1].map(PrimeFieldElement::new).to_vec());
         assert_eq!(Fq::<2, 3>::modulus(), expected);
         assert!(Fq::<2, 3>::modulus_is_irreducible());
     }
@@ -844,7 +844,8 @@ mod tests {
         assert_eq!(generator.pow(8), E::ONE);
         assert_ne!(generator.pow(4), E::ONE);
 
-        let irreducible = Polynomial::new([1, 0, 1].map(PrimeFieldElement::<3>::new).to_vec());
+        let irreducible =
+            UnivariatePolynomial::new([1, 0, 1].map(PrimeFieldElement::<3>::new).to_vec());
         assert!(irreducible.is_irreducible());
         assert!(!irreducible.is_primitive());
     }
@@ -990,7 +991,8 @@ mod tests {
 
     #[test]
     fn rejects_reducible_polynomials() {
-        let reducible = Polynomial::new([0, 1, 1].map(PrimeFieldElement::<2>::new).to_vec());
+        let reducible =
+            UnivariatePolynomial::new([0, 1, 1].map(PrimeFieldElement::<2>::new).to_vec());
         assert!(!reducible.is_irreducible());
     }
 

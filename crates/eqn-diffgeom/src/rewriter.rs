@@ -236,11 +236,12 @@ impl<M: Manifold, N: Rewriter<Expr = ZeroForm<M>>> Rewriter for GradedCommutativ
 mod tests {
     use std::num::NonZeroUsize;
 
-    use eqn_algebra::operator_impl::{QAdd, QMul, ZAdd, ZMul};
-    use eqn_algebra::ring::{CommutativeRingRewriter, RingExpr};
+    use eqn_algebra::operator_impl::{QAdd, QMul};
     use eqn_analysis::{ElementaryExpr, ElementaryRewriter};
-    use eqn_core::set::{Q, Rational, Z};
+    use eqn_core::rewriter::TrivialRewriter;
+    use eqn_core::set::{Q, Rational};
     use eqn_core::symbol::Symbol;
+    use eqn_poly::Polynomial;
 
     use super::*;
     use crate::Chart;
@@ -301,8 +302,8 @@ mod tests {
     }
 
     // --------------------------------------------------------------------------
-    // IntPlane: the algebraic de Rham complex, `RingExpr<(Z, IntegerAdd,
-    // IntegerMul)>` 0-forms
+    // IntPlane: the algebraic de Rham complex, `Polynomial<(Z, ZAdd, ZMul)>`
+    // 0-forms
     // --------------------------------------------------------------------------
 
     fn ixy() -> Chart<IntPlane> {
@@ -310,15 +311,15 @@ mod tests {
     }
 
     fn ix() -> ZeroForm<IntPlane> {
-        RingExpr::Symbol(Symbol::new("x"))
+        Polynomial::from(Symbol::new("x"))
     }
 
     fn iy() -> ZeroForm<IntPlane> {
-        RingExpr::Symbol(Symbol::new("y"))
+        Polynomial::from(Symbol::new("y"))
     }
 
     fn ic(i: i64) -> ZeroForm<IntPlane> {
-        RingExpr::Const(i)
+        Polynomial::constant(i)
     }
 
     fn isc(e: ZeroForm<IntPlane>) -> DifferentialForm<IntPlane> {
@@ -334,24 +335,18 @@ mod tests {
     }
 
     fn ipow(base: ZeroForm<IntPlane>, exponent: usize) -> ZeroForm<IntPlane> {
-        RingExpr::Pow {
-            base: Box::new(base),
-            exponent: NonZeroUsize::new(exponent).unwrap(),
-        }
+        base.pow(NonZeroUsize::new(exponent).unwrap())
     }
 
     #[test]
     fn d_of_x_squared_y_over_int_plane() {
         // d(x^2 \cdot y) = 2xy dx + x^2 dy
-        let f = GradedCommutativeRewriter::new(
-            ixy(),
-            CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new(),
-        );
-        let expr = RingExpr::Mul(vec![ipow(ix(), 2), iy()]);
+        let f = GradedCommutativeRewriter::new(ixy(), TrivialRewriter::new());
+        let expr = ipow(ix(), 2) * iy();
         assert_eq!(
             f.rewrited_expr(DifferentialForm::Differential(Box::new(isc(expr)))),
             DifferentialForm::Add(vec![
-                DifferentialForm::Wedged(vec![isc(RingExpr::Mul(vec![ic(2), ix(), iy()])), idx(),]),
+                DifferentialForm::Wedged(vec![isc(ic(2) * ix() * iy()), idx(),]),
                 DifferentialForm::Wedged(vec![isc(ipow(ix(), 2)), idy()]),
             ])
         );
@@ -360,11 +355,8 @@ mod tests {
     #[test]
     fn d_squared_vanishes_over_int_plane() {
         // d(d(x^2 \cdot y)) = 0
-        let f = GradedCommutativeRewriter::new(
-            ixy(),
-            CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new(),
-        );
-        let expr = RingExpr::Mul(vec![ipow(ix(), 2), iy()]);
+        let f = GradedCommutativeRewriter::new(ixy(), TrivialRewriter::new());
+        let expr = ipow(ix(), 2) * iy();
         let dd = DifferentialForm::Differential(Box::new(DifferentialForm::Differential(
             Box::new(isc(expr)),
         )));
@@ -374,14 +366,11 @@ mod tests {
     #[test]
     fn d_of_wedged_product_over_int_plane() {
         // d(x \cdot y \wedge dx) = -x dx \wedge dy
-        let f = GradedCommutativeRewriter::new(
-            ixy(),
-            CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new(),
-        );
-        let xy_dx = DifferentialForm::Wedged(vec![isc(RingExpr::Mul(vec![ix(), iy()])), idx()]);
+        let f = GradedCommutativeRewriter::new(ixy(), TrivialRewriter::new());
+        let xy_dx = DifferentialForm::Wedged(vec![isc(ix() * iy()), idx()]);
         assert_eq!(
             f.rewrited_expr(DifferentialForm::Differential(Box::new(xy_dx))),
-            DifferentialForm::Wedged(vec![isc(RingExpr::Mul(vec![ic(-1), ix()])), idx(), idy(),])
+            DifferentialForm::Wedged(vec![isc(ic(-1) * ix()), idx(), idy(),])
         );
     }
 
@@ -517,19 +506,16 @@ mod tests {
             DifferentialForm::Wedged(vec![idx(), idy(), idx()]),
             DifferentialForm::Differential(Box::new(isc(ipow(ix(), 2)))),
             DifferentialForm::Differential(Box::new(DifferentialForm::Differential(Box::new(
-                isc(RingExpr::Mul(vec![ipow(ix(), 2), iy()])),
+                isc(ipow(ix(), 2) * iy()),
             )))),
         ];
         for expr in int_inputs {
             assert_idempotent(
-                &ExteriorRewriter::new(ixy(), CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new()),
+                &ExteriorRewriter::new(ixy(), TrivialRewriter::new()),
                 expr.clone(),
             );
             assert_idempotent(
-                &GradedCommutativeRewriter::new(
-                    ixy(),
-                    CommutativeRingRewriter::<(Z, ZAdd, ZMul)>::new(),
-                ),
+                &GradedCommutativeRewriter::new(ixy(), TrivialRewriter::new()),
                 expr,
             );
         }
