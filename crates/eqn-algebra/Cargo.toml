@@ -6,3 +6,4 @@ edition.workspace = true
 [dependencies]
 derive-where.workspace = true
 eqn-core.workspace = true
+eqn-parser.workspace = true

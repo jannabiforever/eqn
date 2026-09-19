@@ -1,10 +1,11 @@
 use std::marker::PhantomData;
 
+use eqn_core::op::{Associative, BinaryOperator, Commutative};
+use eqn_core::set::Set;
+
 use super::{Group, NormalSubgroup, Subgroup};
 use crate::group::AbelianGroup;
 use crate::monoid::{Monoid, MonoidElem};
-use crate::op::{Associative, BinaryOperator, Commutative};
-use crate::set::Set;
 
 /// A left coset of `S`, represented by one element of the parent group.
 /// Representatives `a` and `b` are equal when `a^-1 * b` belongs to `S`.
@@ -63,7 +64,7 @@ pub struct Cosets<S: Subgroup>(PhantomData<S>);
 
 /// Multiplication of cosets of a normal subgroup.
 #[derive(Associative, BinaryOperator)]
-#[operator(domain = Cosets<N>, apply = Coset::applied, identity = Coset::identity(), inverse = Coset::inversed)]
+#[operator(domain = Cosets<N>, symbol = <N::Parent as Monoid>::SYMBOL, apply = Coset::applied, identity = Coset::identity(), inverse = Coset::inversed, inverse_symbol = <N::Parent as Group>::INVERSE_SYMBOL)]
 pub struct QuotientOp<N: NormalSubgroup>(PhantomData<N>);
 
 impl<N: NormalSubgroup> Commutative for QuotientOp<N> where N::Parent: AbelianGroup {}
@@ -222,7 +223,7 @@ mod tests {
     struct TriangleSymmetries;
 
     #[derive(Associative, BinaryOperator)]
-    #[operator(domain = TriangleSymmetries, apply = Symmetry::applied, identity = Symmetry::identity(), inverse = Symmetry::inversed)]
+    #[operator(domain = TriangleSymmetries, symbol = "*", apply = Symmetry::applied, identity = Symmetry::identity(), inverse = Symmetry::inversed, inverse_symbol = "/")]
     struct Compose;
 
     type D3 = (TriangleSymmetries, Compose);

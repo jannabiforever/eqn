@@ -1,9 +1,10 @@
 use std::fmt;
 use std::marker::PhantomData;
 
+use eqn_core::op::{Associative, BinaryOperator, Commutative};
+use eqn_core::set::Set;
+
 use super::{CommutativeRing, Ideal, Ring, RingElem, SemiRing};
-use crate::op::{Associative, BinaryOperator, Commutative};
-use crate::set::Set;
 
 /// An equivalence class modulo `I`, represented by one element of the parent
 /// ring. Representatives are equal when their difference belongs to `I`.
@@ -84,12 +85,24 @@ pub struct ResidueClasses<I: Ideal>(PhantomData<I>);
 
 /// Addition of residue classes.
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = ResidueClasses<I>, apply = ResidueClass::<I>::added, identity = ResidueClass::<I>::zero(), inverse = ResidueClass::<I>::inversed)]
+#[operator(
+    domain = ResidueClasses<I>,
+    symbol = <I::Ring as SemiRing>::ADD_SYMBOL,
+    apply = ResidueClass::added,
+    identity = ResidueClass::zero(),
+    inverse = ResidueClass::inversed,
+    inverse_symbol = <I::Ring as Ring>::SUB_SYMBOL
+)]
 pub struct QuotientAdd<I: Ideal>(PhantomData<I>);
 
 /// Multiplication of residue classes.
 #[derive(Associative, BinaryOperator)]
-#[operator(apply = ResidueClass::<I>::multiplied, domain = ResidueClasses<I>, identity = ResidueClass::<I>::one())]
+#[operator(
+    domain = ResidueClasses<I>,
+    symbol = <I::Ring as SemiRing>::MUL_SYMBOL,
+    apply = ResidueClass::multiplied,
+    identity = ResidueClass::one()
+)]
 pub struct QuotientMul<I: Ideal>(PhantomData<I>);
 
 impl<I> Commutative for QuotientMul<I>
