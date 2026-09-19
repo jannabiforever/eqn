@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::Token;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Assoc {
     Left,
@@ -23,51 +25,53 @@ pub struct Grammar {
     juxtaposition: Option<String>,
 }
 
-/// Binding powers leave room between precedence levels for associativity.
-fn base(precedence: u8) -> u16 {
-    (u16::from(precedence) + 1) * 2
-}
-
-/// Operator symbols must be lexically distinguishable from the atoms: they
-/// cannot start like an identifier or a number, and cannot contain the
-/// punctuation that is reserved for calls and grouping.
-fn check_symbol(symbol: &str) {
-    let first = symbol
-        .chars()
-        .next()
-        .expect("an operator symbol cannot be empty");
-    assert!(
-        !(first.is_alphanumeric() || first == '_'),
-        "operator `{symbol}` would lex as an identifier or a number"
-    );
-    assert!(
-        !symbol
-            .chars()
-            .any(|c| c.is_whitespace() || "(),".contains(c)),
-        "operator `{symbol}` contains whitespace or reserved punctuation"
-    );
-}
-
 impl Grammar {
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// The binding power of a precedence level, leaving room between levels
+    /// for associativity.
+    fn base(precedence: u8) -> u16 {
+        (u16::from(precedence) + 1) * 2
+    }
+
+    /// Operator symbols must be lexically distinguishable from the atoms: they
+    /// cannot start like an identifier or a number, and cannot contain the
+    /// punctuation that is reserved for calls and grouping.
+    fn check_symbol(symbol: &str) {
+        let first = symbol
+            .chars()
+            .next()
+            .expect("an operator symbol cannot be empty");
+        assert!(
+            !(Token::opens_ident(first) || first.is_ascii_digit()),
+            "operator `{symbol}` would lex as an identifier or a number"
+        );
+        assert!(
+            !symbol
+                .chars()
+                .any(|c| c.is_whitespace() || "(),".contains(c)),
+            "operator `{symbol}` contains whitespace or reserved punctuation"
+        );
+    }
+
     /// Declares `symbol` as a prefix operator: `symbol a`.
     pub fn prefix(mut self, symbol: &str, precedence: u8) -> Self {
-        check_symbol(symbol);
-        self.prefix.insert(symbol.to_owned(), base(precedence));
+        Self::check_symbol(symbol);
+        self.prefix
+            .insert(symbol.to_owned(), Self::base(precedence));
         self
     }
 
     /// Declares `symbol` as an infix operator: `a symbol b`.
     pub fn infix(mut self, symbol: &str, precedence: u8, assoc: Assoc) -> Self {
-        check_symbol(symbol);
+        Self::check_symbol(symbol);
         assert!(
             !self.postfix.contains_key(symbol),
             "operator `{symbol}` is already postfix; it cannot also be infix"
         );
-        let base = base(precedence);
+        let base = Self::base(precedence);
         let powers = match assoc {
             Assoc::Left => (base, base + 1),
             Assoc::Right => (base + 1, base),
@@ -78,12 +82,13 @@ impl Grammar {
 
     /// Declares `symbol` as a postfix operator: `a symbol`.
     pub fn postfix(mut self, symbol: &str, precedence: u8) -> Self {
-        check_symbol(symbol);
+        Self::check_symbol(symbol);
         assert!(
             !self.infix.contains_key(symbol),
             "operator `{symbol}` is already infix; it cannot also be postfix"
         );
-        self.postfix.insert(symbol.to_owned(), base(precedence));
+        self.postfix
+            .insert(symbol.to_owned(), Self::base(precedence));
         self
     }
 
@@ -103,7 +108,7 @@ impl Grammar {
     /// grammar built on another one slots a new operator in at the same
     /// level as one it already has.
     pub fn alias(mut self, symbol: &str, existing: &str) -> Self {
-        check_symbol(symbol);
+        Self::check_symbol(symbol);
         let mut found = false;
         if let Some(&powers) = self.prefix.get(existing) {
             self.prefix.insert(symbol.to_owned(), powers);
@@ -172,9 +177,9 @@ mod tests {
         let grammar = Grammar::new()
             .infix("-", 1, Assoc::Left)
             .prefix("-", 3)
-            .alias("−", "-");
-        assert_eq!(grammar.infix_powers("−"), grammar.infix_powers("-"));
-        assert_eq!(grammar.prefix_power("−"), grammar.prefix_power("-"));
+            .alias("\u{2212}", "-");
+        assert_eq!(grammar.infix_powers("\u{2212}"), grammar.infix_powers("-"));
+        assert_eq!(grammar.prefix_power("\u{2212}"), grammar.prefix_power("-"));
     }
 
     #[test]

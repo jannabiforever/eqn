@@ -34,7 +34,7 @@ where
             Ast::Ident(name) => Ok(Self::Symbol(Symbol::new(name))),
             Ast::Group(inner) => Self::from_ast(*inner),
             Ast::Prefix(op, inner) if op == G::INVERSE_SYMBOL => {
-                Self::from_ast(*inner).map(inverse)
+                Self::from_ast(*inner).map(Self::inverted)
             }
             Ast::Infix(op, base, exponent) if op == "^" => {
                 let exponent = exponent.integer("-").ok_or_else(|| {
@@ -48,11 +48,15 @@ where
                 })
             }
             Ast::Infix(..) => ast
-                .operands(operation::<G>)
+                .operands(Self::operation)
                 .into_iter()
                 .map(|(inverted, operand)| {
                     let operand = Self::from_ast(operand)?;
-                    Ok(if inverted { inverse(operand) } else { operand })
+                    Ok(if inverted {
+                        operand.inverted()
+                    } else {
+                        operand
+                    })
                 })
                 .collect::<Result<_, _>>()
                 .map(Self::Op),
@@ -60,7 +64,7 @@ where
                 "group expressions have no `{op}` operator"
             ))),
             Ast::Call(name, mut args) if name == "inv" && args.len() == 1 => {
-                Self::from_ast(args.pop().unwrap()).map(inverse)
+                Self::from_ast(args.pop().unwrap()).map(Self::inverted)
             }
             Ast::Call(name, _) => Err(ParseError::new(format!("unknown function `{name}`"))),
             Ast::Number(_) => unreachable!("literals are handled above"),
@@ -68,17 +72,22 @@ where
     }
 }
 
-fn inverse<G: Group>(expr: GroupExpr<G>) -> GroupExpr<G> {
-    GroupExpr::Inv(Box::new(expr))
-}
+impl<G: Group> GroupExpr<G> {
+    fn inverted(self) -> Self {
+        Self::Inv(Box::new(self))
+    }
 
-fn operation<G: Group>(op: &str) -> Option<bool> {
-    if op == G::SYMBOL {
-        Some(false)
-    } else if op == G::INVERSE_SYMBOL {
-        Some(true)
-    } else {
-        None
+    /// Classifies `op` for [`Ast::operands`]: the operation continues a
+    /// chain, and [`Group::INVERSE_SYMBOL`] continues it with the right
+    /// operand inverted.
+    fn operation(op: &str) -> Option<bool> {
+        if op == G::SYMBOL {
+            Some(false)
+        } else if op == G::INVERSE_SYMBOL {
+            Some(true)
+        } else {
+            None
+        }
     }
 }
 
@@ -90,7 +99,7 @@ where
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        eqn_parser::parse(s)
+        Self::parse(s)
     }
 }
 
@@ -113,7 +122,7 @@ mod tests {
 
     #[test]
     fn inverses_have_three_spellings() {
-        let expected = Expr::Op(vec![x(), inverse(y())]);
+        let expected = Expr::Op(vec![x(), y().inverted()]);
         assert_eq!("x + inv(y)".parse::<Expr>().unwrap(), expected);
         assert_eq!("x + -y".parse::<Expr>().unwrap(), expected);
         assert_eq!("x - y".parse::<Expr>().unwrap(), expected);
@@ -147,8 +156,8 @@ mod tests {
     #[test]
     fn negative_literals_are_constants() {
         assert_eq!("-3".parse::<Expr>().unwrap(), Expr::Const(-3));
-        assert_eq!("inv(3)".parse::<Expr>().unwrap(), inverse(Expr::Const(3)));
-        assert_eq!("-(3)".parse::<Expr>().unwrap(), inverse(Expr::Const(3)));
+        assert_eq!("inv(3)".parse::<Expr>().unwrap(), Expr::Const(3).inverted());
+        assert_eq!("-(3)".parse::<Expr>().unwrap(), Expr::Const(3).inverted());
     }
 
     #[test]
@@ -176,8 +185,8 @@ mod tests {
     #[test]
     fn rejects_what_a_group_cannot_express() {
         assert_eq!(
-            "x ∧ y".parse::<Expr>().unwrap_err(),
-            ParseError::at(2, "unexpected `∧`")
+            "x \u{2227} y".parse::<Expr>().unwrap_err(),
+            ParseError::at(2, "unexpected `\u{2227}`")
         );
         assert_eq!(
             "inv(x, y)".parse::<Expr>().unwrap_err(),

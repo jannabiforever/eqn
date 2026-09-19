@@ -34,16 +34,16 @@ where
             return RingElem::<F>::from_literal(&text).map(Self::Const);
         }
         match ast {
-            Ast::Ident(name) if function(&name).is_some() || name == "D" => Err(ParseError::new(
-                format!("`{name}` is a function; write `{name}(...)`"),
-            )),
+            Ast::Ident(name) if name.parse::<Elementary>().is_ok() || name == "D" => Err(
+                ParseError::new(format!("`{name}` is a function; write `{name}(...)`")),
+            ),
             Ast::Ident(name) => Ok(Self::Symbol(Symbol::new(name))),
             Ast::Group(inner) => Self::from_ast(*inner),
             Ast::Prefix(op, inner) if op == F::SUB_SYMBOL => {
                 Ok(Self::Neg(Box::new(Self::from_ast(*inner)?)))
             }
             Ast::Infix(ref op, ..) if op == F::ADD_SYMBOL || op == F::SUB_SYMBOL => ast
-                .operands(sum::<F>)
+                .operands(Self::sum)
                 .into_iter()
                 .map(|(negated, term)| {
                     let term = Self::from_ast(term)?;
@@ -56,7 +56,7 @@ where
                 .collect::<Result<_, _>>()
                 .map(Self::Add),
             Ast::Infix(ref op, ..) if op == F::MUL_SYMBOL || op == F::DIV_SYMBOL => ast
-                .operands(product::<F>)
+                .operands(Self::product)
                 .into_iter()
                 .map(|(divided, factor)| {
                     let factor = Self::from_ast(factor)?;
@@ -85,76 +85,86 @@ where
             Ast::Infix(op, ..) | Ast::Prefix(op, _) | Ast::Postfix(op, _) => Err(ParseError::new(
                 format!("elementary expressions have no `{op}` operator"),
             )),
-            Ast::Call(name, args) => call(name, args),
+            Ast::Call(name, args) => Self::call(name, args),
             Ast::Number(_) => unreachable!("literals are handled above"),
         }
     }
 }
 
-fn sum<F: Field>(op: &str) -> Option<bool> {
-    if op == F::ADD_SYMBOL {
-        Some(false)
-    } else if op == F::SUB_SYMBOL {
-        Some(true)
-    } else {
-        None
+/// The name an elementary function is called by in source text.
+impl FromStr for Elementary {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "exp" => Ok(Self::Exp),
+            "log" => Ok(Self::Log),
+            "sin" => Ok(Self::Sin),
+            "cos" => Ok(Self::Cos),
+            _ => Err(ParseError::new(format!("unknown function `{s}`"))),
+        }
     }
 }
 
-fn product<F: Field>(op: &str) -> Option<bool> {
-    if op == F::MUL_SYMBOL {
-        Some(false)
-    } else if op == F::DIV_SYMBOL {
-        Some(true)
-    } else {
-        None
-    }
-}
-
-fn function(name: &str) -> Option<Elementary> {
-    match name {
-        "exp" => Some(Elementary::Exp),
-        "log" => Some(Elementary::Log),
-        "sin" => Some(Elementary::Sin),
-        "cos" => Some(Elementary::Cos),
-        _ => None,
-    }
-}
-
-fn call<F>(name: String, mut args: Vec<Ast>) -> Result<ElementaryExpr<F>, ParseError>
+impl<F> ElementaryExpr<F>
 where
     F: Field,
     RingElem<F>: FromLiteral,
 {
-    if let Some(kind) = function(&name) {
+    /// Classifies `op` for [`Ast::operands`]: a sum continues through
+    /// addition, and through subtraction with the term negated.
+    fn sum(op: &str) -> Option<bool> {
+        if op == F::ADD_SYMBOL {
+            Some(false)
+        } else if op == F::SUB_SYMBOL {
+            Some(true)
+        } else {
+            None
+        }
+    }
+
+    /// Classifies `op` for [`Ast::operands`]: a product continues through
+    /// multiplication, and through division with the factor inverted.
+    fn product(op: &str) -> Option<bool> {
+        if op == F::MUL_SYMBOL {
+            Some(false)
+        } else if op == F::DIV_SYMBOL {
+            Some(true)
+        } else {
+            None
+        }
+    }
+
+    /// `D(f, x)`, or an elementary function of one argument.
+    fn call(name: String, mut args: Vec<Ast>) -> Result<Self, ParseError> {
+        if name == "D" {
+            if args.len() != 2 {
+                return Err(ParseError::new(format!(
+                    "`D(f, x)` takes two arguments, found {}",
+                    args.len()
+                )));
+            }
+            let wrt = match args.pop().unwrap() {
+                Ast::Ident(wrt) => Symbol::new(wrt),
+                other => {
+                    return Err(ParseError::new(format!(
+                        "`D` differentiates with respect to a symbol, found `{other}`"
+                    )));
+                }
+            };
+            let inner = Self::from_ast(args.pop().unwrap())?;
+            return Ok(Self::d(wrt, inner));
+        }
+        let kind = name.parse::<Elementary>()?;
         if args.len() != 1 {
             return Err(ParseError::new(format!(
                 "`{name}` takes one argument, found {}",
                 args.len()
             )));
         }
-        let arg = ElementaryExpr::from_ast(args.pop().unwrap())?;
-        return Ok(ElementaryExpr::elementary(kind, arg));
+        let arg = Self::from_ast(args.pop().unwrap())?;
+        Ok(Self::elementary(kind, arg))
     }
-    if name != "D" {
-        return Err(ParseError::new(format!("unknown function `{name}`")));
-    }
-    if args.len() != 2 {
-        return Err(ParseError::new(format!(
-            "`D(f, x)` takes two arguments, found {}",
-            args.len()
-        )));
-    }
-    let wrt = match args.pop().unwrap() {
-        Ast::Ident(wrt) => Symbol::new(wrt),
-        other => {
-            return Err(ParseError::new(format!(
-                "`D` differentiates with respect to a symbol, found `{other}`"
-            )));
-        }
-    };
-    let inner = ElementaryExpr::from_ast(args.pop().unwrap())?;
-    Ok(ElementaryExpr::d(wrt, inner))
 }
 
 impl<F> FromStr for ElementaryExpr<F>
@@ -165,7 +175,7 @@ where
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        eqn_parser::parse(s)
+        Self::parse(s)
     }
 }
 
@@ -211,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn functions_and_derivatives() {
+    fn calls_lower_to_functions_and_derivatives() {
         assert_eq!(
             "2 exp(log(x)) sin(x)^2".parse::<Expr>().unwrap(),
             Expr::Mul(vec![
@@ -249,8 +259,8 @@ mod tests {
             ParseError::new("unknown function `tan`")
         );
         assert_eq!(
-            "x ∧ y".parse::<Expr>().unwrap_err(),
-            ParseError::at(2, "unexpected `∧`")
+            "x \u{2227} y".parse::<Expr>().unwrap_err(),
+            ParseError::at(2, "unexpected `\u{2227}`")
         );
         assert_eq!(
             "x^y".parse::<Expr>().unwrap_err(),

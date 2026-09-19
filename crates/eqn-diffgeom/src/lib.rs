@@ -13,7 +13,8 @@ mod rewriter;
 // Re-exports
 pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
 
-pub const WEDGE_CHAR: char = '\u{2227}';
+/// Source spellings of the wedge product: its character and its LaTeX name.
+pub const WEDGE_SYMBOLS: [&str; 2] = ["\u{2227}", r"\wedge"];
 pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
 
 /// A manifold is known to the library through its ring of functions.
@@ -189,12 +190,12 @@ mod tests {
     #[test]
     fn substitute_replaces_coordinate_inside_differential() {
         // omega = r \wedge dtheta, two free symbols
-        let mut omega = form("r ∧ d(theta)");
+        let mut omega = form(r"r \wedge d(theta)");
         assert_eq!(omega.degrees_of_freedom(), 2);
 
         // theta := 3  =>  r \wedge d3
         omega.substitute(Symbol::new("theta"), &form("3"));
-        assert_eq!(omega, form("r ∧ d(3)"));
+        assert_eq!(omega, form(r"r \wedge d(3)"));
         assert_eq!(omega.degrees_of_freedom(), 1);
     }
 

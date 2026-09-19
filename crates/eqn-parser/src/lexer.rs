@@ -24,65 +24,73 @@ impl fmt::Display for Token {
     }
 }
 
-fn is_ident_start(c: char) -> bool {
-    c.is_alphabetic() || c == '_'
-}
-
-fn is_ident_continue(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
-}
-
-/// Splits `src` into tokens, each paired with its byte offset. Whitespace is
-/// skipped; a literal is digits with an optional fraction (`2.5`); an
-/// identifier is a letter or `_` followed by letters, digits or `_`; and
-/// anything else must be one of the grammar's operator symbols, matched
-/// longest first.
-pub fn tokenize(src: &str, grammar: &Grammar) -> Result<Vec<(Token, usize)>, ParseError> {
-    let symbols = grammar.symbols();
-    let mut tokens = Vec::new();
-    let mut at = 0;
-
-    while let Some(c) = src[at..].chars().next() {
-        let rest = &src[at..];
-        let (token, len) = match c {
-            c if c.is_whitespace() => {
-                at += c.len_utf8();
-                continue;
-            }
-            '(' => (Token::LParen, 1),
-            ')' => (Token::RParen, 1),
-            ',' => (Token::Comma, 1),
-            c if c.is_ascii_digit() => {
-                let mut len = scan(rest, |c| c.is_ascii_digit());
-                if rest[len..].starts_with('.') {
-                    let fraction = scan(&rest[len + 1..], |c| c.is_ascii_digit());
-                    if fraction > 0 {
-                        len += 1 + fraction;
-                    }
-                }
-                (Token::Number(rest[..len].to_owned()), len)
-            }
-            c if is_ident_start(c) => {
-                let len = scan(rest, is_ident_continue);
-                (Token::Ident(rest[..len].to_owned()), len)
-            }
-            c => match symbols.iter().find(|symbol| rest.starts_with(*symbol)) {
-                Some(symbol) => (Token::Op((*symbol).to_owned()), symbol.len()),
-                None => return Err(ParseError::at(at, format!("unexpected `{c}`"))),
-            },
-        };
-        tokens.push((token, at));
-        at += len;
+impl Token {
+    /// Whether `c` may begin an identifier: a letter or `_`.
+    pub(crate) fn opens_ident(c: char) -> bool {
+        c.is_alphabetic() || c == '_'
     }
 
-    Ok(tokens)
+    /// Byte length of the longest prefix of `s` whose chars all satisfy
+    /// `pred`.
+    fn span(s: &str, pred: impl Fn(char) -> bool) -> usize {
+        s.find(|c: char| !pred(c)).unwrap_or(s.len())
+    }
+
+    /// The numeric literal at the start of `s`, digits with an optional
+    /// fraction (`2.5`), and its byte length.
+    fn number(s: &str) -> (Self, usize) {
+        let mut len = Self::span(s, |c| c.is_ascii_digit());
+        if s[len..].starts_with('.') {
+            let fraction = Self::span(&s[len + 1..], |c| c.is_ascii_digit());
+            if fraction > 0 {
+                len += 1 + fraction;
+            }
+        }
+        (Self::Number(s[..len].to_owned()), len)
+    }
+
+    /// The identifier at the start of `s`, letters, digits and `_`, and its
+    /// byte length.
+    fn ident(s: &str) -> (Self, usize) {
+        let len = Self::span(s, |c| c.is_alphanumeric() || c == '_');
+        (Self::Ident(s[..len].to_owned()), len)
+    }
 }
 
-/// Byte length of the longest prefix of `s` whose chars all satisfy `pred`.
-fn scan(s: &str, pred: impl Fn(char) -> bool) -> usize {
-    s.char_indices()
-        .find(|&(_, c)| !pred(c))
-        .map_or(s.len(), |(i, _)| i)
+impl Grammar {
+    /// Splits `src` into tokens, each paired with its byte offset. Whitespace
+    /// is skipped; a literal is digits with an optional fraction (`2.5`); an
+    /// identifier is a letter or `_` followed by letters, digits or `_`; and
+    /// anything else must be one of the grammar's operator symbols, matched
+    /// longest first.
+    pub fn tokenize(&self, src: &str) -> Result<Vec<(Token, usize)>, ParseError> {
+        let symbols = self.symbols();
+        let mut tokens = Vec::new();
+        let mut at = 0;
+
+        while let Some(c) = src[at..].chars().next() {
+            let rest = &src[at..];
+            let (token, len) = match c {
+                c if c.is_whitespace() => {
+                    at += c.len_utf8();
+                    continue;
+                }
+                '(' => (Token::LParen, 1),
+                ')' => (Token::RParen, 1),
+                ',' => (Token::Comma, 1),
+                c if c.is_ascii_digit() => Token::number(rest),
+                c if Token::opens_ident(c) => Token::ident(rest),
+                c => match symbols.iter().find(|symbol| rest.starts_with(*symbol)) {
+                    Some(symbol) => (Token::Op((*symbol).to_owned()), symbol.len()),
+                    None => return Err(ParseError::at(at, format!("unexpected `{c}`"))),
+                },
+            };
+            tokens.push((token, at));
+            at += len;
+        }
+
+        Ok(tokens)
+    }
 }
 
 #[cfg(test)]
@@ -97,13 +105,14 @@ mod tests {
             .infix("*", 2, Assoc::Left)
             .infix("/", 2, Assoc::Left)
             .infix("^", 4, Assoc::Right)
-            .infix("∧", 2, Assoc::Left)
+            .infix("\u{2227}", 2, Assoc::Left)
             .infix("\\oplus", 1, Assoc::Left)
             .infix("**", 4, Assoc::Right)
     }
 
     fn tokens(src: &str) -> Vec<Token> {
-        tokenize(src, &grammar())
+        grammar()
+            .tokenize(src)
             .unwrap()
             .into_iter()
             .map(|(t, _)| t)
@@ -116,8 +125,9 @@ mod tests {
 
     #[test]
     fn tokenizes_operators_and_atoms() {
+        // `\theta \wedge d`: identifiers and operators may be any unicode.
         assert_eq!(
-            tokens("x_1 + 2.5*(y) - z/w^2, θ ∧ d"),
+            tokens("x_1 + 2.5*(y) - z/w^2, \u{3b8} \u{2227} d"),
             vec![
                 Token::Ident("x_1".into()),
                 op("+"),
@@ -133,8 +143,8 @@ mod tests {
                 op("^"),
                 Token::Number("2".into()),
                 Token::Comma,
-                Token::Ident("θ".into()),
-                op("∧"),
+                Token::Ident("\u{3b8}".into()),
+                op("\u{2227}"),
                 Token::Ident("d".into()),
             ]
         );
@@ -160,7 +170,9 @@ mod tests {
 
     #[test]
     fn records_byte_offsets() {
-        let offsets: Vec<usize> = tokenize("θ + 12", &grammar())
+        // `\theta` is two bytes.
+        let offsets: Vec<usize> = grammar()
+            .tokenize("\u{3b8} + 12")
             .unwrap()
             .into_iter()
             .map(|(_, at)| at)
@@ -171,7 +183,7 @@ mod tests {
     #[test]
     fn a_trailing_dot_is_not_part_of_a_number() {
         assert_eq!(
-            tokenize("1.x", &grammar()).unwrap_err(),
+            grammar().tokenize("1.x").unwrap_err(),
             ParseError::at(1, "unexpected `.`")
         );
     }
@@ -179,11 +191,11 @@ mod tests {
     #[test]
     fn rejects_undeclared_symbols() {
         assert_eq!(
-            tokenize("x $ y", &grammar()).unwrap_err(),
+            grammar().tokenize("x $ y").unwrap_err(),
             ParseError::at(2, "unexpected `$`")
         );
         assert_eq!(
-            tokenize("x + y", &Grammar::new()).unwrap_err(),
+            Grammar::new().tokenize("x + y").unwrap_err(),
             ParseError::at(2, "unexpected `+`")
         );
     }

@@ -48,27 +48,27 @@ impl Ast {
     /// operand as inverted (`a - b - c` is `a`, `-b`, `-c`). Parentheses are
     /// never looked through. A node that is not a chain yields itself.
     pub fn operands(self, role: impl Fn(&str) -> Option<bool>) -> Vec<(bool, Ast)> {
-        fn collect(
-            ast: Ast,
-            role: &impl Fn(&str) -> Option<bool>,
-            inverted: bool,
-            out: &mut Vec<(bool, Ast)>,
-        ) {
-            match ast {
-                Ast::Infix(op, lhs, rhs) => match role(&op) {
-                    Some(inverse) => {
-                        collect(*lhs, role, inverted, out);
-                        collect(*rhs, role, inverted ^ inverse, out);
-                    }
-                    None => out.push((inverted, Ast::Infix(op, lhs, rhs))),
-                },
-                ast => out.push((inverted, ast)),
-            }
-        }
-
         let mut out = Vec::new();
-        collect(self, &role, false, &mut out);
+        self.collect_operands(&role, false, &mut out);
         out
+    }
+
+    fn collect_operands(
+        self,
+        role: &impl Fn(&str) -> Option<bool>,
+        inverted: bool,
+        out: &mut Vec<(bool, Ast)>,
+    ) {
+        match self {
+            Self::Infix(op, lhs, rhs) => match role(&op) {
+                Some(inverse) => {
+                    lhs.collect_operands(role, inverted, out);
+                    rhs.collect_operands(role, inverted ^ inverse, out);
+                }
+                None => out.push((inverted, Self::Infix(op, lhs, rhs))),
+            },
+            ast => out.push((inverted, ast)),
+        }
     }
 }
 

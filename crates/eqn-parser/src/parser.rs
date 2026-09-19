@@ -1,21 +1,23 @@
 //! A Pratt parser over the token stream, driven by a [`Grammar`].
 
 use crate::ast::Ast;
-use crate::lexer::{Token, tokenize};
+use crate::lexer::Token;
 use crate::{Grammar, ParseError};
 
-/// Parses `src` into an [`Ast`] using `grammar`'s operators.
-pub fn parse_ast(src: &str, grammar: &Grammar) -> Result<Ast, ParseError> {
-    let mut parser = Parser {
-        tokens: tokenize(src, grammar)?,
-        pos: 0,
-        end: src.len(),
-        grammar,
-    };
-    let ast = parser.expr(0)?;
-    match parser.peek() {
-        Some((token, at)) => Err(ParseError::at(at, format!("unexpected `{token}`"))),
-        None => Ok(ast),
+impl Grammar {
+    /// Parses `src` into an [`Ast`] using this grammar's operators.
+    pub fn parse(&self, src: &str) -> Result<Ast, ParseError> {
+        let mut parser = Parser {
+            tokens: self.tokenize(src)?,
+            pos: 0,
+            end: src.len(),
+            grammar: self,
+        };
+        let ast = parser.expr(0)?;
+        match parser.peek() {
+            Some((token, at)) => Err(ParseError::at(at, format!("unexpected `{token}`"))),
+            None => Ok(ast),
+        }
     }
 }
 
@@ -203,12 +205,12 @@ mod tests {
     use super::*;
     use crate::Assoc;
 
-    /// The usual arithmetic table, plus `!` postfix and `⊕` infix.
+    /// The usual arithmetic table, plus `!` postfix and `\oplus` infix.
     fn grammar() -> Grammar {
         Grammar::new()
             .infix("+", 1, Assoc::Left)
             .infix("-", 1, Assoc::Left)
-            .infix("⊕", 1, Assoc::Left)
+            .infix("\u{2295}", 1, Assoc::Left)
             .infix("*", 2, Assoc::Left)
             .infix("/", 2, Assoc::Left)
             .juxtaposition("*")
@@ -218,11 +220,11 @@ mod tests {
     }
 
     fn parse(src: &str) -> Ast {
-        parse_ast(src, &grammar()).unwrap()
+        grammar().parse(src).unwrap()
     }
 
     fn error(src: &str) -> ParseError {
-        parse_ast(src, &grammar()).unwrap_err()
+        grammar().parse(src).unwrap_err()
     }
 
     fn num(text: &str) -> Ast {
@@ -256,8 +258,8 @@ mod tests {
             infix("-", id("a"), infix("/", id("b"), id("c")))
         );
         assert_eq!(
-            parse("a ⊕ b * c"),
-            infix("⊕", id("a"), infix("*", id("b"), id("c")))
+            parse("a \u{2295} b * c"),
+            infix("\u{2295}", id("a"), infix("*", id("b"), id("c")))
         );
     }
 
@@ -322,7 +324,7 @@ mod tests {
 
         let no_juxtaposition = Grammar::new().infix("+", 1, Assoc::Left);
         assert_eq!(
-            parse_ast("2 x", &no_juxtaposition).unwrap_err(),
+            no_juxtaposition.parse("2 x").unwrap_err(),
             ParseError::at(2, "unexpected `x`")
         );
     }
@@ -349,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn literals_and_integers() {
+    fn a_literal_is_a_number_or_its_negation() {
         assert_eq!(parse("-3").literal("-").as_deref(), Some("-3"));
         assert_eq!(parse("2.5").literal("-").as_deref(), Some("2.5"));
         assert_eq!(parse("-(3)").literal("-"), None);
@@ -379,7 +381,12 @@ mod tests {
 
     #[test]
     fn displays_source_form() {
-        for src in ["1 + 2 * x", "-(x + 1) ^ -2", "f(x, y) * (z)", "a ⊕ n!"] {
+        for src in [
+            "1 + 2 * x",
+            "-(x + 1) ^ -2",
+            "f(x, y) * (z)",
+            "a \u{2295} n!",
+        ] {
             assert_eq!(parse(src).to_string(), src);
         }
         assert_eq!(parse("2 x").to_string(), "2 * x");
@@ -404,10 +411,10 @@ mod tests {
             ParseError::at(6, "expected `)`, found end of input")
         );
         assert_eq!(error("x + 1)"), ParseError::at(5, "unexpected `)`"));
-        let prefix_only = Grammar::new().prefix("¬", 1);
+        let prefix_only = Grammar::new().prefix("\u{ac}", 1);
         assert_eq!(
-            parse_ast("x ¬ y", &prefix_only).unwrap_err(),
-            ParseError::at(2, "unexpected `¬`")
+            prefix_only.parse("x \u{ac} y").unwrap_err(),
+            ParseError::at(2, "unexpected `\u{ac}`")
         );
         assert_eq!(
             error("f(x y"),

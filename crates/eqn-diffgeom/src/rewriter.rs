@@ -290,7 +290,10 @@ mod tests {
     #[test]
     fn d_of_wedged_product_over_int_plane() {
         // d(x\cdoty \wedge dx) = -x dx\wedgedy
-        assert_eq!(int_graded("d(x y ∧ dx)"), int_form("-1 x dx ∧ dy"));
+        assert_eq!(
+            int_graded(r"d(x y \wedge dx)"),
+            int_form(r"-1 x dx \wedge dy")
+        );
     }
 
     #[test]
@@ -306,21 +309,27 @@ mod tests {
 
     #[test]
     fn exterior_keeps_order_and_distributes() {
-        assert_eq!(exterior("dy ∧ dx"), form("dy ∧ dx"));
-        assert_eq!(exterior("2 ∧ (x + dy) ∧ dx"), form("2 x dx + 2 dy ∧ dx"));
+        assert_eq!(exterior(r"dy \wedge dx"), form(r"dy \wedge dx"));
+        assert_eq!(
+            exterior(r"2 \wedge (x + dy) \wedge dx"),
+            form(r"2 x dx + 2 dy \wedge dx")
+        );
     }
 
     #[test]
     fn graded_commutative_sorts_with_sign() {
-        assert_eq!(graded("dy ∧ dx"), form("-1 dx ∧ dy"));
-        assert_eq!(graded("dx ∧ dx"), form("0"));
-        assert_eq!(graded("dx ∧ dy + dy ∧ dx"), form("0"));
-        assert_eq!(graded("dx ∧ dy + dx ∧ dy"), form("2 dx ∧ dy"));
+        assert_eq!(graded(r"dy \wedge dx"), form(r"-1 dx \wedge dy"));
+        assert_eq!(graded(r"dx \wedge dx"), form("0"));
+        assert_eq!(graded(r"dx \wedge dy + dy \wedge dx"), form("0"));
+        assert_eq!(
+            graded(r"dx \wedge dy + dx \wedge dy"),
+            form(r"2 dx \wedge dy")
+        );
     }
 
     #[test]
     fn forms_above_dim_vanish() {
-        assert_eq!(exterior("dx ∧ dy ∧ dz"), form("0"));
+        assert_eq!(exterior(r"dx \wedge dy \wedge dz"), form("0"));
     }
 
     fn assert_idempotent<R: Rewriter>(rewriter: &R, expr: R::Expr)
@@ -338,10 +347,10 @@ mod tests {
             "-(-x)",
             "-(x dy)",
             "d(x dy)",
-            "dy ∧ dx",
-            "dx ∧ dy + dy ∧ dx",
-            "2 ∧ (x + dy) ∧ dx",
-            "dx ∧ dy ∧ dx",
+            r"dy \wedge dx",
+            r"dx \wedge dy + dy \wedge dx",
+            r"2 \wedge (x + dy) \wedge dx",
+            r"dx \wedge dy \wedge dx",
             "d(x^2)",
             "d(d(x^2 y))",
         ];
@@ -398,7 +407,7 @@ mod tests {
 
     #[test]
     fn d_of_wedged_product_form() {
-        assert_eq!(graded("d(x y ∧ dx)"), form("-1 x dx ∧ dy"));
+        assert_eq!(graded(r"d(x y \wedge dx)"), form(r"-1 x dx \wedge dy"));
     }
 
     #[test]
@@ -408,8 +417,8 @@ mod tests {
 
     #[test]
     fn repeated_atom_and_degree_above_dim_vanish() {
-        assert_eq!(graded("dx ∧ dy ∧ dx"), form("0"));
-        assert_eq!(graded("dx ∧ dy ∧ dz"), form("0"));
+        assert_eq!(graded(r"dx \wedge dy \wedge dx"), form("0"));
+        assert_eq!(graded(r"dx \wedge dy \wedge dz"), form("0"));
     }
 
     #[test]
@@ -444,6 +453,9 @@ mod tests {
         assert_eq!(f.rewrited_expr(form("d(x y)")), form("x dy + y dx"));
 
         // dx \wedge dy = -(dy \wedge dx): position 1 sorts after position 0.
-        assert_eq!(f.rewrited_expr(form("dx ∧ dy")), form("-1 dy ∧ dx"));
+        assert_eq!(
+            f.rewrited_expr(form(r"dx \wedge dy")),
+            form(r"-1 dy \wedge dx")
+        );
     }
 }
