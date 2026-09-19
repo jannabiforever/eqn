@@ -51,7 +51,7 @@ where
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        eqn_parser::parse(s)
+        Self::parse(s)
     }
 }
 

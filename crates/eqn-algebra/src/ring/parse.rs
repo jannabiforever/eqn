@@ -6,18 +6,6 @@ use eqn_parser::{Assoc, Ast, FromAst, FromLiteral, Grammar, ParseError};
 
 use super::{Ring, RingElem, RingExpr, SemiRing, SemiRingExpr};
 
-/// `x^n` with a positive integer literal `n`.
-fn exponent(ast: &Ast) -> Result<NonZeroUsize, ParseError> {
-    ast.integer("-")
-        .and_then(|n| usize::try_from(n).ok())
-        .and_then(NonZeroUsize::new)
-        .ok_or_else(|| {
-            ParseError::new(format!(
-                "exponent must be a positive integer literal, found `{ast}`"
-            ))
-        })
-}
-
 /// [`SemiRing::ADD_SYMBOL`], [`SemiRing::MUL_SYMBOL`] (or juxtaposition)
 /// and `x^n` for `n >= 1`. Prefix `-` exists only to spell negative
 /// constants: a semi-ring has no inverses, so `-x` is an error and `a - b`
@@ -56,7 +44,7 @@ where
                 .collect::<Result<_, _>>()
                 .map(Self::Mul),
             Ast::Infix(op, base, exp) if op == "^" => Ok(Self::Pow {
-                exponent: exponent(&exp)?,
+                exponent: Self::exponent(&exp)?,
                 base: Box::new(Self::from_ast(*base)?),
             }),
             Ast::Infix(op, ..) | Ast::Prefix(op, _) | Ast::Postfix(op, _) => Err(ParseError::new(
@@ -68,6 +56,20 @@ where
     }
 }
 
+impl<SR: SemiRing> SemiRingExpr<SR> {
+    /// The `n` of `x^n`: a positive integer literal.
+    fn exponent(ast: &Ast) -> Result<NonZeroUsize, ParseError> {
+        ast.integer("-")
+            .and_then(|n| usize::try_from(n).ok())
+            .and_then(NonZeroUsize::new)
+            .ok_or_else(|| {
+                ParseError::new(format!(
+                    "exponent must be a positive integer literal, found `{ast}`"
+                ))
+            })
+    }
+}
+
 impl<SR> FromStr for SemiRingExpr<SR>
 where
     SR: SemiRing,
@@ -76,7 +78,7 @@ where
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        eqn_parser::parse(s)
+        Self::parse(s)
     }
 }
 
@@ -100,13 +102,15 @@ where
         match ast {
             Ast::Ident(name) => Ok(Self::Symbol(Symbol::new(name))),
             Ast::Group(inner) => Self::from_ast(*inner),
-            Ast::Prefix(op, inner) if op == R::SUB_SYMBOL => Self::from_ast(*inner).map(negate),
+            Ast::Prefix(op, inner) if op == R::SUB_SYMBOL => {
+                Self::from_ast(*inner).map(Self::negated)
+            }
             Ast::Infix(ref op, ..) if op == R::ADD_SYMBOL || op == R::SUB_SYMBOL => ast
-                .operands(sum::<R>)
+                .operands(Self::sum)
                 .into_iter()
                 .map(|(negated, term)| {
                     let term = Self::from_ast(term)?;
-                    Ok(if negated { negate(term) } else { term })
+                    Ok(if negated { term.negated() } else { term })
                 })
                 .collect::<Result<_, _>>()
                 .map(Self::Add),
@@ -117,7 +121,7 @@ where
                 .collect::<Result<_, _>>()
                 .map(Self::Mul),
             Ast::Infix(op, base, exp) if op == "^" => Ok(Self::Pow {
-                exponent: exponent(&exp)?,
+                exponent: SemiRingExpr::<R>::exponent(&exp)?,
                 base: Box::new(Self::from_ast(*base)?),
             }),
             Ast::Infix(op, ..) | Ast::Prefix(op, _) | Ast::Postfix(op, _) => Err(ParseError::new(
@@ -129,18 +133,21 @@ where
     }
 }
 
-fn negate<R: Ring>(expr: RingExpr<R>) -> RingExpr<R> {
-    RingExpr::Neg(Box::new(expr))
-}
+impl<R: Ring> RingExpr<R> {
+    fn negated(self) -> Self {
+        Self::Neg(Box::new(self))
+    }
 
-/// `a + b - c`: the ring's sum, with subtracted terms marked.
-fn sum<R: Ring>(op: &str) -> Option<bool> {
-    if op == R::ADD_SYMBOL {
-        Some(false)
-    } else if op == R::SUB_SYMBOL {
-        Some(true)
-    } else {
-        None
+    /// Classifies `op` for [`Ast::operands`]: `a + b - c` is one sum, with
+    /// the terms after [`Ring::SUB_SYMBOL`] negated.
+    fn sum(op: &str) -> Option<bool> {
+        if op == R::ADD_SYMBOL {
+            Some(false)
+        } else if op == R::SUB_SYMBOL {
+            Some(true)
+        } else {
+            None
+        }
     }
 }
 
@@ -152,7 +159,7 @@ where
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        eqn_parser::parse(s)
+        Self::parse(s)
     }
 }
 
@@ -172,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn semi_ring_syntax() {
+    fn sums_products_and_powers_lower_structurally() {
         let x = Expr::Symbol(Symbol::new("x"));
         let (base, exponent) = pow(x.clone(), 2);
         assert_eq!(
@@ -220,12 +227,12 @@ mod tests {
             "2 x - 5 x + -(x)".parse::<RExpr>().unwrap(),
             RExpr::Add(vec![
                 RExpr::Mul(vec![RExpr::Const(2), x()]),
-                negate(RExpr::Mul(vec![RExpr::Const(5), x()])),
-                negate(x()),
+                RExpr::Mul(vec![RExpr::Const(5), x()]).negated(),
+                x().negated(),
             ])
         );
         assert_eq!("-3".parse::<RExpr>().unwrap(), RExpr::Const(-3));
-        assert_eq!("--x".parse::<RExpr>().unwrap(), negate(negate(x())));
+        assert_eq!("--x".parse::<RExpr>().unwrap(), x().negated().negated());
         assert_eq!(
             "x / 2".parse::<RExpr>().unwrap_err(),
             ParseError::at(2, "unexpected `/`")
