@@ -1,10 +1,9 @@
-use std::str::FromStr;
-
 use eqn_core::op::{Associative, BinaryOperator, Identity};
 use eqn_core::rewriter::Expression;
 use eqn_core::set::{Elem, Set};
 use eqn_core::symbol::Symbol;
 
+mod parse;
 pub mod rewriter;
 
 /// An element of a monoid.
@@ -141,18 +140,5 @@ mod tests {
                 )));
             }
         }
-    }
-}
-
-impl<M> FromStr for MonoidExpr<M>
-where
-    M: Monoid,
-{
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let token_iterator = parser::MonoidExprTokenizer::new(s);
-        let parser = parser::MonoidParser::new(token_iterator);
-        parser.parse()
     }
 }

@@ -7,6 +7,7 @@ use eqn_core::symbol::Symbol;
 
 pub mod differential;
 pub mod ideal;
+mod parse;
 pub mod quotient;
 pub mod rewriter;
 

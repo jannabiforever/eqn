@@ -73,6 +73,7 @@ dependencies = [
  "eqn-algebra",
  "eqn-analysis",
  "eqn-core",
+ "eqn-parser",
 ]
 
 [[package]]

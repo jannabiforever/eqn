@@ -10,6 +10,7 @@ use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
+mod parse;
 pub mod rewriter;
 
 /// Elementary transcendental functions.

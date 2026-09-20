@@ -9,9 +9,11 @@ use eqn_algebra::ring::differential::DifferentialRing;
 use eqn_core::rewriter::Expression;
 use eqn_core::symbol::Symbol;
 
+mod parse;
 pub mod rewriter;
 
-pub const WEDGE_CHAR: char = '\u{2227}';
+/// Source spellings of the wedge product: its character and its LaTeX name.
+pub const WEDGE_SYMBOLS: [&str; 2] = ["\u{2227}", r"\wedge"];
 pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
 
 /// A manifold is known to the library through its ring of functions.
