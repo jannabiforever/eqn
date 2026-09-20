@@ -8,21 +8,60 @@ pub enum Assoc {
     Right,
 }
 
+impl Assoc {
+    /// The left and right binding powers of an infix operator at
+    /// `precedence`: the power on the side away from the associativity is
+    /// raised by one, so a chain of the operator groups toward that side.
+    fn powers(self, precedence: u8) -> (u16, u16) {
+        let base = Grammar::base(precedence);
+        match self {
+            Self::Left => (base, base + 1),
+            Self::Right => (base + 1, base),
+        }
+    }
+}
+
+/// What a symbol does after a complete operand: continues it as an infix
+/// operator, or closes it as a postfix one. The two are exclusive, since
+/// the parser could not tell them apart.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Trailing {
+    Infix { left: u16, right: u16 },
+    Postfix { left: u16 },
+}
+
+impl Trailing {
+    /// The binding power toward the operand on the left.
+    pub(crate) fn left(self) -> u16 {
+        match self {
+            Self::Infix { left, .. } | Self::Postfix { left } => left,
+        }
+    }
+}
+
+/// One symbol's roles at the two places the parser meets it. A symbol may
+/// fill both (`-` is commonly prefix and infix), since the two positions
+/// never compete for the same token.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct Operator {
+    /// The right binding power when the symbol opens an operand: `op a`.
+    prefix: Option<u16>,
+    trailing: Option<Trailing>,
+}
+
 /// The operator table a parse runs against: which symbols are operators, and
 /// with what fixity, precedence and associativity. Numeric literals,
 /// identifiers, calls `f(a, b)` and parentheses are always available; every
 /// operator is declared by the expression type that understands it, so this
 /// crate names none.
 ///
-/// A symbol may be declared in several fixities (`-` is commonly both prefix
+/// A symbol may be declared in several roles (`-` is commonly both prefix
 /// and infix) but not as both infix and postfix, which would be ambiguous.
 /// Higher precedence binds tighter. A declaration that breaks these rules is
 /// an error, not a table the parser could misread.
 #[derive(Clone, Debug, Default)]
 pub struct Grammar {
-    prefix: HashMap<String, u16>,
-    infix: HashMap<String, (u16, u16)>,
-    postfix: HashMap<String, u16>,
+    operators: HashMap<String, Operator>,
     juxtaposition: Option<String>,
 }
 
@@ -57,39 +96,42 @@ impl Grammar {
         Ok(())
     }
 
+    /// The record for `symbol`, empty until a declaration fills a role.
+    fn operator(&mut self, symbol: &str) -> &mut Operator {
+        self.operators.entry(symbol.to_owned()).or_default()
+    }
+
     /// Declares `symbol` as a prefix operator: `symbol a`.
     pub fn prefix(mut self, symbol: &str, precedence: u8) -> anyhow::Result<Self> {
         Self::check_symbol(symbol)?;
-        self.prefix
-            .insert(symbol.to_owned(), Self::base(precedence));
+        self.operator(symbol).prefix = Some(Self::base(precedence));
         Ok(self)
     }
 
     /// Declares `symbol` as an infix operator: `a symbol b`.
     pub fn infix(mut self, symbol: &str, precedence: u8, assoc: Assoc) -> anyhow::Result<Self> {
         Self::check_symbol(symbol)?;
+        let operator = self.operator(symbol);
         anyhow::ensure!(
-            !self.postfix.contains_key(symbol),
+            !matches!(operator.trailing, Some(Trailing::Postfix { .. })),
             "operator `{symbol}` is already postfix; it cannot also be infix"
         );
-        let base = Self::base(precedence);
-        let powers = match assoc {
-            Assoc::Left => (base, base + 1),
-            Assoc::Right => (base + 1, base),
-        };
-        self.infix.insert(symbol.to_owned(), powers);
+        let (left, right) = assoc.powers(precedence);
+        operator.trailing = Some(Trailing::Infix { left, right });
         Ok(self)
     }
 
     /// Declares `symbol` as a postfix operator: `a symbol`.
     pub fn postfix(mut self, symbol: &str, precedence: u8) -> anyhow::Result<Self> {
         Self::check_symbol(symbol)?;
+        let operator = self.operator(symbol);
         anyhow::ensure!(
-            !self.infix.contains_key(symbol),
+            !matches!(operator.trailing, Some(Trailing::Infix { .. })),
             "operator `{symbol}` is already infix; it cannot also be postfix"
         );
-        self.postfix
-            .insert(symbol.to_owned(), Self::base(precedence));
+        operator.trailing = Some(Trailing::Postfix {
+            left: Self::base(precedence),
+        });
         Ok(self)
     }
 
@@ -97,65 +139,46 @@ impl Grammar {
     /// operator `symbol`, which must already be declared.
     pub fn juxtaposition(mut self, symbol: &str) -> anyhow::Result<Self> {
         anyhow::ensure!(
-            self.infix.contains_key(symbol),
+            matches!(self.trailing(symbol), Some(Trailing::Infix { .. })),
             "juxtaposition must name a declared infix operator, not `{symbol}`"
         );
         self.juxtaposition = Some(symbol.to_owned());
         Ok(self)
     }
 
-    /// Declares `symbol` to parse exactly like `existing` in every fixity the
+    /// Declares `symbol` to parse exactly like `existing` in every role the
     /// latter has, while keeping its own spelling in the tree. This is how a
     /// grammar built on another one slots a new operator in at the same
     /// level as one it already has.
     pub fn alias(mut self, symbol: &str, existing: &str) -> anyhow::Result<Self> {
         Self::check_symbol(symbol)?;
-        let mut found = false;
-        if let Some(&powers) = self.prefix.get(existing) {
-            self.prefix.insert(symbol.to_owned(), powers);
-            found = true;
-        }
-        if let Some(&powers) = self.infix.get(existing) {
-            self.infix.insert(symbol.to_owned(), powers);
-            found = true;
-        }
-        if let Some(&powers) = self.postfix.get(existing) {
-            self.postfix.insert(symbol.to_owned(), powers);
-            found = true;
-        }
-        anyhow::ensure!(found, "cannot alias `{symbol}` to undeclared `{existing}`");
+        let operator = *self
+            .operators
+            .get(existing)
+            .ok_or_else(|| anyhow::anyhow!("cannot alias `{symbol}` to undeclared `{existing}`"))?;
+        self.operators.insert(symbol.to_owned(), operator);
         Ok(self)
     }
 
     /// Every declared symbol, longest first, for longest-match lexing.
     pub(crate) fn symbols(&self) -> Vec<&str> {
-        let mut symbols: Vec<&str> = self
-            .prefix
-            .keys()
-            .chain(self.infix.keys())
-            .chain(self.postfix.keys())
-            .map(String::as_str)
-            .collect();
+        let mut symbols: Vec<&str> = self.operators.keys().map(String::as_str).collect();
         symbols.sort_unstable_by(|a, b| b.len().cmp(&a.len()).then(a.cmp(b)));
-        symbols.dedup();
         symbols
     }
 
     pub(crate) fn prefix_power(&self, symbol: &str) -> Option<u16> {
-        self.prefix.get(symbol).copied()
+        self.operators.get(symbol)?.prefix
     }
 
-    pub(crate) fn infix_powers(&self, symbol: &str) -> Option<(u16, u16)> {
-        self.infix.get(symbol).copied()
+    pub(crate) fn trailing(&self, symbol: &str) -> Option<Trailing> {
+        self.operators.get(symbol)?.trailing
     }
 
-    pub(crate) fn postfix_power(&self, symbol: &str) -> Option<u16> {
-        self.postfix.get(symbol).copied()
-    }
-
-    pub(crate) fn juxtaposition_powers(&self) -> Option<(&str, (u16, u16))> {
+    /// The infix operator juxtaposition stands for, with its spelling.
+    pub(crate) fn juxtaposition_operator(&self) -> Option<(&str, Trailing)> {
         let symbol = self.juxtaposition.as_deref()?;
-        Some((symbol, self.infix_powers(symbol)?))
+        Some((symbol, self.trailing(symbol)?))
     }
 }
 
@@ -180,8 +203,7 @@ mod tests {
             .infix("-", 1, Assoc::Left)?
             .prefix("-", 3)?
             .alias("\u{2212}", "-")?;
-        assert_eq!(grammar.infix_powers("\u{2212}"), grammar.infix_powers("-"));
-        assert_eq!(grammar.prefix_power("\u{2212}"), grammar.prefix_power("-"));
+        assert_eq!(grammar.operators["\u{2212}"], grammar.operators["-"]);
         Ok(())
     }
 
