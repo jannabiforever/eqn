@@ -24,10 +24,10 @@ where
     M: Manifold,
     ZeroForm<M>: FromAst,
 {
-    fn grammar() -> Grammar {
+    fn grammar() -> anyhow::Result<Grammar> {
         WEDGE_SYMBOLS
             .iter()
-            .fold(ZeroForm::<M>::grammar(), |grammar, wedge| {
+            .try_fold(ZeroForm::<M>::grammar()?, |grammar, wedge| {
                 grammar.alias(wedge, Self::MUL)
             })
     }
@@ -193,7 +193,7 @@ where
     M: Manifold,
     ZeroForm<M>: FromAst,
 {
-    type Err = ParseError;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
@@ -231,6 +231,10 @@ mod tests {
 
     fn d(form: Form) -> Form {
         Form::Differential(Box::new(form))
+    }
+
+    fn error(src: &str) -> ParseError {
+        src.parse::<Form>().unwrap_err().downcast().unwrap()
     }
 
     #[test]
@@ -324,21 +328,21 @@ mod tests {
     fn rejects_what_a_form_cannot_express() {
         for src in ["d", "x d", "d + x"] {
             assert_eq!(
-                src.parse::<Form>().unwrap_err(),
+                error(src),
                 ParseError::new("`d` is the exterior derivative; write `dx`, `d x` or `d(...)`"),
                 "{src}"
             );
         }
         assert_eq!(
-            "d(x, y)".parse::<Form>().unwrap_err(),
+            error("d(x, y)"),
             ParseError::new("`d` takes one argument, found 2")
         );
         assert_eq!(
-            "d(x) / x".parse::<Form>().unwrap_err(),
+            error("d(x) / x"),
             ParseError::new("differential forms have no `/` operator")
         );
         assert_eq!(
-            "d(x)^2".parse::<Form>().unwrap_err(),
+            error("d(x)^2"),
             ParseError::new("differential forms have no `^` operator")
         );
     }

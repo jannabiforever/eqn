@@ -206,25 +206,25 @@ mod tests {
     use crate::Assoc;
 
     /// The usual arithmetic table, plus `!` postfix and `\oplus` infix.
-    fn grammar() -> Grammar {
+    fn grammar() -> anyhow::Result<Grammar> {
         Grammar::new()
-            .infix("+", 1, Assoc::Left)
-            .infix("-", 1, Assoc::Left)
-            .infix("\u{2295}", 1, Assoc::Left)
-            .infix("*", 2, Assoc::Left)
-            .infix("/", 2, Assoc::Left)
-            .juxtaposition("*")
-            .prefix("-", 3)
-            .infix("^", 4, Assoc::Right)
+            .infix("+", 1, Assoc::Left)?
+            .infix("-", 1, Assoc::Left)?
+            .infix("\u{2295}", 1, Assoc::Left)?
+            .infix("*", 2, Assoc::Left)?
+            .infix("/", 2, Assoc::Left)?
+            .juxtaposition("*")?
+            .prefix("-", 3)?
+            .infix("^", 4, Assoc::Right)?
             .postfix("!", 5)
     }
 
     fn parse(src: &str) -> Ast {
-        grammar().parse(src).unwrap()
+        grammar().unwrap().parse(src).unwrap()
     }
 
     fn error(src: &str) -> ParseError {
-        grammar().parse(src).unwrap_err()
+        grammar().unwrap().parse(src).unwrap_err()
     }
 
     fn num(text: &str) -> Ast {
@@ -308,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    fn juxtaposition_reads_as_the_chosen_operator() {
+    fn juxtaposition_reads_as_the_chosen_operator() -> anyhow::Result<()> {
         assert_eq!(
             parse("2 x y"),
             infix("*", infix("*", num("2"), id("x")), id("y"))
@@ -322,11 +322,12 @@ mod tests {
             infix("*", num("2"), group(infix("+", id("x"), num("1"))))
         );
 
-        let no_juxtaposition = Grammar::new().infix("+", 1, Assoc::Left);
+        let no_juxtaposition = Grammar::new().infix("+", 1, Assoc::Left)?;
         assert_eq!(
             no_juxtaposition.parse("2 x").unwrap_err(),
             ParseError::at(2, "unexpected `x`")
         );
+        Ok(())
     }
 
     #[test]
@@ -393,7 +394,7 @@ mod tests {
     }
 
     #[test]
-    fn reports_errors_with_offsets() {
+    fn reports_errors_with_offsets() -> anyhow::Result<()> {
         assert_eq!(
             error(""),
             ParseError::at(0, "expected an expression, found end of input")
@@ -411,7 +412,7 @@ mod tests {
             ParseError::at(6, "expected `)`, found end of input")
         );
         assert_eq!(error("x + 1)"), ParseError::at(5, "unexpected `)`"));
-        let prefix_only = Grammar::new().prefix("\u{ac}", 1);
+        let prefix_only = Grammar::new().prefix("\u{ac}", 1)?;
         assert_eq!(
             prefix_only.parse("x \u{ac} y").unwrap_err(),
             ParseError::at(2, "unexpected `\u{ac}`")
@@ -421,5 +422,6 @@ mod tests {
             ParseError::at(5, "expected `,` or `)`, found end of input")
         );
         assert_eq!(error("f(x; y)"), ParseError::at(3, "unexpected `;`"));
+        Ok(())
     }
 }

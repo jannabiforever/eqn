@@ -17,15 +17,15 @@ where
     F: Field,
     RingElem<F>: FromLiteral,
 {
-    fn grammar() -> Grammar {
+    fn grammar() -> anyhow::Result<Grammar> {
         Grammar::new()
-            .infix(F::ADD_SYMBOL, 1, Assoc::Left)
-            .infix(F::SUB_SYMBOL, 1, Assoc::Left)
-            .infix(F::MUL_SYMBOL, 2, Assoc::Left)
-            .infix(F::DIV_SYMBOL, 2, Assoc::Left)
-            .juxtaposition(F::MUL_SYMBOL)
-            .prefix("-", 3)
-            .prefix(F::SUB_SYMBOL, 3)
+            .infix(F::ADD_SYMBOL, 1, Assoc::Left)?
+            .infix(F::SUB_SYMBOL, 1, Assoc::Left)?
+            .infix(F::MUL_SYMBOL, 2, Assoc::Left)?
+            .infix(F::DIV_SYMBOL, 2, Assoc::Left)?
+            .juxtaposition(F::MUL_SYMBOL)?
+            .prefix("-", 3)?
+            .prefix(F::SUB_SYMBOL, 3)?
             .infix("^", 4, Assoc::Right)
     }
 
@@ -172,7 +172,7 @@ where
     F: Field,
     RingElem<F>: FromLiteral,
 {
-    type Err = ParseError;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
@@ -194,6 +194,10 @@ mod tests {
 
     fn x() -> Expr {
         Expr::Symbol(Symbol::new("x"))
+    }
+
+    fn error(src: &str) -> ParseError {
+        src.parse::<Expr>().unwrap_err().downcast().unwrap()
     }
 
     fn pow(base: Expr, exponent: isize) -> Expr {
@@ -239,31 +243,28 @@ mod tests {
     #[test]
     fn rejects_misused_functions() {
         assert_eq!(
-            "sin x".parse::<Expr>().unwrap_err(),
+            error("sin x"),
             ParseError::new("`sin` is a function; write `sin(...)`")
         );
         assert_eq!(
-            "sin(x, y)".parse::<Expr>().unwrap_err(),
+            error("sin(x, y)"),
             ParseError::new("`sin` takes one argument, found 2")
         );
         assert_eq!(
-            "D(x)".parse::<Expr>().unwrap_err(),
+            error("D(x)"),
             ParseError::new("`D(f, x)` takes two arguments, found 1")
         );
         assert_eq!(
-            "D(x, 2)".parse::<Expr>().unwrap_err(),
+            error("D(x, 2)"),
             ParseError::new("`D` differentiates with respect to a symbol, found `2`")
         );
+        assert_eq!(error("tan(x)"), ParseError::new("unknown function `tan`"));
         assert_eq!(
-            "tan(x)".parse::<Expr>().unwrap_err(),
-            ParseError::new("unknown function `tan`")
-        );
-        assert_eq!(
-            "x \u{2227} y".parse::<Expr>().unwrap_err(),
+            error("x \u{2227} y"),
             ParseError::at(2, "unexpected `\u{2227}`")
         );
         assert_eq!(
-            "x^y".parse::<Expr>().unwrap_err(),
+            error("x^y"),
             ParseError::new("exponent must be an integer literal, found `y`")
         );
     }

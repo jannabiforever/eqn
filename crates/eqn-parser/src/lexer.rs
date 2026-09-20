@@ -98,20 +98,21 @@ mod tests {
     use super::*;
     use crate::Assoc;
 
-    fn grammar() -> Grammar {
+    fn grammar() -> anyhow::Result<Grammar> {
         Grammar::new()
-            .infix("+", 1, Assoc::Left)
-            .infix("-", 1, Assoc::Left)
-            .infix("*", 2, Assoc::Left)
-            .infix("/", 2, Assoc::Left)
-            .infix("^", 4, Assoc::Right)
-            .infix("\u{2227}", 2, Assoc::Left)
-            .infix("\\oplus", 1, Assoc::Left)
+            .infix("+", 1, Assoc::Left)?
+            .infix("-", 1, Assoc::Left)?
+            .infix("*", 2, Assoc::Left)?
+            .infix("/", 2, Assoc::Left)?
+            .infix("^", 4, Assoc::Right)?
+            .infix("\u{2227}", 2, Assoc::Left)?
+            .infix("\\oplus", 1, Assoc::Left)?
             .infix("**", 4, Assoc::Right)
     }
 
     fn tokens(src: &str) -> Vec<Token> {
         grammar()
+            .unwrap()
             .tokenize(src)
             .unwrap()
             .into_iter()
@@ -169,34 +170,36 @@ mod tests {
     }
 
     #[test]
-    fn records_byte_offsets() {
+    fn records_byte_offsets() -> anyhow::Result<()> {
         // `\theta` is two bytes.
-        let offsets: Vec<usize> = grammar()
-            .tokenize("\u{3b8} + 12")
-            .unwrap()
+        let offsets: Vec<usize> = grammar()?
+            .tokenize("\u{3b8} + 12")?
             .into_iter()
             .map(|(_, at)| at)
             .collect();
         assert_eq!(offsets, vec![0, 3, 5]);
+        Ok(())
     }
 
     #[test]
-    fn a_trailing_dot_is_not_part_of_a_number() {
+    fn a_trailing_dot_is_not_part_of_a_number() -> anyhow::Result<()> {
         assert_eq!(
-            grammar().tokenize("1.x").unwrap_err(),
+            grammar()?.tokenize("1.x").unwrap_err(),
             ParseError::at(1, "unexpected `.`")
         );
+        Ok(())
     }
 
     #[test]
-    fn rejects_undeclared_symbols() {
+    fn rejects_undeclared_symbols() -> anyhow::Result<()> {
         assert_eq!(
-            grammar().tokenize("x $ y").unwrap_err(),
+            grammar()?.tokenize("x $ y").unwrap_err(),
             ParseError::at(2, "unexpected `$`")
         );
         assert_eq!(
             Grammar::new().tokenize("x + y").unwrap_err(),
             ParseError::at(2, "unexpected `+`")
         );
+        Ok(())
     }
 }

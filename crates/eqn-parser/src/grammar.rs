@@ -16,7 +16,8 @@ pub enum Assoc {
 ///
 /// A symbol may be declared in several fixities (`-` is commonly both prefix
 /// and infix) but not as both infix and postfix, which would be ambiguous.
-/// Higher precedence binds tighter.
+/// Higher precedence binds tighter. A declaration that breaks these rules is
+/// an error, not a table the parser could misread.
 #[derive(Clone, Debug, Default)]
 pub struct Grammar {
     prefix: HashMap<String, u16>,
@@ -39,35 +40,35 @@ impl Grammar {
     /// Operator symbols must be lexically distinguishable from the atoms: they
     /// cannot start like an identifier or a number, and cannot contain the
     /// punctuation that is reserved for calls and grouping.
-    fn check_symbol(symbol: &str) {
-        let first = symbol
-            .chars()
-            .next()
-            .expect("an operator symbol cannot be empty");
-        assert!(
+    fn check_symbol(symbol: &str) -> anyhow::Result<()> {
+        let Some(first) = symbol.chars().next() else {
+            anyhow::bail!("an operator symbol cannot be empty");
+        };
+        anyhow::ensure!(
             !(Token::opens_ident(first) || first.is_ascii_digit()),
             "operator `{symbol}` would lex as an identifier or a number"
         );
-        assert!(
+        anyhow::ensure!(
             !symbol
                 .chars()
                 .any(|c| c.is_whitespace() || "(),".contains(c)),
             "operator `{symbol}` contains whitespace or reserved punctuation"
         );
+        Ok(())
     }
 
     /// Declares `symbol` as a prefix operator: `symbol a`.
-    pub fn prefix(mut self, symbol: &str, precedence: u8) -> Self {
-        Self::check_symbol(symbol);
+    pub fn prefix(mut self, symbol: &str, precedence: u8) -> anyhow::Result<Self> {
+        Self::check_symbol(symbol)?;
         self.prefix
             .insert(symbol.to_owned(), Self::base(precedence));
-        self
+        Ok(self)
     }
 
     /// Declares `symbol` as an infix operator: `a symbol b`.
-    pub fn infix(mut self, symbol: &str, precedence: u8, assoc: Assoc) -> Self {
-        Self::check_symbol(symbol);
-        assert!(
+    pub fn infix(mut self, symbol: &str, precedence: u8, assoc: Assoc) -> anyhow::Result<Self> {
+        Self::check_symbol(symbol)?;
+        anyhow::ensure!(
             !self.postfix.contains_key(symbol),
             "operator `{symbol}` is already postfix; it cannot also be infix"
         );
@@ -77,38 +78,38 @@ impl Grammar {
             Assoc::Right => (base + 1, base),
         };
         self.infix.insert(symbol.to_owned(), powers);
-        self
+        Ok(self)
     }
 
     /// Declares `symbol` as a postfix operator: `a symbol`.
-    pub fn postfix(mut self, symbol: &str, precedence: u8) -> Self {
-        Self::check_symbol(symbol);
-        assert!(
+    pub fn postfix(mut self, symbol: &str, precedence: u8) -> anyhow::Result<Self> {
+        Self::check_symbol(symbol)?;
+        anyhow::ensure!(
             !self.infix.contains_key(symbol),
             "operator `{symbol}` is already infix; it cannot also be postfix"
         );
         self.postfix
             .insert(symbol.to_owned(), Self::base(precedence));
-        self
+        Ok(self)
     }
 
     /// Reads adjacent operands (`2 x`, `2(x + 1)`, `f(x) y`) as the infix
     /// operator `symbol`, which must already be declared.
-    pub fn juxtaposition(mut self, symbol: &str) -> Self {
-        assert!(
+    pub fn juxtaposition(mut self, symbol: &str) -> anyhow::Result<Self> {
+        anyhow::ensure!(
             self.infix.contains_key(symbol),
             "juxtaposition must name a declared infix operator, not `{symbol}`"
         );
         self.juxtaposition = Some(symbol.to_owned());
-        self
+        Ok(self)
     }
 
     /// Declares `symbol` to parse exactly like `existing` in every fixity the
     /// latter has, while keeping its own spelling in the tree. This is how a
     /// grammar built on another one slots a new operator in at the same
     /// level as one it already has.
-    pub fn alias(mut self, symbol: &str, existing: &str) -> Self {
-        Self::check_symbol(symbol);
+    pub fn alias(mut self, symbol: &str, existing: &str) -> anyhow::Result<Self> {
+        Self::check_symbol(symbol)?;
         let mut found = false;
         if let Some(&powers) = self.prefix.get(existing) {
             self.prefix.insert(symbol.to_owned(), powers);
@@ -122,8 +123,8 @@ impl Grammar {
             self.postfix.insert(symbol.to_owned(), powers);
             found = true;
         }
-        assert!(found, "cannot alias `{symbol}` to undeclared `{existing}`");
-        self
+        anyhow::ensure!(found, "cannot alias `{symbol}` to undeclared `{existing}`");
+        Ok(self)
     }
 
     /// Every declared symbol, longest first, for longest-match lexing.
@@ -154,7 +155,7 @@ impl Grammar {
 
     pub(crate) fn juxtaposition_powers(&self) -> Option<(&str, (u16, u16))> {
         let symbol = self.juxtaposition.as_deref()?;
-        Some((symbol, self.infix[symbol]))
+        Some((symbol, self.infix_powers(symbol)?))
     }
 }
 
@@ -163,40 +164,64 @@ mod tests {
     use super::*;
 
     #[test]
-    fn symbols_are_longest_first() {
+    fn symbols_are_longest_first() -> anyhow::Result<()> {
         let grammar = Grammar::new()
-            .infix("+", 1, Assoc::Left)
-            .infix("++", 1, Assoc::Left)
-            .prefix("+", 2)
-            .infix("\\oplus", 1, Assoc::Left);
+            .infix("+", 1, Assoc::Left)?
+            .infix("++", 1, Assoc::Left)?
+            .prefix("+", 2)?
+            .infix("\\oplus", 1, Assoc::Left)?;
         assert_eq!(grammar.symbols(), ["\\oplus", "++", "+"]);
+        Ok(())
     }
 
     #[test]
-    fn alias_copies_every_fixity() {
+    fn alias_copies_every_fixity() -> anyhow::Result<()> {
         let grammar = Grammar::new()
-            .infix("-", 1, Assoc::Left)
-            .prefix("-", 3)
-            .alias("\u{2212}", "-");
+            .infix("-", 1, Assoc::Left)?
+            .prefix("-", 3)?
+            .alias("\u{2212}", "-")?;
         assert_eq!(grammar.infix_powers("\u{2212}"), grammar.infix_powers("-"));
         assert_eq!(grammar.prefix_power("\u{2212}"), grammar.prefix_power("-"));
+        Ok(())
     }
 
     #[test]
-    #[should_panic(expected = "would lex as an identifier")]
     fn rejects_word_like_symbols() {
-        Grammar::new().infix("mod", 1, Assoc::Left);
+        let error = Grammar::new().infix("mod", 1, Assoc::Left).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "operator `mod` would lex as an identifier or a number"
+        );
     }
 
     #[test]
-    #[should_panic(expected = "cannot also be postfix")]
-    fn rejects_infix_postfix_ambiguity() {
-        Grammar::new().infix("!", 1, Assoc::Left).postfix("!", 2);
+    fn rejects_infix_postfix_ambiguity() -> anyhow::Result<()> {
+        let error = Grammar::new()
+            .infix("!", 1, Assoc::Left)?
+            .postfix("!", 2)
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "operator `!` is already infix; it cannot also be postfix"
+        );
+        Ok(())
     }
 
     #[test]
-    #[should_panic(expected = "must name a declared infix operator")]
     fn juxtaposition_needs_a_declared_operator() {
-        Grammar::new().juxtaposition("*");
+        let error = Grammar::new().juxtaposition("*").unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "juxtaposition must name a declared infix operator, not `*`"
+        );
+    }
+
+    #[test]
+    fn alias_needs_a_declared_operator() {
+        let error = Grammar::new().alias("\u{2212}", "-").unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "cannot alias `\u{2212}` to undeclared `-`"
+        );
     }
 }
