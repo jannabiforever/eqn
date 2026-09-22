@@ -4,7 +4,8 @@ use std::marker::PhantomData;
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::set::Set;
 
-use super::{CommutativeRing, Ideal, Ring, RingElem, SemiRing};
+use super::{CommutativeRing, Ring, RingElem, SemiRing};
+use crate::ring::ideal::Ideal;
 
 /// An equivalence class modulo `I`, represented by one element of the parent
 /// ring. Representatives are equal when their difference belongs to `I`.

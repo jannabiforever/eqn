@@ -5,16 +5,10 @@ use eqn_core::rewriter::Expression;
 use eqn_core::set::{Elem, Set};
 use eqn_core::symbol::Symbol;
 
-mod differential;
-mod ideal;
-mod quotient;
-mod rewriter;
-
-// Re-exports
-pub use differential::DifferentialRing;
-pub use ideal::Ideal;
-pub use quotient::{QuotientAdd, QuotientMul, QuotientRing, ResidueClass, ResidueClasses};
-pub use rewriter::{CommutativeRingRewriter, RingRewriter, SemiRingRewriter};
+pub mod differential;
+pub mod ideal;
+pub mod quotient;
+pub mod rewriter;
 
 // ================================================================================
 // Ring

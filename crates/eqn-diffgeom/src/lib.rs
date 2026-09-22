@@ -4,9 +4,12 @@
 
 use std::collections::HashSet;
 
-use eqn_algebra::ring::{DifferentialRing, RingElem};
+use eqn_algebra::ring::RingElem;
+use eqn_algebra::ring::differential::DifferentialRing;
 use eqn_core::rewriter::Expression;
 use eqn_core::symbol::Symbol;
+
+pub mod rewriter;
 
 pub const WEDGE_CHAR: char = '\u{2227}';
 pub const PARTIAL_DIFFERENTIAL_CHAR: char = '\u{2202}';
@@ -140,18 +143,17 @@ impl<M: Manifold> Chart<M> {
     }
 }
 
-mod rewriter;
-pub use rewriter::{ExteriorRewriter, GradedCommutativeRewriter};
-
 #[cfg(test)]
 mod tests {
     use eqn_algebra::operator_impl::{QAdd, QMul, ZAdd, ZMul};
-    use eqn_analysis::{ElementaryExpr, ElementaryFunctionRing, ElementaryRewriter};
+    use eqn_analysis::rewriter::ElementaryRewriter;
+    use eqn_analysis::{ElementaryExpr, ElementaryFunctionRing};
     use eqn_core::rewriter::Rewriter;
     use eqn_core::set::{Q, Rational, Z};
     use eqn_poly::PolynomialRing;
 
     use super::*;
+    use crate::rewriter::GradedCommutativeRewriter;
 
     #[derive(Debug)]
     pub(super) struct Plane;

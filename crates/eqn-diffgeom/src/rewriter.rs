@@ -1,4 +1,5 @@
-use eqn_algebra::ring::{DifferentialRing, Ring, SemiRing};
+use eqn_algebra::ring::differential::DifferentialRing;
+use eqn_algebra::ring::{Ring, SemiRing};
 use eqn_core::rewriter::Rewriter;
 
 use crate::{Chart, DifferentialForm, Manifold, ZeroForm};
@@ -237,7 +238,8 @@ mod tests {
     use std::num::NonZeroUsize;
 
     use eqn_algebra::operator_impl::{QAdd, QMul};
-    use eqn_analysis::{ElementaryExpr, ElementaryRewriter};
+    use eqn_analysis::ElementaryExpr;
+    use eqn_analysis::rewriter::ElementaryRewriter;
     use eqn_core::rewriter::TrivialRewriter;
     use eqn_core::set::{Q, Rational};
     use eqn_core::symbol::Symbol;
