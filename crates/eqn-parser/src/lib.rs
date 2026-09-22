@@ -56,13 +56,13 @@ pub use lexer::Token;
 /// rewritten into something else.
 pub trait FromAst: Sized {
     /// The operators this type's syntax has.
-    fn grammar() -> Grammar;
+    fn grammar() -> anyhow::Result<Grammar>;
 
     fn from_ast(ast: Ast) -> Result<Self, ParseError>;
 
     /// Reads `src` with [`grammar`](Self::grammar) and lowers the result.
-    fn parse(src: &str) -> Result<Self, ParseError> {
-        Self::from_ast(Self::grammar().parse(src)?)
+    fn parse(src: &str) -> anyhow::Result<Self> {
+        Ok(Self::from_ast(Self::grammar()?.parse(src)?)?)
     }
 }
 

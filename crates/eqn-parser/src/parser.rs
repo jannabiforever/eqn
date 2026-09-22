@@ -1,6 +1,7 @@
 //! A Pratt parser over the token stream, driven by a [`Grammar`].
 
 use crate::ast::Ast;
+use crate::grammar::Trailing;
 use crate::lexer::Token;
 use crate::{Grammar, ParseError};
 
@@ -29,15 +30,11 @@ struct Parser<'g> {
 }
 
 /// What the token after a complete operand does to it.
-enum Continuation {
-    Postfix(String, u16),
-    Infix {
-        op: String,
-        powers: (u16, u16),
-        /// Juxtaposition has no token to consume.
-        explicit: bool,
-    },
-    End,
+struct Continuation {
+    op: String,
+    trailing: Trailing,
+    /// Juxtaposition has no token to consume.
+    explicit: bool,
 }
 
 impl Parser<'_> {
@@ -70,63 +67,47 @@ impl Parser<'_> {
         }
     }
 
-    fn continuation(&self) -> Continuation {
-        match self.peek() {
-            Some((Token::Op(symbol), _)) => {
-                if let Some(power) = self.grammar.postfix_power(symbol) {
-                    Continuation::Postfix(symbol.clone(), power)
-                } else if let Some(powers) = self.grammar.infix_powers(symbol) {
-                    Continuation::Infix {
-                        op: symbol.clone(),
-                        powers,
-                        explicit: true,
-                    }
-                } else {
-                    Continuation::End
-                }
+    fn continuation(&self) -> Option<Continuation> {
+        match self.peek()? {
+            (Token::Op(symbol), _) => Some(Continuation {
+                op: symbol.clone(),
+                trailing: self.grammar.trailing(symbol)?,
+                explicit: true,
+            }),
+            (Token::Number(_) | Token::Ident(_) | Token::LParen, _) => {
+                let (symbol, trailing) = self.grammar.juxtaposition_operator()?;
+                Some(Continuation {
+                    op: symbol.to_owned(),
+                    trailing,
+                    explicit: false,
+                })
             }
-            Some((Token::Number(_) | Token::Ident(_) | Token::LParen, _)) => {
-                match self.grammar.juxtaposition_powers() {
-                    Some((symbol, powers)) => Continuation::Infix {
-                        op: symbol.to_owned(),
-                        powers,
-                        explicit: false,
-                    },
-                    None => Continuation::End,
-                }
-            }
-            Some((Token::RParen | Token::Comma, _)) | None => Continuation::End,
+            (Token::RParen | Token::Comma, _) => None,
         }
     }
 
     fn expr(&mut self, min_power: u16) -> Result<Ast, ParseError> {
         let mut lhs = self.primary()?;
 
-        loop {
-            match self.continuation() {
-                Continuation::Postfix(op, power) => {
-                    if power < min_power {
-                        break;
-                    }
-                    self.next();
-                    lhs = Ast::Postfix(op, Box::new(lhs));
-                }
-                Continuation::Infix {
-                    op,
-                    powers: (left, right),
-                    explicit,
-                } => {
-                    if left < min_power {
-                        break;
-                    }
-                    if explicit {
-                        self.next();
-                    }
-                    let rhs = self.expr(right)?;
-                    lhs = Ast::Infix(op, Box::new(lhs), Box::new(rhs));
-                }
-                Continuation::End => break,
+        while let Some(Continuation {
+            op,
+            trailing,
+            explicit,
+        }) = self.continuation()
+        {
+            if trailing.left() < min_power {
+                break;
             }
+            if explicit {
+                self.next();
+            }
+            lhs = match trailing {
+                Trailing::Postfix { .. } => Ast::Postfix(op, Box::new(lhs)),
+                Trailing::Infix { right, .. } => {
+                    let rhs = self.expr(right)?;
+                    Ast::Infix(op, Box::new(lhs), Box::new(rhs))
+                }
+            };
         }
 
         Ok(lhs)
@@ -206,25 +187,25 @@ mod tests {
     use crate::Assoc;
 
     /// The usual arithmetic table, plus `!` postfix and `\oplus` infix.
-    fn grammar() -> Grammar {
+    fn grammar() -> anyhow::Result<Grammar> {
         Grammar::new()
-            .infix("+", 1, Assoc::Left)
-            .infix("-", 1, Assoc::Left)
-            .infix("\u{2295}", 1, Assoc::Left)
-            .infix("*", 2, Assoc::Left)
-            .infix("/", 2, Assoc::Left)
-            .juxtaposition("*")
-            .prefix("-", 3)
-            .infix("^", 4, Assoc::Right)
+            .infix("+", 1, Assoc::Left)?
+            .infix("-", 1, Assoc::Left)?
+            .infix("\u{2295}", 1, Assoc::Left)?
+            .infix("*", 2, Assoc::Left)?
+            .infix("/", 2, Assoc::Left)?
+            .juxtaposition("*")?
+            .prefix("-", 3)?
+            .infix("^", 4, Assoc::Right)?
             .postfix("!", 5)
     }
 
     fn parse(src: &str) -> Ast {
-        grammar().parse(src).unwrap()
+        grammar().unwrap().parse(src).unwrap()
     }
 
     fn error(src: &str) -> ParseError {
-        grammar().parse(src).unwrap_err()
+        grammar().unwrap().parse(src).unwrap_err()
     }
 
     fn num(text: &str) -> Ast {
@@ -308,7 +289,7 @@ mod tests {
     }
 
     #[test]
-    fn juxtaposition_reads_as_the_chosen_operator() {
+    fn juxtaposition_reads_as_the_chosen_operator() -> anyhow::Result<()> {
         assert_eq!(
             parse("2 x y"),
             infix("*", infix("*", num("2"), id("x")), id("y"))
@@ -322,11 +303,12 @@ mod tests {
             infix("*", num("2"), group(infix("+", id("x"), num("1"))))
         );
 
-        let no_juxtaposition = Grammar::new().infix("+", 1, Assoc::Left);
+        let no_juxtaposition = Grammar::new().infix("+", 1, Assoc::Left)?;
         assert_eq!(
             no_juxtaposition.parse("2 x").unwrap_err(),
             ParseError::at(2, "unexpected `x`")
         );
+        Ok(())
     }
 
     #[test]
@@ -393,7 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn reports_errors_with_offsets() {
+    fn reports_errors_with_offsets() -> anyhow::Result<()> {
         assert_eq!(
             error(""),
             ParseError::at(0, "expected an expression, found end of input")
@@ -411,7 +393,7 @@ mod tests {
             ParseError::at(6, "expected `)`, found end of input")
         );
         assert_eq!(error("x + 1)"), ParseError::at(5, "unexpected `)`"));
-        let prefix_only = Grammar::new().prefix("\u{ac}", 1);
+        let prefix_only = Grammar::new().prefix("\u{ac}", 1)?;
         assert_eq!(
             prefix_only.parse("x \u{ac} y").unwrap_err(),
             ParseError::at(2, "unexpected `\u{ac}`")
@@ -421,5 +403,6 @@ mod tests {
             ParseError::at(5, "expected `,` or `)`, found end of input")
         );
         assert_eq!(error("f(x; y)"), ParseError::at(3, "unexpected `;`"));
+        Ok(())
     }
 }

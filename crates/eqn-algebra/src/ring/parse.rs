@@ -15,12 +15,12 @@ where
     SR: SemiRing,
     RingElem<SR>: FromLiteral,
 {
-    fn grammar() -> Grammar {
+    fn grammar() -> anyhow::Result<Grammar> {
         Grammar::new()
-            .infix(SR::ADD_SYMBOL, 1, Assoc::Left)
-            .infix(SR::MUL_SYMBOL, 2, Assoc::Left)
-            .juxtaposition(SR::MUL_SYMBOL)
-            .prefix("-", 3)
+            .infix(SR::ADD_SYMBOL, 1, Assoc::Left)?
+            .infix(SR::MUL_SYMBOL, 2, Assoc::Left)?
+            .juxtaposition(SR::MUL_SYMBOL)?
+            .prefix("-", 3)?
             .infix("^", 4, Assoc::Right)
     }
 
@@ -75,7 +75,7 @@ where
     SR: SemiRing,
     RingElem<SR>: FromLiteral,
 {
-    type Err = ParseError;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
@@ -89,9 +89,9 @@ where
     R: Ring,
     RingElem<R>: FromLiteral,
 {
-    fn grammar() -> Grammar {
-        SemiRingExpr::<R>::grammar()
-            .infix(R::SUB_SYMBOL, 1, Assoc::Left)
+    fn grammar() -> anyhow::Result<Grammar> {
+        SemiRingExpr::<R>::grammar()?
+            .infix(R::SUB_SYMBOL, 1, Assoc::Left)?
             .prefix(R::SUB_SYMBOL, 3)
     }
 
@@ -156,7 +156,7 @@ where
     R: Ring,
     RingElem<R>: FromLiteral,
 {
-    type Err = ParseError;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
@@ -178,6 +178,10 @@ mod tests {
         (Box::new(base), NonZeroUsize::new(exponent).unwrap())
     }
 
+    fn error<E: FromStr<Err = anyhow::Error> + std::fmt::Debug>(src: &str) -> ParseError {
+        src.parse::<E>().unwrap_err().downcast().unwrap()
+    }
+
     #[test]
     fn sums_products_and_powers_lower_structurally() {
         let x = Expr::Symbol(Symbol::new("x"));
@@ -197,24 +201,18 @@ mod tests {
 
     #[test]
     fn semi_rings_have_no_inverses() {
+        assert_eq!(error::<Expr>("x - 1"), ParseError::at(2, "unexpected `-`"));
         assert_eq!(
-            "x - 1".parse::<Expr>().unwrap_err(),
-            ParseError::at(2, "unexpected `-`")
-        );
-        assert_eq!(
-            "-x".parse::<Expr>().unwrap_err(),
+            error::<Expr>("-x"),
             ParseError::new("semi-ring expressions have no `-` operator")
         );
+        assert_eq!(error::<Expr>("x / 2"), ParseError::at(2, "unexpected `/`"));
         assert_eq!(
-            "x / 2".parse::<Expr>().unwrap_err(),
-            ParseError::at(2, "unexpected `/`")
-        );
-        assert_eq!(
-            "x^0".parse::<Expr>().unwrap_err(),
+            error::<Expr>("x^0"),
             ParseError::new("exponent must be a positive integer literal, found `0`")
         );
         assert_eq!(
-            "x^-1".parse::<Expr>().unwrap_err(),
+            error::<Expr>("x^-1"),
             ParseError::new("exponent must be a positive integer literal, found `-1`")
         );
         assert!("-1".parse::<Expr>().is_ok(), "a negative constant is fine");
@@ -233,9 +231,6 @@ mod tests {
         );
         assert_eq!("-3".parse::<RExpr>().unwrap(), RExpr::Const(-3));
         assert_eq!("--x".parse::<RExpr>().unwrap(), x().negated().negated());
-        assert_eq!(
-            "x / 2".parse::<RExpr>().unwrap_err(),
-            ParseError::at(2, "unexpected `/`")
-        );
+        assert_eq!(error::<RExpr>("x / 2"), ParseError::at(2, "unexpected `/`"));
     }
 }

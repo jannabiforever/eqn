@@ -14,10 +14,10 @@ where
     M: Monoid,
     MonoidElem<M>: FromLiteral,
 {
-    fn grammar() -> Grammar {
+    fn grammar() -> anyhow::Result<Grammar> {
         Grammar::new()
-            .infix(M::SYMBOL, 1, Assoc::Left)
-            .juxtaposition(M::SYMBOL)
+            .infix(M::SYMBOL, 1, Assoc::Left)?
+            .juxtaposition(M::SYMBOL)?
             .prefix("-", 3)
     }
 
@@ -48,7 +48,7 @@ where
     M: Monoid,
     MonoidElem<M>: FromLiteral,
 {
-    type Err = ParseError;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
@@ -68,15 +68,16 @@ mod tests {
         Expr::Symbol(Symbol::new("x"))
     }
 
+    fn error(src: &str) -> ParseError {
+        src.parse::<Expr>().unwrap_err().downcast().unwrap()
+    }
+
     #[test]
     fn symbol_and_juxtaposition_are_the_operation() {
         let expected = Expr::Op(vec![Expr::Const(1), x(), Expr::Const(-2)]);
         assert_eq!("1 + x + -2".parse::<Expr>().unwrap(), expected);
         assert_eq!("1 (x) (-2)".parse::<Expr>().unwrap(), expected);
-        assert_eq!(
-            "1 * x".parse::<Expr>().unwrap_err(),
-            ParseError::at(2, "unexpected `*`")
-        );
+        assert_eq!(error("1 * x"), ParseError::at(2, "unexpected `*`"));
     }
 
     #[test]
@@ -90,22 +91,13 @@ mod tests {
 
     #[test]
     fn rejects_what_a_monoid_cannot_express() {
+        assert_eq!(error("x - 1"), ParseError::at(2, "unexpected `-`"));
+        assert_eq!(error("x ^ 2"), ParseError::at(2, "unexpected `^`"));
         assert_eq!(
-            "x - 1".parse::<Expr>().unwrap_err(),
-            ParseError::at(2, "unexpected `-`")
-        );
-        assert_eq!(
-            "x ^ 2".parse::<Expr>().unwrap_err(),
-            ParseError::at(2, "unexpected `^`")
-        );
-        assert_eq!(
-            "-x".parse::<Expr>().unwrap_err(),
+            error("-x"),
             ParseError::new("monoid expressions have no `-` operator")
         );
-        assert_eq!(
-            "inv(x)".parse::<Expr>().unwrap_err(),
-            ParseError::new("unknown function `inv`")
-        );
+        assert_eq!(error("inv(x)"), ParseError::new("unknown function `inv`"));
         assert!("2.5".parse::<Expr>().is_err());
         assert!("x +".parse::<Expr>().is_err());
     }

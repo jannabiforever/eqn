@@ -1,7 +1,7 @@
 use std::fmt;
 
 /// A lexing, parsing or lowering failure.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub struct ParseError {
     message: String,
     /// Byte offset into the source, when known. Lowering errors have none:
@@ -41,5 +41,3 @@ impl fmt::Display for ParseError {
         }
     }
 }
-
-impl std::error::Error for ParseError {}

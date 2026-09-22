@@ -16,13 +16,13 @@ where
     G: Group,
     MonoidElem<G>: FromLiteral,
 {
-    fn grammar() -> Grammar {
+    fn grammar() -> anyhow::Result<Grammar> {
         Grammar::new()
-            .infix(G::SYMBOL, 1, Assoc::Left)
-            .infix(G::INVERSE_SYMBOL, 1, Assoc::Left)
-            .juxtaposition(G::SYMBOL)
-            .prefix("-", 3)
-            .prefix(G::INVERSE_SYMBOL, 3)
+            .infix(G::SYMBOL, 1, Assoc::Left)?
+            .infix(G::INVERSE_SYMBOL, 1, Assoc::Left)?
+            .juxtaposition(G::SYMBOL)?
+            .prefix("-", 3)?
+            .prefix(G::INVERSE_SYMBOL, 3)?
             .infix("^", 4, Assoc::Right)
     }
 
@@ -96,7 +96,7 @@ where
     G: Group,
     MonoidElem<G>: FromLiteral,
 {
-    type Err = ParseError;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
@@ -120,6 +120,10 @@ mod tests {
         Expr::Symbol(Symbol::new("y"))
     }
 
+    fn error<E: FromStr<Err = anyhow::Error> + std::fmt::Debug>(src: &str) -> ParseError {
+        src.parse::<E>().unwrap_err().downcast().unwrap()
+    }
+
     #[test]
     fn inverses_have_three_spellings() {
         let expected = Expr::Op(vec![x(), y().inverted()]);
@@ -135,12 +139,9 @@ mod tests {
         let expected = Mul::Op(vec![x.clone(), Mul::Inv(Box::new(y))]);
         assert_eq!("x / y".parse::<Mul>().unwrap(), expected);
         assert_eq!("x * /y".parse::<Mul>().unwrap(), expected);
+        assert_eq!(error::<Mul>("x + y"), ParseError::at(2, "unexpected `+`"));
         assert_eq!(
-            "x + y".parse::<Mul>().unwrap_err(),
-            ParseError::at(2, "unexpected `+`")
-        );
-        assert_eq!(
-            "-x".parse::<Mul>().unwrap_err(),
+            error::<Mul>("-x"),
             ParseError::new("group expressions have no `-` operator")
         );
         assert_eq!("-3".parse::<Mul>().unwrap(), Mul::Const((-3).into()));
@@ -177,7 +178,7 @@ mod tests {
             }
         );
         assert_eq!(
-            "x^y".parse::<Expr>().unwrap_err(),
+            error::<Expr>("x^y"),
             ParseError::new("exponent must be an integer literal, found `y`")
         );
     }
@@ -185,11 +186,11 @@ mod tests {
     #[test]
     fn rejects_what_a_group_cannot_express() {
         assert_eq!(
-            "x \u{2227} y".parse::<Expr>().unwrap_err(),
+            error::<Expr>("x \u{2227} y"),
             ParseError::at(2, "unexpected `\u{2227}`")
         );
         assert_eq!(
-            "inv(x, y)".parse::<Expr>().unwrap_err(),
+            error::<Expr>("inv(x, y)"),
             ParseError::new("unknown function `inv`")
         );
     }

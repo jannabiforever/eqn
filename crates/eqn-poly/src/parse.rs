@@ -12,7 +12,7 @@ where
     R: CommutativeRing,
     RingElem<R>: FromLiteral,
 {
-    fn grammar() -> Grammar {
+    fn grammar() -> anyhow::Result<Grammar> {
         RingExpr::<R>::grammar()
     }
 
@@ -26,7 +26,7 @@ where
     R: CommutativeRing,
     RingElem<R>: FromLiteral,
 {
-    type Err = ParseError;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
