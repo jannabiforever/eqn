@@ -1,13 +1,13 @@
-use super::{Ring, RingElem, SemiRing};
+use super::{Ring, RingAdd, RingDom, SemiRing};
+use crate::group::normal::NormalSubgroup;
+use crate::monoid::Monoid;
 
-/// A two-sided ideal of a ring.
-///
-/// Implementations must contain zero, be closed under subtraction, and absorb
-/// multiplication from both sides by every element of the ring.
-pub trait Ideal {
+/// A two-sided ideal of a ring: a normal subgroup of the additive group that
+/// absorbs multiplication from both sides by every element of the ring.
+pub trait Ideal:
+    NormalSubgroup<Parent: Monoid<Domain = RingDom<Self::Ring>, Operator = RingAdd<Self::Ring>>>
+{
     type Ring: Ring;
-
-    fn contains(value: &RingElem<Self::Ring>) -> bool;
 
     /// Whether this ideal is strictly smaller than its ring.
     fn is_proper() -> bool {
@@ -17,31 +17,53 @@ pub trait Ideal {
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::Z;
+    use eqn_core::set::{Subset, Z};
 
     use super::*;
+    use crate::group::Subgroup;
+    use crate::monoid::Submonoid;
     use crate::operator_impl::{ZAdd, ZMul};
 
     type Integers = (Z, ZAdd, ZMul);
 
     struct EvenIntegers;
 
-    impl Ideal for EvenIntegers {
-        type Ring = Integers;
+    impl Subset for EvenIntegers {
+        type Superset = Z;
 
-        fn contains(value: &RingElem<Self::Ring>) -> bool {
+        fn contains(value: &i64) -> bool {
             value % 2 == 0
         }
     }
 
+    impl Submonoid for EvenIntegers {
+        type Parent = (Z, ZAdd);
+    }
+
+    impl Subgroup for EvenIntegers {}
+
+    impl Ideal for EvenIntegers {
+        type Ring = Integers;
+    }
+
     struct WholeRing;
+
+    impl Subset for WholeRing {
+        type Superset = Z;
+
+        fn contains(_: &i64) -> bool {
+            true
+        }
+    }
+
+    impl Submonoid for WholeRing {
+        type Parent = (Z, ZAdd);
+    }
+
+    impl Subgroup for WholeRing {}
 
     impl Ideal for WholeRing {
         type Ring = Integers;
-
-        fn contains(_: &RingElem<Self::Ring>) -> bool {
-            true
-        }
     }
 
     #[test]

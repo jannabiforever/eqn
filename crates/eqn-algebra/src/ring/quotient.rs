@@ -1,106 +1,32 @@
-use std::fmt;
 use std::marker::PhantomData;
 
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
-use eqn_core::set::Set;
 
-use super::{CommutativeRing, Ring, RingElem, SemiRing};
+use super::{CommutativeRing, SemiRing};
+use crate::group::quotient::{Coset, QuotientOp};
 use crate::ring::ideal::Ideal;
 
-/// An equivalence class modulo `I`, represented by one element of the parent
-/// ring. Representatives are equal when their difference belongs to `I`.
-/// This equality relies on `I` satisfying the [`Ideal`] laws.
-#[derive_where::derive_where(Clone)]
-pub struct ResidueClass<I: Ideal> {
-    representative: RingElem<I::Ring>,
-    ideal: PhantomData<I>,
-}
+/// A residue class modulo `I`: a coset of `I` in the additive group.
+pub type ResidueClass<I> = Coset<I>;
 
-impl<I: Ideal> ResidueClass<I> {
-    pub const fn new(representative: RingElem<I::Ring>) -> Self {
-        Self {
-            representative,
-            ideal: PhantomData,
-        }
-    }
-
-    pub const fn representative(&self) -> &RingElem<I::Ring> {
-        &self.representative
-    }
-
-    pub fn into_representative(self) -> RingElem<I::Ring> {
-        self.representative
-    }
-
-    pub fn added(self, rhs: Self) -> Self {
-        ResidueClass::new(I::Ring::add(
-            self.into_representative(),
-            rhs.into_representative(),
-        ))
-    }
-
+impl<I: Ideal> Coset<I> {
+    /// `(a + I)(b + I) = ab + I`, well defined because `I` absorbs
+    /// multiplication.
     pub fn multiplied(self, rhs: Self) -> Self {
-        ResidueClass::new(I::Ring::multiply(
+        Coset::new(I::Ring::multiply(
             self.into_representative(),
             rhs.into_representative(),
         ))
-    }
-
-    pub const fn zero() -> Self {
-        ResidueClass::new(I::Ring::ZERO)
     }
 
     pub const fn one() -> Self {
-        ResidueClass::new(I::Ring::ONE)
-    }
-
-    pub fn inversed(self) -> Self {
-        ResidueClass::new(I::Ring::negate(self.into_representative()))
+        Coset::new(I::Ring::ONE)
     }
 }
-
-impl<I: Ideal> fmt::Debug for ResidueClass<I> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("ResidueClass")
-            .field(&self.representative)
-            .finish()
-    }
-}
-
-impl<I: Ideal> PartialEq for ResidueClass<I> {
-    fn eq(&self, other: &Self) -> bool {
-        let difference = I::Ring::add(
-            self.representative.clone(),
-            I::Ring::negate(other.representative.clone()),
-        );
-        I::contains(&difference)
-    }
-}
-
-impl<I: Ideal> Eq for ResidueClass<I> {}
-
-impl<I: Ideal> Set for ResidueClass<I> {}
-
-/// Addition of residue classes.
-#[derive(Associative, BinaryOperator, Commutative)]
-#[operator(
-    domain = ResidueClass<I>,
-    symbol = <I::Ring as SemiRing>::ADD_SYMBOL,
-    apply = ResidueClass::added,
-    identity = ResidueClass::zero(),
-    inverse = ResidueClass::inversed,
-    inverse_symbol = <I::Ring as Ring>::SUB_SYMBOL
-)]
-pub struct QuotientAdd<I: Ideal>(PhantomData<I>);
 
 /// Multiplication of residue classes.
 #[derive(Associative, BinaryOperator)]
-#[operator(
-    domain = ResidueClass<I>,
-    symbol = <I::Ring as SemiRing>::MUL_SYMBOL,
-    apply = ResidueClass::multiplied,
-    identity = ResidueClass::one()
-)]
+#[operator(domain = ResidueClass<I>, symbol = <I::Ring as SemiRing>::MUL_SYMBOL, apply = Coset::<I>::multiplied, identity = Coset::<I>::one())]
 pub struct QuotientMul<I: Ideal>(PhantomData<I>);
 
 impl<I> Commutative for QuotientMul<I>
@@ -110,26 +36,40 @@ where
 {
 }
 
-/// The quotient of a ring by a two-sided ideal.
-pub type QuotientRing<I> = (ResidueClass<I>, QuotientAdd<I>, QuotientMul<I>);
+/// The quotient of a ring by a two-sided ideal. Its addition is the quotient
+/// of the additive group.
+pub type QuotientRing<I> = (ResidueClass<I>, QuotientOp<I>, QuotientMul<I>);
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::Z;
+    use eqn_core::set::{Subset, Z};
 
     use super::*;
+    use crate::group::Subgroup;
+    use crate::monoid::Submonoid;
     use crate::operator_impl::{ZAdd, ZMul};
+    use crate::ring::Ring;
 
     type Integers = (Z, ZAdd, ZMul);
 
     struct EvenIntegers;
 
-    impl Ideal for EvenIntegers {
-        type Ring = Integers;
+    impl Subset for EvenIntegers {
+        type Superset = Z;
 
-        fn contains(value: &RingElem<Self::Ring>) -> bool {
+        fn contains(value: &i64) -> bool {
             value % 2 == 0
         }
+    }
+
+    impl Submonoid for EvenIntegers {
+        type Parent = (Z, ZAdd);
+    }
+
+    impl Subgroup for EvenIntegers {}
+
+    impl Ideal for EvenIntegers {
+        type Ring = Integers;
     }
 
     type IntegersModTwo = QuotientRing<EvenIntegers>;
@@ -272,12 +212,22 @@ mod tests {
 
     struct WholeRing;
 
-    impl Ideal for WholeRing {
-        type Ring = Integers;
+    impl Subset for WholeRing {
+        type Superset = Z;
 
-        fn contains(_: &RingElem<Self::Ring>) -> bool {
+        fn contains(_: &i64) -> bool {
             true
         }
+    }
+
+    impl Submonoid for WholeRing {
+        type Parent = (Z, ZAdd);
+    }
+
+    impl Subgroup for WholeRing {}
+
+    impl Ideal for WholeRing {
+        type Ring = Integers;
     }
 
     #[test]
@@ -289,12 +239,22 @@ mod tests {
 
     struct ZeroIdeal;
 
-    impl Ideal for ZeroIdeal {
-        type Ring = Integers;
+    impl Subset for ZeroIdeal {
+        type Superset = Z;
 
-        fn contains(value: &RingElem<Self::Ring>) -> bool {
+        fn contains(value: &i64) -> bool {
             *value == Integers::ZERO
         }
+    }
+
+    impl Submonoid for ZeroIdeal {
+        type Parent = (Z, ZAdd);
+    }
+
+    impl Subgroup for ZeroIdeal {}
+
+    impl Ideal for ZeroIdeal {
+        type Ring = Integers;
     }
 
     #[test]
