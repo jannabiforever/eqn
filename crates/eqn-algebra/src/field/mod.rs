@@ -304,7 +304,7 @@ impl<const P: u64> SeparableExtension for PrimeField<P> {}
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::{Q, Rational};
+    use eqn_core::set::{Q, Rational, Subset};
 
     use super::*;
     use crate::operator_impl::{QAdd, QMul};
@@ -314,12 +314,16 @@ mod tests {
 
     struct AllRationals;
 
-    impl SubSemiRing for AllRationals {
-        type Parent = Rationals;
+    impl Subset for AllRationals {
+        type Superset = Q;
 
-        fn contains(_: &RingElem<Self::Parent>) -> bool {
+        fn contains(_: &Rational) -> bool {
             true
         }
+    }
+
+    impl SubSemiRing for AllRationals {
+        type Parent = Rationals;
     }
 
     impl Subring for AllRationals {}

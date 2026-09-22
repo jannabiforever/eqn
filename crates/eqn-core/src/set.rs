@@ -12,6 +12,13 @@ pub trait Set {
 /// Alias for a set's element.
 pub type Elem<S> = <S as Set>::Element;
 
+/// A subset of `Superset`, given by its membership predicate.
+pub trait Subset {
+    type Superset: Set;
+
+    fn contains(element: &Elem<Self::Superset>) -> bool;
+}
+
 // ================================================================================
 // Set implementations
 // ================================================================================

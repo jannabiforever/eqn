@@ -106,6 +106,7 @@ mod tests {
     use std::ops::Add;
 
     use eqn_core::op::{Associative, BinaryOperator};
+    use eqn_core::set::Subset;
 
     use super::*;
 
@@ -121,12 +122,16 @@ mod tests {
 
     struct EvenIntegers;
 
-    impl Submonoid for EvenIntegers {
-        type Parent = IntegerAdditionGroup;
+    impl Subset for EvenIntegers {
+        type Superset = IntegerSet;
 
-        fn contains(value: &MonoidElem<Self::Parent>) -> bool {
+        fn contains(value: &i64) -> bool {
             value % 2 == 0
         }
+    }
+
+    impl Submonoid for EvenIntegers {
+        type Parent = IntegerAdditionGroup;
     }
 
     impl Subgroup for EvenIntegers {}

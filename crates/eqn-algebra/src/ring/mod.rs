@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
 use eqn_core::rewriter::Expression;
-use eqn_core::set::{Elem, Set};
+use eqn_core::set::{Elem, Set, Subset};
 use eqn_core::symbol::Symbol;
 
 pub mod differential;
@@ -95,10 +95,8 @@ where
 
 /// A subset containing zero and one and closed under addition and
 /// multiplication.
-pub trait SubSemiRing {
+pub trait SubSemiRing: Subset<Superset = RingDom<Self::Parent>> {
     type Parent: SemiRing;
-
-    fn contains(value: &RingElem<Self::Parent>) -> bool;
 }
 
 /// A ring: a semi-ring whose addition also has inverses.
@@ -283,22 +281,30 @@ mod tests {
 
     struct NonnegativeIntegers;
 
-    impl SubSemiRing for NonnegativeIntegers {
-        type Parent = Integers;
+    impl Subset for NonnegativeIntegers {
+        type Superset = Z;
 
-        fn contains(value: &RingElem<Self::Parent>) -> bool {
+        fn contains(value: &i64) -> bool {
             *value >= 0
         }
     }
 
+    impl SubSemiRing for NonnegativeIntegers {
+        type Parent = Integers;
+    }
+
     struct AllIntegers;
+
+    impl Subset for AllIntegers {
+        type Superset = Z;
+
+        fn contains(_: &i64) -> bool {
+            true
+        }
+    }
 
     impl SubSemiRing for AllIntegers {
         type Parent = Integers;
-
-        fn contains(_: &RingElem<Self::Parent>) -> bool {
-            true
-        }
     }
 
     impl Subring for AllIntegers {}

@@ -74,7 +74,7 @@ pub type QuotientGroup<N> = (Cosets<N>, QuotientOp<N>);
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::Z;
+    use eqn_core::set::{Subset, Z};
 
     use super::*;
     use crate::group::AbelianGroup;
@@ -85,12 +85,16 @@ mod tests {
 
     struct EvenIntegers;
 
-    impl Submonoid for EvenIntegers {
-        type Parent = Integers;
+    impl Subset for EvenIntegers {
+        type Superset = Z;
 
-        fn contains(value: &MonoidElem<Self::Parent>) -> bool {
+        fn contains(value: &i64) -> bool {
             value % 2 == 0
         }
+    }
+
+    impl Submonoid for EvenIntegers {
+        type Parent = Integers;
     }
 
     impl Subgroup for EvenIntegers {}
@@ -230,12 +234,16 @@ mod tests {
 
     struct Rotations;
 
-    impl Submonoid for Rotations {
-        type Parent = D3;
+    impl Subset for Rotations {
+        type Superset = TriangleSymmetries;
 
-        fn contains(value: &MonoidElem<Self::Parent>) -> bool {
+        fn contains(value: &Symmetry) -> bool {
             !value.reflected
         }
+    }
+
+    impl Submonoid for Rotations {
+        type Parent = D3;
     }
 
     impl Subgroup for Rotations {}

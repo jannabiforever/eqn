@@ -1,6 +1,6 @@
 use eqn_core::op::{Associative, BinaryOperator, Identity};
 use eqn_core::rewriter::Expression;
-use eqn_core::set::{Elem, Set};
+use eqn_core::set::{Elem, Set, Subset};
 use eqn_core::symbol::Symbol;
 
 mod parse;
@@ -37,10 +37,8 @@ where
 }
 
 /// A subset containing the identity and closed under the monoid operation.
-pub trait Submonoid {
+pub trait Submonoid: Subset<Superset = <Self::Parent as Monoid>::Domain> {
     type Parent: Monoid;
-
-    fn contains(value: &MonoidElem<Self::Parent>) -> bool;
 }
 
 /// An expression tree over a monoid: constants, named symbols, and n-ary
@@ -121,12 +119,16 @@ mod tests {
 
     struct NonnegativeIntegers;
 
-    impl Submonoid for NonnegativeIntegers {
-        type Parent = IntegerAddition;
+    impl Subset for NonnegativeIntegers {
+        type Superset = Z;
 
-        fn contains(value: &MonoidElem<Self::Parent>) -> bool {
+        fn contains(value: &i64) -> bool {
             *value >= 0
         }
+    }
+
+    impl Submonoid for NonnegativeIntegers {
+        type Parent = IntegerAddition;
     }
 
     #[test]

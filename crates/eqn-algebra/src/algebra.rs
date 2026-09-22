@@ -30,7 +30,7 @@ pub trait Subalgebra: Subring<Parent: Algebra> {}
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::Z;
+    use eqn_core::set::{Subset, Z};
 
     use super::*;
     use crate::module::ModuleElem;
@@ -59,12 +59,16 @@ mod tests {
 
     struct AllIntegers;
 
-    impl SubSemiRing for AllIntegers {
-        type Parent = IntegerAlgebra;
+    impl Subset for AllIntegers {
+        type Superset = Z;
 
-        fn contains(_: &RingElem<Self::Parent>) -> bool {
+        fn contains(_: &i64) -> bool {
             true
         }
+    }
+
+    impl SubSemiRing for AllIntegers {
+        type Parent = IntegerAlgebra;
     }
 
     impl Subring for AllIntegers {}

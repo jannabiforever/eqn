@@ -1,5 +1,5 @@
 use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
-use eqn_core::set::{Elem, Set};
+use eqn_core::set::{Elem, Set, Subset};
 
 use crate::ring::{Ring, RingElem};
 
@@ -28,10 +28,8 @@ pub trait Module {
 
 /// A subset containing zero and closed under addition, additive inverses, and
 /// scalar multiplication.
-pub trait Submodule {
+pub trait Submodule: Subset<Superset = <Self::Parent as Module>::Domain> {
     type Parent: Module;
-
-    fn contains(value: &ModuleElem<Self::Parent>) -> bool;
 }
 
 #[cfg(test)]
@@ -58,12 +56,16 @@ mod tests {
 
     struct EvenIntegers;
 
-    impl Submodule for EvenIntegers {
-        type Parent = IntegerModule;
+    impl Subset for EvenIntegers {
+        type Superset = Z;
 
-        fn contains(value: &ModuleElem<Self::Parent>) -> bool {
+        fn contains(value: &i64) -> bool {
             value % 2 == 0
         }
+    }
+
+    impl Submodule for EvenIntegers {
+        type Parent = IntegerModule;
     }
 
     #[test]
