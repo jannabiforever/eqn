@@ -14,14 +14,7 @@ use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
-mod finite_field;
-
-pub use finite_field::{
-    CompatibleFiniteField, CompatibleFiniteFieldElement, CompatibleFiniteFieldEmbedding,
-    DefiningPolynomial, FiniteField, FiniteFieldAdd, FiniteFieldElement, FiniteFieldElements,
-    FiniteFieldMul, FirstCompatible, FirstIrreducible, FirstPrimitive, Fq, FqElement,
-    IrreduciblePolynomial, PrimitiveFiniteField, PrimitiveFiniteFieldElement, UnivariatePolynomial,
-};
+pub mod finite_field;
 
 // ================================================================================
 // Monomial
