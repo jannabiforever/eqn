@@ -57,27 +57,23 @@ impl<S: Subgroup> PartialEq for Coset<S> {
     }
 }
 
-/// The set of left cosets of `S`.
-#[derive(Set)]
-#[set(element = Coset<S>)]
-pub struct Cosets<S: Subgroup>(PhantomData<S>);
+impl<S: Subgroup> Set for Coset<S> {}
 
 /// Multiplication of cosets of a normal subgroup.
 #[derive(Associative, BinaryOperator)]
-#[operator(domain = Cosets<N>, symbol = <N::Parent as Monoid>::SYMBOL, apply = Coset::applied, identity = Coset::identity(), inverse = Coset::inversed, inverse_symbol = <N::Parent as Group>::INVERSE_SYMBOL)]
+#[operator(domain = Coset<N>, symbol = <N::Parent as Monoid>::SYMBOL, apply = Coset::applied, identity = Coset::identity(), inverse = Coset::inversed, inverse_symbol = <N::Parent as Group>::INVERSE_SYMBOL)]
 pub struct QuotientOp<N: NormalSubgroup>(PhantomData<N>);
 
 impl<N: NormalSubgroup> Commutative for QuotientOp<N> where N::Parent: AbelianGroup {}
 
 /// The quotient of a group by a normal subgroup.
-pub type QuotientGroup<N> = (Cosets<N>, QuotientOp<N>);
+pub type QuotientGroup<N> = (Coset<N>, QuotientOp<N>);
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::{Subset, Z};
+    use eqn_core::set::{Set, Subset, Z};
 
     use super::*;
-    use crate::group::AbelianGroup;
     use crate::monoid::Submonoid;
     use crate::operator_impl::ZAdd;
 
@@ -98,7 +94,6 @@ mod tests {
     }
 
     impl Subgroup for EvenIntegers {}
-    impl NormalSubgroup for EvenIntegers {}
 
     type IntegersModTwo = QuotientGroup<EvenIntegers>;
 
@@ -124,6 +119,13 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn subgroups_of_abelian_groups_are_normal() {
+        fn assert_normal<N: NormalSubgroup>() {}
+
+        assert_normal::<EvenIntegers>();
     }
 
     #[test]
@@ -182,7 +184,7 @@ mod tests {
         }
     }
 
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, Set)]
     struct Symmetry {
         rotation: u8,
         reflected: bool,
@@ -222,20 +224,16 @@ mod tests {
         }
     }
 
-    #[derive(Set)]
-    #[set(element = Symmetry)]
-    struct TriangleSymmetries;
-
     #[derive(Associative, BinaryOperator)]
-    #[operator(domain = TriangleSymmetries, symbol = "*", apply = Symmetry::applied, identity = Symmetry::identity(), inverse = Symmetry::inversed, inverse_symbol = "/")]
+    #[operator(domain = Symmetry, symbol = "*", apply = Symmetry::applied, identity = Symmetry::identity(), inverse = Symmetry::inversed, inverse_symbol = "/")]
     struct Compose;
 
-    type D3 = (TriangleSymmetries, Compose);
+    type D3 = (Symmetry, Compose);
 
     struct Rotations;
 
     impl Subset for Rotations {
-        type Superset = TriangleSymmetries;
+        type Superset = Symmetry;
 
         fn contains(value: &Symmetry) -> bool {
             !value.reflected

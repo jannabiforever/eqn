@@ -110,20 +110,16 @@ mod tests {
 
     use super::*;
 
-    #[derive(Set)]
-    #[set(element = i64)]
-    pub(super) struct IntegerSet;
-
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = IntegerSet, symbol = "+", apply = Add::add, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
+    #[operator(domain = i64, symbol = "+", apply = Add::add, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
     pub(super) struct Addition;
 
-    pub(super) type IntegerAdditionGroup = (IntegerSet, Addition);
+    pub(super) type IntegerAdditionGroup = (i64, Addition);
 
     struct EvenIntegers;
 
     impl Subset for EvenIntegers {
-        type Superset = IntegerSet;
+        type Superset = i64;
 
         fn contains(value: &i64) -> bool {
             value % 2 == 0

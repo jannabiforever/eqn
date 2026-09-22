@@ -188,14 +188,11 @@ impl<R: CommutativeRing> Mul for Polynomial<R> {
 // PolynomialRing
 // ================================================================================
 
-/// The set of polynomials over `R`.
-#[derive(Set)]
-#[set(element = Polynomial<R>)]
-pub struct Polynomials<R: CommutativeRing>(PhantomData<R>);
+impl<R: CommutativeRing> Set for Polynomial<R> {}
 
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
-    domain = Polynomials<R>,
+    domain = Polynomial<R>,
     symbol = R::ADD_SYMBOL,
     apply = Add::add,
     identity = Polynomial::ZERO,
@@ -206,7 +203,7 @@ pub struct PolyAdd<R: CommutativeRing>(PhantomData<R>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
-    domain = Polynomials<R>,
+    domain = Polynomial<R>,
     symbol = R::MUL_SYMBOL,
     apply = Mul::mul,
     identity = Polynomial::ONE
@@ -215,19 +212,19 @@ pub struct PolyMul<R: CommutativeRing>(PhantomData<R>);
 
 /// The commutative ring of polynomials over `R`.
 ///
-/// A newtype rather than the `(Polynomials, PolyAdd, PolyMul)` tuple so this
+/// A newtype rather than the `(Polynomial, PolyAdd, PolyMul)` tuple so this
 /// crate can implement foreign traits like [`DifferentialRing`] on it.
 pub struct PolynomialRing<R: CommutativeRing>(PhantomData<R>);
 
 impl<R: CommutativeRing> SemiRing for PolynomialRing<R> {
-    type Domain = Polynomials<R>;
+    type Domain = Polynomial<R>;
     type Addition = PolyAdd<R>;
     type Multiplication = PolyMul<R>;
 }
 
 impl<R: CommutativeRing> Module for PolynomialRing<R> {
     type Scalars = R;
-    type Domain = Polynomials<R>;
+    type Domain = Polynomial<R>;
     type Addition = PolyAdd<R>;
 
     fn scale(scalar: ModuleScalar<Self>, value: ModuleElem<Self>) -> ModuleElem<Self> {

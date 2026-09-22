@@ -91,7 +91,7 @@ pub type BaseFieldElem<E> = RingElem<<E as FieldExtension>::BaseField>;
 /// The finite prime field `F_p`.
 ///
 /// `P` is part of the algebraic contract: it must be prime.
-pub struct PrimeField<const P: u64>(PhantomData<PrimeFieldSet<P>>);
+pub struct PrimeField<const P: u64>(PhantomData<PrimeFieldElement<P>>);
 
 impl<const P: u64> PrimeField<P> {
     /// TODO: Use a faster primality test algorithm
@@ -117,7 +117,7 @@ impl<const P: u64> PrimeField<P> {
 }
 
 /// An element of [`PrimeField<P>`].
-#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Set)]
 pub struct PrimeFieldElement<const P: u64> {
     value: u64,
 }
@@ -262,28 +262,23 @@ impl<const P: u64> Div for PrimeFieldElement<P> {
     }
 }
 
-/// The set underlying [`PrimeField<P>`].
-#[derive(Set)]
-#[set(element = PrimeFieldElement<P>)]
-pub struct PrimeFieldSet<const P: u64>(PhantomData<PrimeField<P>>);
-
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, symbol = "+", apply = Add::add, identity = PrimeFieldElement::ZERO, inverse = Neg::neg, inverse_symbol = "-")]
+#[operator(domain = PrimeFieldElement<P>, symbol = "+", apply = Add::add, identity = PrimeFieldElement::ZERO, inverse = Neg::neg, inverse_symbol = "-")]
 pub struct PrimeFieldAdd<const P: u64>(PhantomData<PrimeField<P>>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, symbol = "*", apply = Mul::mul, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse(), inverse_symbol = "/")]
+#[operator(domain = PrimeFieldElement<P>, symbol = "*", apply = Mul::mul, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse(), inverse_symbol = "/")]
 pub struct PrimeFieldMul<const P: u64>(PhantomData<PrimeField<P>>);
 
 impl<const P: u64> crate::ring::SemiRing for PrimeField<P> {
-    type Domain = PrimeFieldSet<P>;
+    type Domain = PrimeFieldElement<P>;
     type Addition = PrimeFieldAdd<P>;
     type Multiplication = PrimeFieldMul<P>;
 }
 
 impl<const P: u64> Module for PrimeField<P> {
     type Scalars = Self;
-    type Domain = PrimeFieldSet<P>;
+    type Domain = PrimeFieldElement<P>;
     type Addition = PrimeFieldAdd<P>;
 
     fn scale(scalar: ModuleScalar<Self>, value: ModuleElem<Self>) -> ModuleElem<Self> {

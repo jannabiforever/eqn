@@ -1,10 +1,10 @@
 use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
-use eqn_core::set::{Elem, Set, Subset};
+use eqn_core::set::{Set, Subset};
 
 use crate::ring::{Ring, RingElem};
 
 /// An element of a module.
-pub type ModuleElem<M> = Elem<<M as Module>::Domain>;
+pub type ModuleElem<M> = <M as Module>::Domain;
 
 /// A scalar of a module.
 pub type ModuleScalar<M> = RingElem<<M as Module>::Scalars>;

@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
 use eqn_core::rewriter::Expression;
-use eqn_core::set::{Elem, Set, Subset};
+use eqn_core::set::{Set, Subset};
 use eqn_core::symbol::Symbol;
 
 pub mod differential;
@@ -16,7 +16,7 @@ pub mod rewriter;
 // ================================================================================
 
 /// Alias for Ring's element.
-pub type RingElem<S> = Elem<<S as SemiRing>::Domain>;
+pub type RingElem<S> = <S as SemiRing>::Domain;
 
 /// Alias for Ring's domain. (element set)
 pub type RingDom<S> = <S as SemiRing>::Domain;
@@ -140,7 +140,7 @@ where
 /// and products, and powers (repeated multiplication, exponent >= 1).
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 pub enum SemiRingExpr<SR: SemiRing> {
-    Const(<SR::Domain as Set>::Element),
+    Const(SR::Domain),
     Symbol(Symbol<SR::Domain>),
     Add(Vec<SemiRingExpr<SR>>),
     Mul(Vec<SemiRingExpr<SR>>),
@@ -191,7 +191,7 @@ impl<D: Set, SR: SemiRing<Domain = D>> From<Symbol<D>> for SemiRingExpr<SR> {
 /// what distinguishes it from [`SemiRingExpr`].
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 pub enum RingExpr<R: Ring> {
-    Const(<R::Domain as Set>::Element),
+    Const(R::Domain),
     Symbol(Symbol<R::Domain>),
     Neg(Box<RingExpr<R>>),
     Add(Vec<RingExpr<R>>),

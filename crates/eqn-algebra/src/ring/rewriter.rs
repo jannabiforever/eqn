@@ -2,7 +2,6 @@ use std::num::NonZeroUsize;
 
 use eqn_core::op::Commutative;
 use eqn_core::rewriter::Rewriter;
-use eqn_core::set::Set;
 
 use super::{Ring, RingExpr, SemiRing, SemiRingExpr};
 use crate::Flatten;
@@ -14,8 +13,8 @@ use crate::Flatten;
 /// Coefficient table of a sum: the folded constant term, and each distinct
 /// core term with its summed coefficient, in first-appearance order.
 type Terms<SR> = (
-    <<SR as SemiRing>::Domain as Set>::Element,
-    Vec<(SemiRingExpr<SR>, <<SR as SemiRing>::Domain as Set>::Element)>,
+    <SR as SemiRing>::Domain,
+    Vec<(SemiRingExpr<SR>, <SR as SemiRing>::Domain)>,
 );
 
 impl<SR: SemiRing> SemiRingExpr<SR> {
@@ -89,7 +88,7 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
         // so cancellation (`x + (-1)*x = 0`) works. The scan is quadratic in
         // the number of distinct terms; a hashed index would need `Hash` on
         // the domain.
-        let mut coeffs: Vec<(Self, <SR::Domain as Set>::Element)> = Vec::new();
+        let mut coeffs: Vec<(Self, SR::Domain)> = Vec::new();
 
         for item in summands {
             let (coeff, core) = match item {
@@ -482,22 +481,18 @@ mod tests {
 
     use super::*;
 
-    #[derive(Set)]
-    #[set(element = i64)]
-    struct TestDomain;
-
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = TestDomain, symbol = "+", apply = Add::add, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
+    #[operator(domain = i64, symbol = "+", apply = Add::add, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
     struct TestAdd;
 
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = TestDomain, symbol = "*", apply = Mul::mul, identity = 1)]
+    #[operator(domain = i64, symbol = "*", apply = Mul::mul, identity = 1)]
     struct TestMul;
 
     struct TestSemiRing;
 
     impl SemiRing for TestSemiRing {
-        type Domain = TestDomain;
+        type Domain = i64;
         type Addition = TestAdd;
         type Multiplication = TestMul;
     }

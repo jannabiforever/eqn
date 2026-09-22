@@ -1,15 +1,16 @@
 # Rule 008 - Subsets and quotients
 
-A set is a type with `Eq`. Membership is the typing judgment `x: Elem<S>`,
-decided by the compiler, so `Set` carries no membership predicate and this
-library has no `\in`.
+A set is a type; its values are its elements. Membership is the typing
+judgment `x: S`, decided by the compiler, so `Set` carries no membership
+predicate and this library has no `\in`. A name for a set is a type alias,
+never a second type.
 
 ## A subset is a predicate
 
 ```rust
 pub trait Subset {
     type Superset: Set;
-    fn contains(element: &Elem<Self::Superset>) -> bool;
+    fn contains(element: &Self::Superset) -> bool;
 }
 ```
 

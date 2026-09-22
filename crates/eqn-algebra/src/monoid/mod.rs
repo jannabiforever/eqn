@@ -1,13 +1,13 @@
 use eqn_core::op::{Associative, BinaryOperator, Identity};
 use eqn_core::rewriter::Expression;
-use eqn_core::set::{Elem, Set, Subset};
+use eqn_core::set::{Set, Subset};
 use eqn_core::symbol::Symbol;
 
 mod parse;
 pub mod rewriter;
 
 /// An element of a monoid.
-pub type MonoidElem<M> = Elem<<M as Monoid>::Domain>;
+pub type MonoidElem<M> = <M as Monoid>::Domain;
 
 /// A monoid: a domain paired with an associative operator that has an
 /// identity element. Both laws are demanded as bounds, so an operator
@@ -53,7 +53,7 @@ pub enum MonoidExpr<M: Monoid> {
 impl<M: Monoid> MonoidExpr<M> {
     /// Wraps a domain element as a constant expression.
     #[inline]
-    pub const fn constant(value: <M::Domain as Set>::Element) -> Self {
+    pub const fn constant(value: M::Domain) -> Self {
         Self::Const(value)
     }
 

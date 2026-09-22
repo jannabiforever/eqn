@@ -1,5 +1,4 @@
 use eqn_core::rewriter::Rewriter;
-use eqn_core::set::Set;
 
 use super::{AbelianGroup, Group, GroupExpr};
 use crate::Flatten;
@@ -60,7 +59,7 @@ impl<G: Group> GroupExpr<G> {
         }
     }
 
-    fn pow_constant(mut base: <G::Domain as Set>::Element, exponent: isize) -> Self {
+    fn pow_constant(mut base: G::Domain, exponent: isize) -> Self {
         if exponent.is_negative() {
             base = G::inverse(base);
         }

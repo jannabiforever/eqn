@@ -253,13 +253,11 @@ impl<const P: u64, const N: usize, M> fmt::Debug for FiniteFieldElement<P, N, M>
     }
 }
 
-#[derive(Set)]
-#[set(element = FiniteFieldElement<P, N, M>)]
-pub struct FiniteFieldElements<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
+impl<const P: u64, const N: usize, M> Set for FiniteFieldElement<P, N, M> {}
 
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
-    domain = FiniteFieldElements<P, N, M>,
+    domain = FiniteFieldElement<P, N, M>,
     symbol = "+",
     apply = Add::add,
     identity = FiniteFieldElement::ZERO,
@@ -270,7 +268,7 @@ pub struct FiniteFieldAdd<const P: u64, const N: usize, M = FirstIrreducible>(Ph
 
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
-    domain = FiniteFieldElements<P, N, M>,
+    domain = FiniteFieldElement<P, N, M>,
     symbol = "*",
     apply = Mul::mul,
     identity = FiniteFieldElement::ONE,
@@ -345,7 +343,7 @@ impl<const P: u64, const N: usize, M> SemiRing for FiniteField<P, N, M>
 where
     M: IrreduciblePolynomial<P, N>,
 {
-    type Domain = FiniteFieldElements<P, N, M>;
+    type Domain = FiniteFieldElement<P, N, M>;
     type Addition = FiniteFieldAdd<P, N, M>;
     type Multiplication = FiniteFieldMul<P, N, M>;
 }
@@ -355,7 +353,7 @@ where
     M: IrreduciblePolynomial<P, N>,
 {
     type Scalars = PrimeField<P>;
-    type Domain = FiniteFieldElements<P, N, M>;
+    type Domain = FiniteFieldElement<P, N, M>;
     type Addition = FiniteFieldAdd<P, N, M>;
 
     fn scale(scalar: ModuleScalar<Self>, value: ModuleElem<Self>) -> ModuleElem<Self> {
@@ -464,8 +462,8 @@ impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize> Defau
 
 impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
     Map<
-        FiniteFieldElements<P, SOURCE_DEGREE, FirstCompatible>,
-        FiniteFieldElements<P, TARGET_DEGREE, FirstCompatible>,
+        FiniteFieldElement<P, SOURCE_DEGREE, FirstCompatible>,
+        FiniteFieldElement<P, TARGET_DEGREE, FirstCompatible>,
     > for CompatibleFiniteFieldEmbedding<P, SOURCE_DEGREE, TARGET_DEGREE>
 {
     fn map(

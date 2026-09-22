@@ -79,15 +79,12 @@ impl<I: Ideal> PartialEq for ResidueClass<I> {
 
 impl<I: Ideal> Eq for ResidueClass<I> {}
 
-/// The set of residue classes modulo `I`.
-#[derive(Set)]
-#[set(element = ResidueClass<I>)]
-pub struct ResidueClasses<I: Ideal>(PhantomData<I>);
+impl<I: Ideal> Set for ResidueClass<I> {}
 
 /// Addition of residue classes.
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
-    domain = ResidueClasses<I>,
+    domain = ResidueClass<I>,
     symbol = <I::Ring as SemiRing>::ADD_SYMBOL,
     apply = ResidueClass::added,
     identity = ResidueClass::zero(),
@@ -99,7 +96,7 @@ pub struct QuotientAdd<I: Ideal>(PhantomData<I>);
 /// Multiplication of residue classes.
 #[derive(Associative, BinaryOperator)]
 #[operator(
-    domain = ResidueClasses<I>,
+    domain = ResidueClass<I>,
     symbol = <I::Ring as SemiRing>::MUL_SYMBOL,
     apply = ResidueClass::multiplied,
     identity = ResidueClass::one()
@@ -114,7 +111,7 @@ where
 }
 
 /// The quotient of a ring by a two-sided ideal.
-pub type QuotientRing<I> = (ResidueClasses<I>, QuotientAdd<I>, QuotientMul<I>);
+pub type QuotientRing<I> = (ResidueClass<I>, QuotientAdd<I>, QuotientMul<I>);
 
 #[cfg(test)]
 mod tests {

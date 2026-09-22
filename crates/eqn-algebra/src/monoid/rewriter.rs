@@ -165,19 +165,14 @@ mod tests {
     use std::ops::Add;
 
     use eqn_core::op::{Associative, BinaryOperator};
-    use eqn_core::set::Set;
 
     use super::*;
 
-    #[derive(Set)]
-    #[set(element = i64)]
-    struct TestDomain;
-
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = TestDomain, symbol = "+", apply = Add::add, identity = 0)]
+    #[operator(domain = i64, symbol = "+", apply = Add::add, identity = 0)]
     struct TestOperator;
 
-    type Expr = MonoidExpr<(TestDomain, TestOperator)>;
+    type Expr = MonoidExpr<(i64, TestOperator)>;
 
     fn expr(src: &str) -> Expr {
         src.parse().unwrap()

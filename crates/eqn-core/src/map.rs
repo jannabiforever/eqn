@@ -5,5 +5,5 @@ where
     D: Set,
     R: Set,
 {
-    fn map(&self, d: D::Element) -> R::Element;
+    fn map(&self, d: D) -> R;
 }

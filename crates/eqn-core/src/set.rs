@@ -1,43 +1,42 @@
 // ================================================================================
-// Set traits
+// Set
 // ================================================================================
 
 pub use eqn_macros::Set;
 
-pub trait Set {
-    // Ord gives expressions a total order for canonical (sorted) forms.
-    type Element: Clone + Eq + std::fmt::Debug;
-}
-
-/// Alias for a set's element.
-pub type Elem<S> = <S as Set>::Element;
+/// A set: a type whose values are its elements.
+pub trait Set: Clone + Eq + std::fmt::Debug {}
 
 /// A subset of `Superset`, given by its membership predicate.
 pub trait Subset {
     type Superset: Set;
 
-    fn contains(element: &Elem<Self::Superset>) -> bool;
+    fn contains(element: &Self::Superset) -> bool;
 }
 
 // ================================================================================
-// Set implementations
+// Sets of numbers
 // ================================================================================
 
-/// A set of all natural numbers (including 0)
-/// TODO: big num
-#[derive(Set)]
-#[set(element = u32)]
-pub struct N;
+macro_rules! impl_set {
+    ($($t:ty),*) => { $(impl Set for $t {})* };
+}
 
-/// A set of all integers.
+impl_set!(
+    i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize
+);
+
+/// The natural numbers, including `0`.
 /// TODO: big num
-#[derive(Set)]
-#[set(element = i64)]
-pub struct Z;
+pub type N = u32;
+
+/// The integers.
+/// TODO: big num
+pub type Z = i64;
 
 /// represent a rational number
 /// TODO: big num
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Debug, Eq, Set)]
 pub struct Rational {
     pub numerator: i64,
     pub denominator: i64,
@@ -153,15 +152,13 @@ impl std::str::FromStr for Rational {
     }
 }
 
-/// A set of all rationals.
+/// The rational numbers.
 /// TODO: big num
-#[derive(Clone, Set)]
-#[set(element = Rational)]
-pub struct Q;
+pub type Q = Rational;
 
 /// represent a real number
 /// NOTE: a bit hacky implementation on PartialEq / Eq
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Set)]
 pub struct RealNumber(f64);
 
 impl PartialEq for RealNumber {
@@ -180,11 +177,9 @@ impl std::str::FromStr for RealNumber {
     }
 }
 
-/// A set of all real numbers
+/// The real numbers.
 /// TODO: big num
-#[derive(Set)]
-#[set(element = RealNumber)]
-pub struct R;
+pub type R = RealNumber;
 
 #[cfg(test)]
 mod tests {
