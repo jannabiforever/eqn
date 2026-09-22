@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::set::Set;
 
-use super::{Group, NormalSubgroup, Subgroup};
-use crate::group::AbelianGroup;
+use crate::group::normal::NormalSubgroup;
+use crate::group::{AbelianGroup, Group, Subgroup};
 use crate::monoid::{Monoid, MonoidElem};
 
 /// A left coset of `S`, represented by one element of the parent group.

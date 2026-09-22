@@ -5,14 +5,9 @@ use eqn_core::symbol::Symbol;
 
 use crate::monoid::{Monoid, MonoidElem, Submonoid};
 
-mod normal;
-mod quotient;
-mod rewriter;
-
-// Re-exports
-pub use normal::NormalSubgroup;
-pub use quotient::{Coset, Cosets, QuotientGroup, QuotientOp};
-pub use rewriter::{AbelianGroupRewriter, GroupRewriter};
+pub mod normal;
+pub mod quotient;
+pub mod rewriter;
 
 /// A group: a set equipped with an associative binary operation, an identity
 /// element, and a two-sided inverse for every element.
