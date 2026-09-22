@@ -1,13 +1,9 @@
-use eqn_core::set::Elem;
+use eqn_core::op::{Associative, BinaryOperator, Identity};
+use eqn_core::rewriter::Expression;
+use eqn_core::set::{Elem, Set};
+use eqn_core::symbol::Symbol;
 
-use crate::op::{Associative, BinaryOperator, Identity};
-use crate::rewriter::Expression;
-use crate::set::Set;
-use crate::symbol::Symbol;
-
-mod rewriter;
-// Re-exports
-pub use rewriter::{CommutativeMonoidRewriter, NonCommutativeMonoidRewriter};
+pub mod rewriter;
 
 /// An element of a monoid.
 pub type MonoidElem<M> = Elem<<M as Monoid>::Domain>;

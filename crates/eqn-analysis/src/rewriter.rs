@@ -554,7 +554,7 @@ mod tests {
 
     #[test]
     fn derive_agrees_with_the_d_route() {
-        use eqn_algebra::ring::DifferentialRing;
+        use eqn_algebra::ring::differential::DifferentialRing;
 
         type Ring = crate::ElementaryFunctionRing<(Q, QAdd, QMul)>;
 

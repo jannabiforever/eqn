@@ -1,17 +1,13 @@
+use eqn_core::op::{BinaryOperator, Commutative, Inverse};
+use eqn_core::rewriter::Expression;
+use eqn_core::set::Set;
+use eqn_core::symbol::Symbol;
+
 use crate::monoid::{Monoid, MonoidElem, Submonoid};
-use crate::op::{BinaryOperator, Commutative, Inverse};
-use crate::rewriter::Expression;
-use crate::set::Set;
-use crate::symbol::Symbol;
 
-mod normal;
-mod quotient;
-mod rewriter;
-
-// Re-exports
-pub use normal::NormalSubgroup;
-pub use quotient::{Coset, Cosets, QuotientGroup, QuotientOp};
-pub use rewriter::{AbelianGroupRewriter, GroupRewriter};
+pub mod normal;
+pub mod quotient;
+pub mod rewriter;
 
 /// A group: a set equipped with an associative binary operation, an identity
 /// element, and a two-sided inverse for every element.
@@ -104,8 +100,9 @@ impl<G: Group> Expression for GroupExpr<G> {
 mod tests {
     use std::ops::Add;
 
+    use eqn_core::op::{Associative, BinaryOperator};
+
     use super::*;
-    use crate::op::{Associative, BinaryOperator};
 
     #[derive(Set)]
     #[set(element = i64)]

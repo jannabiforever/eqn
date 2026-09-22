@@ -3,12 +3,14 @@
 // below.
 use eqn_algebra::field::Field;
 use eqn_algebra::module::{Module, ModuleElem, ModuleScalar};
-use eqn_algebra::ring::{DifferentialRing, RingElem, SemiRing};
+use eqn_algebra::ring::differential::DifferentialRing;
+use eqn_algebra::ring::{RingElem, SemiRing};
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
-pub use eqn_core::{set, symbol};
+
+pub mod rewriter;
 
 /// Elementary transcendental functions.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -92,9 +94,6 @@ impl<F: Field> From<Symbol<F::Domain>> for ElementaryExpr<F> {
         Self::Symbol(value)
     }
 }
-
-mod rewriter;
-pub use rewriter::ElementaryRewriter;
 
 // ================================================================================
 // ElementaryFunctionRing: the differential ring of elementary functions

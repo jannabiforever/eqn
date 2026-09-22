@@ -1,22 +1,14 @@
 use std::num::NonZeroUsize;
 
-use eqn_core::set::Elem;
+use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
+use eqn_core::rewriter::Expression;
+use eqn_core::set::{Elem, Set};
+use eqn_core::symbol::Symbol;
 
-use crate::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
-use crate::rewriter::Expression;
-use crate::set::Set;
-use crate::symbol::Symbol;
-
-mod differential;
-mod ideal;
-mod quotient;
-mod rewriter;
-
-// Re-exports
-pub use differential::DifferentialRing;
-pub use ideal::Ideal;
-pub use quotient::{QuotientAdd, QuotientMul, QuotientRing, ResidueClass, ResidueClasses};
-pub use rewriter::{CommutativeRingRewriter, RingRewriter, SemiRingRewriter};
+pub mod differential;
+pub mod ideal;
+pub mod quotient;
+pub mod rewriter;
 
 // ================================================================================
 // Ring

@@ -9,19 +9,13 @@ use std::num::NonZeroUsize;
 use std::ops::{Add, Mul, Neg};
 
 use eqn_algebra::module::{Module, ModuleElem, ModuleScalar};
-use eqn_algebra::ring::{CommutativeRing, DifferentialRing, RingElem, RingExpr, SemiRing};
+use eqn_algebra::ring::differential::DifferentialRing;
+use eqn_algebra::ring::{CommutativeRing, RingElem, RingExpr, SemiRing};
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
-mod finite_field;
-
-pub use finite_field::{
-    CompatibleFiniteField, CompatibleFiniteFieldElement, CompatibleFiniteFieldEmbedding,
-    DefiningPolynomial, FiniteField, FiniteFieldAdd, FiniteFieldElement, FiniteFieldElements,
-    FiniteFieldMul, FirstCompatible, FirstIrreducible, FirstPrimitive, Fq, FqElement,
-    IrreduciblePolynomial, PrimitiveFiniteField, PrimitiveFiniteFieldElement, UnivariatePolynomial,
-};
+pub mod finite_field;
 
 // ================================================================================
 // Monomial

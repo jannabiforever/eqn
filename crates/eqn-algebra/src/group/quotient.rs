@@ -1,10 +1,11 @@
 use std::marker::PhantomData;
 
-use super::{Group, NormalSubgroup, Subgroup};
-use crate::group::AbelianGroup;
+use eqn_core::op::{Associative, BinaryOperator, Commutative};
+use eqn_core::set::Set;
+
+use crate::group::normal::NormalSubgroup;
+use crate::group::{AbelianGroup, Group, Subgroup};
 use crate::monoid::{Monoid, MonoidElem};
-use crate::op::{Associative, BinaryOperator, Commutative};
-use crate::set::Set;
 
 /// A left coset of `S`, represented by one element of the parent group.
 /// Representatives `a` and `b` are equal when `a^-1 * b` belongs to `S`.
