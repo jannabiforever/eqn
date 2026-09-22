@@ -9,6 +9,10 @@ use crate::set::Set;
 /// Represents a binary operation over a given domain.
 pub trait BinaryOperator {
     type Domain: Set;
+
+    /// How the operator is spelled in source text: `a SYMBOL b`.
+    const SYMBOL: &'static str;
+
     fn apply(
         a: <Self::Domain as Set>::Element,
         b: <Self::Domain as Set>::Element,
@@ -45,5 +49,9 @@ pub trait Identity: BinaryOperator {
 /// For all `a` in the domain, `inverse(a)` denotes the inverse element of `a`
 /// with respect to `Op`.
 pub trait Inverse: Identity {
+    /// How "apply to the inverse" is spelled: `a INVERSE_SYMBOL b` is
+    /// `Op(a, inverse(b))`, and `INVERSE_SYMBOL a` is `inverse(a)`.
+    const INVERSE_SYMBOL: &'static str;
+
     fn inverse(a: BinaryOperatorDomainElement<Self>) -> BinaryOperatorDomainElement<Self>;
 }

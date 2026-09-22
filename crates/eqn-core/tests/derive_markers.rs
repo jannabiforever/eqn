@@ -8,7 +8,7 @@ use eqn_core::set::Set;
 struct Ints;
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = Ints, apply = Add::add, identity = 0, inverse = Neg::neg)]
+#[operator(domain = Ints, symbol = "+", apply = Add::add, identity = 0, inverse = Neg::neg, inverse_symbol = "-")]
 struct AddSome;
 
 fn requires<Op: Associative + Commutative>() {}

@@ -10,6 +10,7 @@ use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
+mod parse;
 pub mod rewriter;
 
 /// Elementary transcendental functions.
@@ -109,9 +110,11 @@ pub struct ElementaryFunctions<F: Field>(std::marker::PhantomData<F>);
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
     domain = ElementaryFunctions<F>,
+    symbol = F::ADD_SYMBOL,
     apply = |a, b| ElementaryExpr::Add(vec![a, b]),
     identity = ElementaryExpr::Const(F::ZERO),
-    inverse = |a| ElementaryExpr::Neg(Box::new(a))
+    inverse = |a| ElementaryExpr::Neg(Box::new(a)),
+    inverse_symbol = F::SUB_SYMBOL
 )]
 pub struct ElementaryAdd<F: Field>(std::marker::PhantomData<F>);
 
@@ -119,6 +122,7 @@ pub struct ElementaryAdd<F: Field>(std::marker::PhantomData<F>);
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
     domain = ElementaryFunctions<F>,
+    symbol = F::MUL_SYMBOL,
     apply = |a, b| ElementaryExpr::Mul(vec![a, b]),
     identity = ElementaryExpr::Const(F::ONE)
 )]

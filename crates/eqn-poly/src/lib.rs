@@ -16,6 +16,7 @@ use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
 pub mod finite_field;
+mod parse;
 
 // ================================================================================
 // Monomial
@@ -195,14 +196,21 @@ pub struct Polynomials<R: CommutativeRing>(PhantomData<R>);
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
     domain = Polynomials<R>,
+    symbol = R::ADD_SYMBOL,
     apply = Add::add,
     identity = Polynomial::ZERO,
-    inverse = Neg::neg
+    inverse = Neg::neg,
+    inverse_symbol = R::SUB_SYMBOL
 )]
 pub struct PolyAdd<R: CommutativeRing>(PhantomData<R>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = Polynomials<R>, apply = Mul::mul, identity = Polynomial::ONE)]
+#[operator(
+    domain = Polynomials<R>,
+    symbol = R::MUL_SYMBOL,
+    apply = Mul::mul,
+    identity = Polynomial::ONE
+)]
 pub struct PolyMul<R: CommutativeRing>(PhantomData<R>);
 
 /// The commutative ring of polynomials over `R`.
@@ -254,8 +262,8 @@ mod tests {
     type P = Polynomial<R>;
     type Poly = PolynomialRing<R>;
 
-    fn c(i: i64) -> P {
-        P::constant(i)
+    fn poly(src: &str) -> P {
+        src.parse().unwrap()
     }
 
     fn xs() -> Symbol<Z> {
@@ -266,30 +274,18 @@ mod tests {
         Symbol::new("y")
     }
 
-    fn x() -> P {
-        P::from(xs())
-    }
-
-    fn y() -> P {
-        P::from(ys())
-    }
-
-    fn pow(base: P, exponent: usize) -> P {
-        base.pow(NonZeroUsize::new(exponent).unwrap())
-    }
-
     #[test]
     fn equality_is_equality_of_polynomials() {
-        assert_eq!(x() + y(), y() + x());
-        assert_eq!(x() + -x(), P::ZERO);
-        assert_eq!((x() + c(1)) * (x() + c(-1)), pow(x(), 2) + c(-1));
-        assert_eq!(c(0) * x(), P::ZERO);
-        assert_ne!(x(), y());
+        assert_eq!(poly("x + y"), poly("y + x"));
+        assert_eq!(poly("x - x"), P::ZERO);
+        assert_eq!(poly("(x + 1) (x - 1)"), poly("x^2 - 1"));
+        assert_eq!(poly("0 x"), P::ZERO);
+        assert_ne!(poly("x"), poly("y"));
     }
 
     #[test]
     fn ring_laws_hold_on_representatives() {
-        let samples = [c(0), c(3), x(), y() + c(-1), x() * y() + pow(x(), 2)];
+        let samples = ["0", "3", "x", "y - 1", "x y + x^2"].map(poly);
         for a in &samples {
             for b in &samples {
                 assert_eq!(a.clone() * b.clone(), b.clone() * a.clone());
@@ -318,14 +314,14 @@ mod tests {
         fn assert_algebra<A: Algebra>() {}
 
         assert_algebra::<Poly>();
-        assert_eq!(Poly::scale(3, x()), c(3) * x());
-        assert_eq!(Poly::from_scalar(4), c(4));
+        assert_eq!(Poly::scale(3, poly("x")), poly("3 x"));
+        assert_eq!(Poly::from_scalar(4), poly("4"));
     }
 
     #[test]
     fn coefficient_action_satisfies_the_algebra_laws() {
-        let p = x() + c(2);
-        let q = y() + c(-3);
+        let p = poly("x + 2");
+        let q = poly("y - 3");
 
         assert_eq!(Poly::scale(0, p.clone()), P::ZERO);
         assert_eq!(Poly::scale(1, p.clone()), p);
@@ -350,40 +346,33 @@ mod tests {
 
     #[test]
     fn ring_expressions_evaluate_to_polynomials() {
-        let expr = RingExpr::<R>::Pow {
-            base: Box::new(RingExpr::Add(vec![
-                RingExpr::Symbol(xs()),
-                RingExpr::Const(1),
-            ])),
-            exponent: NonZeroUsize::new(2).unwrap(),
-        };
-        assert_eq!(P::from(expr), pow(x(), 2) + c(2) * x() + c(1));
+        assert_eq!(poly("(x + 1)^2"), poly("x^2 + 2 x + 1"));
     }
 
     #[test]
     fn derive_of_a_power() {
-        assert_eq!(Poly::derive(pow(x(), 2), &xs()), c(2) * x());
+        assert_eq!(Poly::derive(poly("x^2"), &xs()), poly("2 x"));
     }
 
     #[test]
     fn derive_of_a_product() {
-        assert_eq!(Poly::derive(x() * y(), &xs()), y());
+        assert_eq!(Poly::derive(poly("x y"), &xs()), poly("y"));
     }
 
     #[test]
     fn derive_of_a_sum_only_sees_its_own_variable() {
-        assert_eq!(Poly::derive(pow(x(), 3) + y(), &ys()), c(1));
+        assert_eq!(Poly::derive(poly("x^3 + y"), &ys()), poly("1"));
     }
 
     #[test]
     fn derive_of_a_constant_is_zero() {
-        assert_eq!(Poly::derive(c(5), &xs()), P::ZERO);
+        assert_eq!(Poly::derive(poly("5"), &xs()), P::ZERO);
     }
 
     #[test]
     fn derivations_commute_and_satisfy_leibniz() {
-        let p = pow(x(), 2) * y() + x();
-        let q = x() * pow(y(), 3) + c(-2);
+        let p = poly("x^2 y + x");
+        let q = poly("x y^3 - 2");
         assert_eq!(
             Poly::derive(Poly::derive(p.clone(), &xs()), &ys()),
             Poly::derive(Poly::derive(p.clone(), &ys()), &xs())

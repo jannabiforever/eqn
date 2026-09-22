@@ -23,18 +23,20 @@ to use exactly the laws the structure declares and nothing else.
 ## A small example
 
 ```rust
-use eqn_algebra::group::{AbelianGroupRewriter, GroupExpr};
+use eqn_algebra::group::{AbelianGroupRewriter, GroupExpr, GroupRewriter};
 use eqn_algebra::operator_impl::ZAdd;
 use eqn_core::rewriter::Expression;
 use eqn_core::set::Z;
 use eqn_core::symbol::Symbol;
 
-// x * y * x^{-1}, written in the group's operation.
-let expr = "x * y * x^{-1}".parse::<GroupExpr<(Z, ZAdd)>>().unwrap();
+// x + y - x, written in the group's operation.
+let expr = "x + y - x".parse::<GroupExpr<(Z, ZAdd)>>().unwrap();
 
-// The abelian rewriter may reorder factors, so x cancels x^{-1}.
-// GroupRewriter, which lacks the commutative law, would leave it alone.
-assert_eq!(expr.rewritten(&AbelianGroupRewriter), Symbol::new("y").into());
+// The abelian rewriter may reorder terms, so x cancels -x.
+assert_eq!(expr.rewritten(&AbelianGroupRewriter::new()), Symbol::new("y").into());
+
+// GroupRewriter, which lacks the commutative law, leaves the conjugate alone.
+assert_ne!(expr.rewritten(&GroupRewriter::new()), Symbol::new("y").into());
 ```
 
 ## Building

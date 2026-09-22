@@ -19,6 +19,7 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "eqn-core",
+ "eqn-parser",
 ]
 
 [[package]]
@@ -28,6 +29,7 @@ dependencies = [
  "derive-where",
  "eqn-algebra",
  "eqn-core",
+ "eqn-parser",
 ]
 
 [[package]]
@@ -46,6 +48,7 @@ dependencies = [
  "eqn-algebra",
  "eqn-analysis",
  "eqn-core",
+ "eqn-parser",
  "eqn-poly",
 ]
 
@@ -59,6 +62,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "eqn-parser"
+version = "0.1.0"
+
+[[package]]
 name = "eqn-poly"
 version = "0.1.0"
 dependencies = [
@@ -66,6 +73,7 @@ dependencies = [
  "eqn-algebra",
  "eqn-analysis",
  "eqn-core",
+ "eqn-parser",
 ]
 
 [[package]]

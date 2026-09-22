@@ -12,4 +12,5 @@ eqn-algebra = { path = "crates/eqn-algebra" }
 eqn-analysis = { path = "crates/eqn-analysis" }
 eqn-core = { path = "crates/eqn-core" }
 eqn-macros = { path = "crates/eqn-macros" }
+eqn-parser = { path = "crates/eqn-parser" }
 eqn-poly = { path = "crates/eqn-poly" }
