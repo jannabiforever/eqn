@@ -292,7 +292,7 @@ where
 {
     pub fn modulus() -> UnivariatePolynomial<P> {
         assert!(
-            PrimeField::<P>::is_valid(),
+            PrimeFieldElement::<P>::is_valid(),
             "finite-field characteristic must be prime"
         );
         let coefficients = M::coefficients();
@@ -426,7 +426,7 @@ impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
 {
     pub fn new() -> Self {
         assert!(
-            PrimeField::<P>::is_valid(),
+            PrimeFieldElement::<P>::is_valid(),
             "finite-field characteristic must be prime"
         );
         assert!(
@@ -571,7 +571,7 @@ impl<const P: u64> UnivariatePolynomial<P> {
     }
 
     pub fn is_irreducible(&self) -> bool {
-        if !PrimeField::<P>::is_valid() || self.0.len() < 2 {
+        if !PrimeFieldElement::<P>::is_valid() || self.0.len() < 2 {
             return false;
         }
         let degree = self.0.len() - 1;
@@ -783,7 +783,7 @@ impl PolynomialSelection {
 
         assert!(degree > 0, "a field extension must have positive degree");
         assert!(
-            PrimeField::<P>::is_valid(),
+            PrimeFieldElement::<P>::is_valid(),
             "finite-field characteristic must be prime"
         );
 
