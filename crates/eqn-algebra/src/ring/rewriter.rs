@@ -82,7 +82,7 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
     /// the domain (`x + x -> 2 * x`, `2*x + 3*x -> 5*x`). Needs no
     /// commutativity: the coefficient is split off the *left* of a product.
     fn collect_terms(summands: impl Iterator<Item = Self>) -> Terms<SR> {
-        let mut acc = SR::ZERO;
+        let mut acc = SR::zero();
         // Like terms keyed by structural Eq with a linear scan; needs neither
         // Ord nor Hash on elements. Coefficients are summed as domain elements,
         // so cancellation (`x + (-1)*x = 0`) works. The scan is quadratic in
@@ -109,7 +109,7 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
                     };
                     (c, core)
                 }
-                item => (SR::ONE, item),
+                item => (SR::one(), item),
             };
             match coeffs.iter_mut().find(|(t, _)| *t == core) {
                 Some((_, c)) => *c = SR::add(c.clone(), coeff),
@@ -123,16 +123,16 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
     /// Rebuilds a sum from its coefficient table, dropping zero coefficients.
     fn build_sum((acc, coeffs): Terms<SR>) -> Self {
         let mut out = Vec::new();
-        if coeffs.is_empty() || acc != SR::ZERO {
+        if coeffs.is_empty() || acc != SR::zero() {
             out.push(SemiRingExpr::Const(acc));
         }
         for (core, coeff) in coeffs {
             // The coefficient can degenerate to zero (cancellation, or finite
             // characteristic like 2x = 0 in Z/2), hence the checks.
-            if coeff == SR::ZERO {
+            if coeff == SR::zero() {
                 continue;
             }
-            if coeff == SR::ONE {
+            if coeff == SR::one() {
                 out.push(core);
             } else {
                 let mut factors = vec![SemiRingExpr::Const(coeff)];
@@ -146,7 +146,7 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
 
         match out.len() {
             // NOTE: everything cancelled; keep the interface total.
-            0 => SemiRingExpr::Const(SR::ZERO),
+            0 => SemiRingExpr::Const(SR::zero()),
             1 => out.pop().unwrap(),
             _ => SemiRingExpr::Add(out),
         }
@@ -158,10 +158,10 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
         let mut stack: Vec<Self> = Vec::new();
 
         for item in factors {
-            if item == SemiRingExpr::Const(SR::ONE) {
+            if item == SemiRingExpr::Const(SR::one()) {
                 continue;
             }
-            if item == SemiRingExpr::Const(SR::ZERO) {
+            if item == SemiRingExpr::Const(SR::zero()) {
                 return None;
             }
             match (item, stack.pop()) {
@@ -170,10 +170,10 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
                     // Re-check identities on the folded constant: 2 * 3 = 6 ==
                     // 0 (mod 6) annihilates, and (-1) *
                     // (-1) = 1 drops out.
-                    if c == SR::ZERO {
+                    if c == SR::zero() {
                         return None;
                     }
-                    if c != SR::ONE {
+                    if c != SR::one() {
                         stack.push(SemiRingExpr::Const(c));
                     }
                 }
@@ -233,14 +233,14 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
         let (consts, rest): (Vec<_>, Vec<_>) = factors
             .into_iter()
             .partition(|f| matches!(f, SemiRingExpr::Const(_)));
-        let mut c_acc = SR::ONE;
+        let mut c_acc = SR::one();
         for c in consts {
             let SemiRingExpr::Const(c) = c else {
                 unreachable!()
             };
             c_acc = SR::multiply(c_acc, c);
         }
-        if c_acc == SR::ZERO {
+        if c_acc == SR::zero() {
             return None;
         }
 
@@ -258,7 +258,7 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
         pows.sort_by(|a, b| a.0.cmp_structural(&b.0));
 
         let mut out = Vec::new();
-        if c_acc != SR::ONE {
+        if c_acc != SR::one() {
             out.push(SemiRingExpr::Const(c_acc));
         }
         for (base, exp) in pows {
@@ -277,7 +277,7 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
     fn build_product(mut factors: Vec<Self>) -> Self {
         match factors.len() {
             // NOTE: empty product simplifies to one to keep the interface total.
-            0 => SemiRingExpr::Const(SR::ONE),
+            0 => SemiRingExpr::Const(SR::one()),
             1 => factors.pop().unwrap(),
             _ => SemiRingExpr::Mul(factors),
         }
@@ -340,7 +340,7 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
                 let Some(factors) =
                     Self::fold_adjacent_factors(std::mem::take(exprs).flatten(Self::split_mul))
                 else {
-                    *self = SemiRingExpr::Const(SR::ZERO);
+                    *self = SemiRingExpr::Const(SR::zero());
                     return;
                 };
                 if let Some(sum) = Self::distributed(&factors) {
@@ -376,7 +376,7 @@ impl<SR: SemiRing> SemiRingExpr<SR> {
                     Self::fold_adjacent_factors(std::mem::take(exprs).flatten(Self::split_mul))
                         .and_then(Self::collect_factors)
                 else {
-                    *self = SemiRingExpr::Const(SR::ZERO);
+                    *self = SemiRingExpr::Const(SR::zero());
                     return;
                 };
                 if let Some(sum) = Self::distributed(&factors) {

@@ -19,6 +19,6 @@ fn derives_marker_traits() {
     is_set::<Unit>();
     is_set::<i64>();
     assert_eq!(AddSome::apply(2, 3), 5);
-    assert_eq!(AddSome::IDENTITY, 0);
+    assert_eq!(AddSome::identity(), 0);
     assert_eq!(AddSome::inverse(4), -4);
 }

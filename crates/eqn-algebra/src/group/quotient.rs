@@ -1,72 +1,58 @@
 use std::marker::PhantomData;
 
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
-use eqn_core::set::Set;
+use eqn_core::quotient::{EqClass, Equivalence, NormalForm};
 
 use crate::group::normal::NormalSubgroup;
 use crate::group::{AbelianGroup, Group, Subgroup};
-use crate::monoid::{Monoid, MonoidElem};
+use crate::monoid::{Monoid, MonoidElem, Submonoid};
 
-/// A left coset of `S`, represented by one element of the parent group.
-/// Representatives `a` and `b` are equal when `a^-1 * b` belongs to `S`.
-#[derive_where::derive_where(Clone, Debug, Eq)]
-pub struct Coset<S: Subgroup> {
-    representative: MonoidElem<S::Parent>,
-    subgroup: PhantomData<S>,
+/// The domain of the parent group of `S`.
+type Dom<S> = <<S as Submonoid>::Parent as Monoid>::Domain;
+
+/// The left-coset relation of `S`: `a` and `b` are related when `a^-1 * b`
+/// belongs to `S`. A normal form for the cosets of `S` must agree with it.
+pub struct Modulo<S: Subgroup>(PhantomData<S>);
+
+impl<S: Subgroup> Equivalence<Dom<S>> for Modulo<S> {
+    fn equivalent(a: &MonoidElem<S::Parent>, b: &MonoidElem<S::Parent>) -> bool {
+        S::contains(&S::Parent::apply(S::Parent::inverse(a.clone()), b.clone()))
+    }
 }
 
-impl<S: Subgroup> Coset<S> {
-    pub const fn new(representative: MonoidElem<S::Parent>) -> Self {
-        Self {
-            representative,
-            subgroup: PhantomData,
-        }
-    }
+/// A left coset of `S`, held by the representative `S` chooses.
+pub type Coset<S> = EqClass<Dom<S>, S>;
 
-    pub const fn representative(&self) -> &MonoidElem<S::Parent> {
-        &self.representative
-    }
-
-    pub fn into_representative(self) -> MonoidElem<S::Parent> {
-        self.representative
-    }
-
-    pub fn applied(self, rhs: Self) -> Self {
-        Self::new(S::Parent::apply(
-            self.into_representative(),
+impl<N: NormalSubgroup + NormalForm<Dom<N>>> Modulo<N> {
+    /// `(aN)(bN) = (ab)N`, well defined because `N` is normal.
+    pub fn applied(lhs: Coset<N>, rhs: Coset<N>) -> Coset<N> {
+        Coset::new(N::Parent::apply(
+            lhs.into_representative(),
             rhs.into_representative(),
         ))
     }
 
-    pub fn inversed(self) -> Self {
-        Self::new(S::Parent::inverse(self.into_representative()))
+    pub fn inversed(coset: Coset<N>) -> Coset<N> {
+        Coset::new(N::Parent::inverse(coset.into_representative()))
     }
 
-    pub const fn identity() -> Self {
-        Self::new(S::Parent::IDENTITY)
-    }
-}
-
-impl<S: Subgroup> PartialEq for Coset<S> {
-    fn eq(&self, other: &Self) -> bool {
-        let displacement = S::Parent::apply(
-            S::Parent::inverse(self.representative.clone()),
-            other.representative.clone(),
-        );
-        S::contains(&displacement)
+    pub fn identity() -> Coset<N> {
+        Coset::new(N::Parent::identity())
     }
 }
-
-impl<S: Subgroup> Set for Coset<S> {}
 
 /// Multiplication of cosets of a normal subgroup.
 #[derive(Associative, BinaryOperator)]
-#[operator(domain = Coset<N>, symbol = <N::Parent as Monoid>::SYMBOL, apply = Coset::applied, identity = Coset::identity(), inverse = Coset::inversed, inverse_symbol = <N::Parent as Group>::INVERSE_SYMBOL)]
-pub struct QuotientOp<N: NormalSubgroup>(PhantomData<N>);
+#[operator(domain = Coset<N>, symbol = <N::Parent as Monoid>::SYMBOL, apply = Modulo::<N>::applied, identity = Modulo::<N>::identity(), inverse = Modulo::<N>::inversed, inverse_symbol = <N::Parent as Group>::INVERSE_SYMBOL)]
+pub struct QuotientOp<N: NormalSubgroup + NormalForm<Dom<N>>>(PhantomData<N>);
 
-impl<N: NormalSubgroup> Commutative for QuotientOp<N> where N::Parent: AbelianGroup {}
+impl<N: NormalSubgroup + NormalForm<Dom<N>>> Commutative for QuotientOp<N> where
+    N::Parent: AbelianGroup
+{
+}
 
-/// The quotient of a group by a normal subgroup.
+/// The quotient of a group by a normal subgroup, on the representatives `N`
+/// chooses.
 pub type QuotientGroup<N> = (QuotientOp<N>,);
 
 #[cfg(test)]
@@ -74,7 +60,6 @@ mod tests {
     use eqn_core::set::{Set, Subset, Z};
 
     use super::*;
-    use crate::monoid::Submonoid;
     use crate::operator_impl::ZAdd;
 
     type Integers = (ZAdd,);
@@ -94,6 +79,12 @@ mod tests {
     }
 
     impl Subgroup for EvenIntegers {}
+
+    impl NormalForm<Z> for EvenIntegers {
+        fn reduce(value: i64) -> i64 {
+            value.rem_euclid(2)
+        }
+    }
 
     type IntegersModTwo = QuotientGroup<EvenIntegers>;
 
@@ -122,6 +113,27 @@ mod tests {
     }
 
     #[test]
+    fn coset_representatives_agree_with_the_left_coset_relation() {
+        for a in -3..=3 {
+            for b in -3..=3 {
+                assert_eq!(
+                    modulo_two(a) == modulo_two(b),
+                    Modulo::<EvenIntegers>::equivalent(&a, &b)
+                );
+            }
+        }
+
+        for a in symmetries() {
+            for b in symmetries() {
+                assert_eq!(
+                    Coset::<Rotations>::new(a) == Coset::new(b),
+                    Modulo::<Rotations>::equivalent(&a, &b)
+                );
+            }
+        }
+    }
+
+    #[test]
     fn subgroups_of_abelian_groups_are_normal() {
         fn assert_normal<N: NormalSubgroup>() {}
 
@@ -137,7 +149,7 @@ mod tests {
         assert_abelian::<IntegersModTwo>();
         assert_eq!(
             IntegersModTwo::apply(modulo_two(1), modulo_two(1)),
-            IntegersModTwo::IDENTITY
+            IntegersModTwo::identity()
         );
         assert_eq!(IntegersModTwo::inverse(modulo_two(1)), modulo_two(1));
     }
@@ -148,8 +160,8 @@ mod tests {
         let same_product = IntegersModTwo::apply(modulo_two(3), modulo_two(4));
 
         assert_eq!(product, same_product);
-        assert_eq!(modulo_two(5).representative(), &5);
-        assert_eq!(modulo_two(5).into_representative(), 5);
+        assert_eq!(modulo_two(5).representative(), &1);
+        assert_eq!(modulo_two(5).into_representative(), 1);
     }
 
     #[test]
@@ -159,12 +171,12 @@ mod tests {
             let inverse = IntegersModTwo::inverse(value.clone());
 
             assert_eq!(
-                IntegersModTwo::apply(value.clone(), IntegersModTwo::IDENTITY),
+                IntegersModTwo::apply(value.clone(), IntegersModTwo::identity()),
                 value
             );
             assert_eq!(
                 IntegersModTwo::apply(inverse, value.clone()),
-                IntegersModTwo::IDENTITY
+                IntegersModTwo::identity()
             );
 
             for b in -2..=2 {
@@ -247,6 +259,12 @@ mod tests {
     impl Subgroup for Rotations {}
     impl NormalSubgroup for Rotations {}
 
+    impl NormalForm<Symmetry> for Rotations {
+        fn reduce(value: Symmetry) -> Symmetry {
+            Symmetry::new(0, value.reflected)
+        }
+    }
+
     type D3ModuloRotations = QuotientGroup<Rotations>;
 
     fn symmetry(rotation: u8, reflected: bool) -> Symmetry {
@@ -271,10 +289,10 @@ mod tests {
     #[test]
     fn triangle_symmetries_satisfy_the_group_laws() {
         for a in symmetries() {
-            assert_eq!(D3::apply(a, D3::IDENTITY), a);
-            assert_eq!(D3::apply(D3::IDENTITY, a), a);
-            assert_eq!(D3::apply(D3::inverse(a), a), D3::IDENTITY);
-            assert_eq!(D3::apply(a, D3::inverse(a)), D3::IDENTITY);
+            assert_eq!(D3::apply(a, D3::identity()), a);
+            assert_eq!(D3::apply(D3::identity(), a), a);
+            assert_eq!(D3::apply(D3::inverse(a), a), D3::identity());
+            assert_eq!(D3::apply(a, D3::inverse(a)), D3::identity());
 
             for b in symmetries() {
                 for c in symmetries() {
@@ -310,7 +328,7 @@ mod tests {
         let same_product =
             D3ModuloRotations::apply(modulo_rotations(1, true), modulo_rotations(2, true));
 
-        assert_eq!(product, D3ModuloRotations::IDENTITY);
+        assert_eq!(product, D3ModuloRotations::identity());
         assert_eq!(product, same_product);
     }
 }

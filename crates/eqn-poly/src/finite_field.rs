@@ -965,7 +965,7 @@ mod tests {
             for b in 0..2 {
                 let value = E::from_values([a, b]);
                 if value != E::ZERO {
-                    assert_eq!(F4::multiply(value, F4::invert(value)), F4::ONE);
+                    assert_eq!(F4::multiply(value, F4::invert(value)), F4::one());
                 }
             }
         }
@@ -980,7 +980,7 @@ mod tests {
             for b in 0..3 {
                 let value = E::from_values([a, b]);
                 if value != E::ZERO {
-                    assert_eq!(F9::multiply(value, F9::invert(value)), F9::ONE);
+                    assert_eq!(F9::multiply(value, F9::invert(value)), F9::one());
                 }
             }
         }
@@ -1024,9 +1024,9 @@ mod tests {
             .collect();
 
         for &a in &elements {
-            assert_eq!(F4::add(a, F4::ZERO), a);
-            assert_eq!(F4::multiply(a, F4::ONE), a);
-            assert_eq!(F4::add(a, F4::negate(a)), F4::ZERO);
+            assert_eq!(F4::add(a, F4::zero()), a);
+            assert_eq!(F4::multiply(a, F4::one()), a);
+            assert_eq!(F4::add(a, F4::negate(a)), F4::zero());
             for &b in &elements {
                 for &c in &elements {
                     assert_eq!(F4::add(F4::add(a, b), c), F4::add(a, F4::add(b, c)));

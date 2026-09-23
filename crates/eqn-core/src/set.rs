@@ -4,7 +4,8 @@
 
 pub use eqn_macros::Set;
 
-/// A set: a type whose values are its elements.
+/// A set: a type whose values are its elements and whose `Eq` is equality of
+/// canonical representations.
 pub trait Set: Clone + Eq + std::fmt::Debug {}
 
 /// A subset of `Superset`, given by its membership predicate.
@@ -34,12 +35,12 @@ pub type N = u32;
 /// TODO: big num
 pub type Z = i64;
 
-/// represent a rational number
+/// A rational number in lowest terms, with a positive denominator.
 /// TODO: big num
-#[derive(Clone, Debug, Eq, Set)]
+#[derive(Clone, Debug, Eq, PartialEq, Set)]
 pub struct Rational {
-    pub numerator: i64,
-    pub denominator: i64,
+    numerator: i64,
+    denominator: i64,
 }
 
 impl Rational {
@@ -53,17 +54,28 @@ impl Rational {
         denominator: 1,
     };
 
-    pub const fn recip(self) -> Self {
+    /// `numerator / denominator` in lowest terms. `denominator` must be
+    /// nonzero.
+    pub const fn new(numerator: i64, denominator: i64) -> Self {
+        let divisor = Self::gcd(numerator.abs(), denominator.abs());
+        let sign = if denominator < 0 { -1 } else { 1 };
         Self {
-            numerator: self.denominator,
-            denominator: self.numerator,
+            numerator: sign * numerator / divisor,
+            denominator: sign * denominator / divisor,
         }
     }
-}
 
-impl PartialEq for Rational {
-    fn eq(&self, other: &Self) -> bool {
-        self.numerator * other.denominator == self.denominator * other.numerator
+    const fn gcd(mut a: i64, mut b: i64) -> i64 {
+        while b != 0 {
+            let remainder = a % b;
+            a = b;
+            b = remainder;
+        }
+        a
+    }
+
+    pub const fn recip(self) -> Self {
+        Self::new(self.denominator, self.numerator)
     }
 }
 
@@ -71,10 +83,7 @@ impl std::ops::Neg for Rational {
     type Output = Self;
 
     fn neg(self) -> Self {
-        Rational {
-            numerator: -self.numerator,
-            denominator: self.denominator,
-        }
+        Self::new(-self.numerator, self.denominator)
     }
 }
 
@@ -82,10 +91,10 @@ impl std::ops::Add for Rational {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        Rational {
-            numerator: self.numerator * other.denominator + other.numerator * self.denominator,
-            denominator: self.denominator * other.denominator,
-        }
+        Self::new(
+            self.numerator * other.denominator + other.numerator * self.denominator,
+            self.denominator * other.denominator,
+        )
     }
 }
 
@@ -93,19 +102,16 @@ impl std::ops::Mul for Rational {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
-        Rational {
-            numerator: self.numerator * other.numerator,
-            denominator: self.denominator * other.denominator,
-        }
+        Self::new(
+            self.numerator * other.numerator,
+            self.denominator * other.denominator,
+        )
     }
 }
 
 impl From<i64> for Rational {
     fn from(value: i64) -> Self {
-        Self {
-            numerator: value,
-            denominator: 1,
-        }
+        Self::new(value, 1)
     }
 }
 
@@ -145,10 +151,7 @@ impl std::str::FromStr for Rational {
         if denominator == 0 {
             return Err(ParseRationalError::ZeroDenominator);
         }
-        Ok(Self {
-            numerator,
-            denominator,
-        })
+        Ok(Self::new(numerator, denominator))
     }
 }
 
@@ -189,13 +192,7 @@ mod tests {
     fn rationals_parse_integers_and_fractions() {
         assert_eq!("3".parse::<Rational>().unwrap(), Rational::from(3));
         assert_eq!("-3".parse::<Rational>().unwrap(), Rational::from(-3));
-        assert_eq!(
-            "6/4".parse::<Rational>().unwrap(),
-            Rational {
-                numerator: 3,
-                denominator: 2
-            }
-        );
+        assert_eq!("6/4".parse::<Rational>().unwrap(), Rational::new(3, 2));
         assert_eq!(
             "1/0".parse::<Rational>().unwrap_err(),
             ParseRationalError::ZeroDenominator

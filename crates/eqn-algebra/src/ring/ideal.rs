@@ -11,7 +11,7 @@ pub trait Ideal:
 
     /// Whether this ideal is strictly smaller than its ring.
     fn is_proper() -> bool {
-        !Self::contains(&Self::Ring::ONE)
+        !Self::contains(&Self::Ring::one())
     }
 }
 

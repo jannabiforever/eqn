@@ -75,7 +75,7 @@ mod tests {
         let scalar: ModuleScalar<IntegerModule> = -3;
         let value: ModuleElem<IntegerModule> = 4;
 
-        assert_eq!(Addition::IDENTITY, 0);
+        assert_eq!(Addition::identity(), 0);
         assert_eq!(Addition::apply(value, 5), 9);
         assert_eq!(Addition::inverse(value), -4);
         assert_eq!(IntegerModule::scale(scalar, value), -12);
@@ -110,7 +110,7 @@ mod tests {
                     );
                 }
 
-                assert_eq!(IntegerModule::scale(Integers::ONE, x), x);
+                assert_eq!(IntegerModule::scale(Integers::one(), x), x);
             }
         }
     }
@@ -122,7 +122,7 @@ mod tests {
         fn assert_submodule<S: Submodule>() {}
 
         assert_submodule::<EvenIntegers>();
-        assert!(EvenIntegers::contains(&Addition::IDENTITY));
+        assert!(EvenIntegers::contains(&Addition::identity()));
 
         for scalar in [-3, 0, 4] {
             for value in [-8, -2, 0, 6] {

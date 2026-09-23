@@ -41,10 +41,14 @@ pub trait SemiRing {
     type Multiplication: BinaryOperator<Domain = Self::Domain> + Associative + Identity;
 
     /// Addition's identity
-    const ZERO: RingElem<Self> = <Self::Addition as Identity>::IDENTITY;
+    fn zero() -> RingElem<Self> {
+        <Self::Addition as Identity>::identity()
+    }
 
     /// Multiplication's identity
-    const ONE: RingElem<Self> = <Self::Multiplication as Identity>::IDENTITY;
+    fn one() -> RingElem<Self> {
+        <Self::Multiplication as Identity>::identity()
+    }
 
     /// Source spelling of addition.
     const ADD_SYMBOL: &'static str = <Self::Addition as BinaryOperator>::SYMBOL;
@@ -63,8 +67,8 @@ pub trait SemiRing {
     /// `n * ONE`: the image of `n` under the unique semi-ring map from the
     /// naturals, computed by double-and-add in `O(log n)` additions.
     fn from_usize(mut n: usize) -> RingElem<Self> {
-        let mut acc = Self::ZERO;
-        let mut power = Self::ONE;
+        let mut acc = Self::zero();
+        let mut power = Self::one();
         while n > 0 {
             if n & 1 == 1 {
                 acc = Self::add(acc, power.clone());
@@ -239,7 +243,7 @@ impl<R: Ring> From<RingExpr<R>> for SemiRingExpr<R> {
             RingExpr::Const(c) => Self::Const(c),
             RingExpr::Symbol(s) => Self::Symbol(s),
             RingExpr::Neg(inner) => {
-                Self::Mul(vec![Self::Const(R::negate(R::ONE)), (*inner).into()])
+                Self::Mul(vec![Self::Const(R::negate(R::one())), (*inner).into()])
             }
             RingExpr::Add(v) => Self::Add(v.into_iter().map(Into::into).collect()),
             RingExpr::Mul(v) => Self::Mul(v.into_iter().map(Into::into).collect()),
@@ -307,8 +311,8 @@ mod tests {
 
     #[test]
     fn nonnegative_integers_form_a_subsemiring() {
-        assert!(NonnegativeIntegers::contains(&Integers::ZERO));
-        assert!(NonnegativeIntegers::contains(&Integers::ONE));
+        assert!(NonnegativeIntegers::contains(&Integers::zero()));
+        assert!(NonnegativeIntegers::contains(&Integers::one()));
 
         for lhs in [0, 1, 4, 9] {
             for rhs in [0, 2, 5, 8] {

@@ -14,8 +14,8 @@ combination. For a finite structure, check all of them.
 fn inverse_satisfies_both_group_laws() {
     for value in [-10, -1, 0, 1, 10] {
         let inverse = IntegerAdditionGroup::inverse(value);
-        assert_eq!(IntegerAdditionGroup::apply(inverse, value), IntegerAdditionGroup::IDENTITY);
-        assert_eq!(IntegerAdditionGroup::apply(value, inverse), IntegerAdditionGroup::IDENTITY);
+        assert_eq!(IntegerAdditionGroup::apply(inverse, value), IntegerAdditionGroup::identity());
+        assert_eq!(IntegerAdditionGroup::apply(value, inverse), IntegerAdditionGroup::identity());
     }
 }
 ```

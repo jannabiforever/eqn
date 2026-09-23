@@ -379,7 +379,7 @@ mod tests {
 
         for value in 1..7 {
             let x = E::new(value);
-            assert_eq!(F7::multiply(x, F7::invert(x)), F7::ONE);
+            assert_eq!(F7::multiply(x, F7::invert(x)), F7::one());
         }
     }
 
@@ -410,8 +410,8 @@ mod tests {
         assert_finite_extension::<F5>();
         assert_algebraic_extension::<F5>();
 
-        assert_eq!(F5::ZERO, E::ZERO);
-        assert_eq!(F5::ONE, E::ONE);
+        assert_eq!(F5::zero(), E::ZERO);
+        assert_eq!(F5::one(), E::ONE);
         assert_eq!(F5::from_scalar(E::new(3)), E::new(3));
         assert_eq!(F5::scale(E::new(3), E::new(4)), E::new(2));
         assert_eq!(F5::DEGREE, 1);
