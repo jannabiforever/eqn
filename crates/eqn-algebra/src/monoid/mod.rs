@@ -16,7 +16,9 @@ pub trait Monoid {
     type Domain: Set;
     type Operator: BinaryOperator<Domain = Self::Domain> + Associative + Identity;
 
-    const IDENTITY: MonoidElem<Self> = <Self::Operator as Identity>::IDENTITY;
+    fn identity() -> MonoidElem<Self> {
+        <Self::Operator as Identity>::identity()
+    }
 
     /// Source spelling of the operation.
     const SYMBOL: &'static str = <Self::Operator as BinaryOperator>::SYMBOL;
@@ -133,7 +135,7 @@ mod tests {
 
     #[test]
     fn nonnegative_integers_form_a_submonoid() {
-        assert!(NonnegativeIntegers::contains(&IntegerAddition::IDENTITY));
+        assert!(NonnegativeIntegers::contains(&IntegerAddition::identity()));
 
         for lhs in [0, 1, 4, 9] {
             for rhs in [0, 2, 5, 8] {

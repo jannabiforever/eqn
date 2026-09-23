@@ -31,10 +31,13 @@ pub trait Commutative: BinaryOperator {}
 
 /// Marks a binary operation as having an identity element in the domain.
 ///
-/// There exists an element `IDENTITY` such that for all `a` in the domain,
-/// `Op(a, IDENTITY) == Op(IDENTITY, a) == a`.
+/// `identity()` is an element `e` such that for all `a` in the domain,
+/// `Op(a, e) == Op(e, a) == a`.
+///
+/// NOTE: a function rather than a constant, because the identity of a
+/// quotient is the reduced form of the parent's and reduction is not `const`.
 pub trait Identity: BinaryOperator {
-    const IDENTITY: BinaryOperatorDomain<Self>;
+    fn identity() -> BinaryOperatorDomain<Self>;
 }
 
 /// Marks a binary operation as having an inverse for every element in the

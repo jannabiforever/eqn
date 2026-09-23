@@ -63,7 +63,9 @@ pub fn derive_binary_operator(input: TokenStream) -> TokenStream {
     let identity = identity.map(|id| {
         quote! {
             impl #impl_generics ::eqn_core::op::Identity for #name #ty_generics #where_clause {
-                const IDENTITY: #elem = #id;
+                fn identity() -> #elem {
+                    #id
+                }
             }
         }
     });

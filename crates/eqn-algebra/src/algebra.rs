@@ -14,7 +14,7 @@ pub trait Algebra:
     >
 {
     fn from_scalar(scalar: ModuleScalar<Self>) -> RingElem<Self> {
-        Self::scale(scalar, Self::ONE)
+        Self::scale(scalar, Self::one())
     }
 }
 

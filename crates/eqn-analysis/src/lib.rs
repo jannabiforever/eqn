@@ -108,7 +108,7 @@ impl<F: Field> Set for ElementaryExpr<F> {}
     domain = ElementaryExpr<F>,
     symbol = F::ADD_SYMBOL,
     apply = |a, b| ElementaryExpr::Add(vec![a, b]),
-    identity = ElementaryExpr::Const(F::ZERO),
+    identity = ElementaryExpr::Const(F::zero()),
     inverse = |a| ElementaryExpr::Neg(Box::new(a)),
     inverse_symbol = F::SUB_SYMBOL
 )]
@@ -120,7 +120,7 @@ pub struct ElementaryAdd<F: Field>(std::marker::PhantomData<F>);
     domain = ElementaryExpr<F>,
     symbol = F::MUL_SYMBOL,
     apply = |a, b| ElementaryExpr::Mul(vec![a, b]),
-    identity = ElementaryExpr::Const(F::ONE)
+    identity = ElementaryExpr::Const(F::one())
 )]
 pub struct ElementaryMul<F: Field>(std::marker::PhantomData<F>);
 

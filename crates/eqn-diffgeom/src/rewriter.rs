@@ -18,7 +18,7 @@ struct Term<M: Manifold> {
 impl<M: Manifold> Term<M> {
     fn one() -> Self {
         Self {
-            coeff: M::Functions::ONE,
+            coeff: M::Functions::one(),
             atoms: vec![],
         }
     }
@@ -76,7 +76,7 @@ impl<M: Manifold> Term<M> {
                 )))
             })
             .collect();
-        let coeff_is_one = self.coeff == M::Functions::ONE;
+        let coeff_is_one = self.coeff == M::Functions::one();
         if factors.is_empty() || !coeff_is_one {
             factors.insert(0, DifferentialForm::Scalar(self.coeff));
         }
@@ -156,9 +156,9 @@ impl<M: Manifold> DifferentialForm<M> {
         for t in &mut ts {
             functions.rewrite_expr(&mut t.coeff);
         }
-        ts.retain(|t| t.coeff != M::Functions::ZERO);
+        ts.retain(|t| t.coeff != M::Functions::zero());
         match ts.len() {
-            0 => DifferentialForm::Scalar(M::Functions::ZERO),
+            0 => DifferentialForm::Scalar(M::Functions::zero()),
             1 => ts.pop().unwrap().into_form(chart),
             _ => DifferentialForm::Add(ts.into_iter().map(|t| t.into_form(chart)).collect()),
         }

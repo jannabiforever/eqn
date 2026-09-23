@@ -12,7 +12,7 @@ impl<M: Monoid> MonoidExpr<M> {
     fn finish(mut exprs: Vec<Self>) -> Self {
         match exprs.len() {
             // NOTE: empty op simplifies to identity to keep the interface total.
-            0 => MonoidExpr::Const(M::IDENTITY),
+            0 => MonoidExpr::Const(M::identity()),
             1 => exprs.pop().unwrap(),
             _ => MonoidExpr::Op(exprs),
         }
@@ -31,7 +31,7 @@ impl<M: Monoid> MonoidExpr<M> {
         let mut out: Vec<Self> = Vec::new();
 
         for item in factors {
-            if item == MonoidExpr::Const(M::IDENTITY) {
+            if item == MonoidExpr::Const(M::identity()) {
                 continue;
             }
             match (item, out.pop()) {
@@ -54,7 +54,7 @@ impl<M: Monoid> MonoidExpr<M> {
     where
         M::Operator: Commutative,
     {
-        let mut acc = M::IDENTITY;
+        let mut acc = M::identity();
         let mut syms = Vec::new();
 
         for item in factors {
@@ -69,7 +69,7 @@ impl<M: Monoid> MonoidExpr<M> {
         syms.sort();
 
         let mut out = Vec::new();
-        if syms.is_empty() || acc != M::IDENTITY {
+        if syms.is_empty() || acc != M::identity() {
             out.push(MonoidExpr::Const(acc));
         }
         out.extend(syms.into_iter().map(MonoidExpr::Symbol));

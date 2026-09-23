@@ -15,7 +15,7 @@ pub mod rewriter;
 ///
 /// The inherited [`Monoid`] supplies the set, operation, and identity.
 /// [`Inverse`] declares that, for every element `x`, both
-/// `inverse(x) * x` and `x * inverse(x)` equal [`Monoid::IDENTITY`], where `*`
+/// `inverse(x) * x` and `x * inverse(x)` equal [`Monoid::identity`], where `*`
 /// denotes [`Monoid::apply`]. Rust cannot verify these laws, so implementations
 /// should cover them with property tests where practical.
 pub trait Group: Monoid<Operator: BinaryOperator + Inverse> {
@@ -144,11 +144,11 @@ mod tests {
 
             assert_eq!(
                 IntegerAdditionGroup::apply(inverse, value),
-                IntegerAdditionGroup::IDENTITY
+                IntegerAdditionGroup::identity()
             );
             assert_eq!(
                 IntegerAdditionGroup::apply(value, inverse),
-                IntegerAdditionGroup::IDENTITY
+                IntegerAdditionGroup::identity()
             );
         }
     }
@@ -158,7 +158,7 @@ mod tests {
         fn assert_subgroup<S: Subgroup>() {}
 
         assert_subgroup::<EvenIntegers>();
-        assert!(EvenIntegers::contains(&IntegerAdditionGroup::IDENTITY));
+        assert!(EvenIntegers::contains(&IntegerAdditionGroup::identity()));
 
         for value in [-10, -2, 0, 4, 12] {
             assert!(EvenIntegers::contains(&IntegerAdditionGroup::inverse(
