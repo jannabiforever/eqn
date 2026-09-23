@@ -255,7 +255,7 @@ mod tests {
 
     use super::*;
 
-    type R = (Z, ZAdd, ZMul);
+    type R = (ZAdd, ZMul);
     type P = Polynomial<R>;
     type Poly = PolynomialRing<R>;
 

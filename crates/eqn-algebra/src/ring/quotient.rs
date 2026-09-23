@@ -38,7 +38,7 @@ where
 
 /// The quotient of a ring by a two-sided ideal. Its addition is the quotient
 /// of the additive group.
-pub type QuotientRing<I> = (ResidueClass<I>, QuotientOp<I>, QuotientMul<I>);
+pub type QuotientRing<I> = (QuotientOp<I>, QuotientMul<I>);
 
 #[cfg(test)]
 mod tests {
@@ -50,7 +50,7 @@ mod tests {
     use crate::operator_impl::{ZAdd, ZMul};
     use crate::ring::Ring;
 
-    type Integers = (Z, ZAdd, ZMul);
+    type Integers = (ZAdd, ZMul);
 
     struct EvenIntegers;
 
@@ -63,7 +63,7 @@ mod tests {
     }
 
     impl Submonoid for EvenIntegers {
-        type Parent = (Z, ZAdd);
+        type Parent = (ZAdd,);
     }
 
     impl Subgroup for EvenIntegers {}
@@ -221,7 +221,7 @@ mod tests {
     }
 
     impl Submonoid for WholeRing {
-        type Parent = (Z, ZAdd);
+        type Parent = (ZAdd,);
     }
 
     impl Subgroup for WholeRing {}
@@ -248,7 +248,7 @@ mod tests {
     }
 
     impl Submonoid for ZeroIdeal {
-        type Parent = (Z, ZAdd);
+        type Parent = (ZAdd,);
     }
 
     impl Subgroup for ZeroIdeal {}

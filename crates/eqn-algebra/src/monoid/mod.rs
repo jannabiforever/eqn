@@ -26,13 +26,13 @@ pub trait Monoid {
     }
 }
 
-/// Any (domain, operator) pair forms a monoid for free.
-impl<D, Op> Monoid for (D, Op)
+/// A monoid is one associative operation with an identity, as a one-tuple;
+/// its domain is the operation's.
+impl<Op> Monoid for (Op,)
 where
-    D: Set,
-    Op: BinaryOperator<Domain = D> + Associative + Identity,
+    Op: BinaryOperator + Associative + Identity,
 {
-    type Domain = D;
+    type Domain = Op::Domain;
     type Operator = Op;
 }
 
@@ -115,7 +115,7 @@ mod tests {
     use super::*;
     use crate::operator_impl::ZAdd;
 
-    type IntegerAddition = (Z, ZAdd);
+    type IntegerAddition = (ZAdd,);
 
     struct NonnegativeIntegers;
 

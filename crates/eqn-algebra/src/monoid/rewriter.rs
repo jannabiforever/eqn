@@ -172,7 +172,7 @@ mod tests {
     #[operator(domain = i64, symbol = "+", apply = Add::add, identity = 0)]
     struct TestOperator;
 
-    type Expr = MonoidExpr<(i64, TestOperator)>;
+    type Expr = MonoidExpr<(TestOperator,)>;
 
     fn expr(src: &str) -> Expr {
         src.parse().unwrap()

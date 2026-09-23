@@ -40,7 +40,7 @@ mod tests {
     use crate::operator_impl::{ZAdd, ZMul};
     use crate::ring::SemiRing;
 
-    type Integers = (Z, ZAdd, ZMul);
+    type Integers = (ZAdd, ZMul);
 
     struct IntegerModule;
 

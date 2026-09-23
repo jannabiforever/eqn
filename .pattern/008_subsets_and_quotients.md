@@ -32,8 +32,8 @@ An inclusion that changes the carrier, such as `\mathbb{Z} \subset
 ## One thing the compiler refuses
 
 - Pin a parent group by its parts, `Monoid<Domain = D, Operator = Op>`, not
-  by the tuple `(D, Op)`. Inside a trait definition
-  `<(D, Op) as Monoid>::Domain` does not normalize (E0271).
+  by the tuple `(Op,)`. Inside a trait definition
+  `<(Op,) as Monoid>::Domain` does not normalize (E0271).
 
 ## Why markers lose nothing
 

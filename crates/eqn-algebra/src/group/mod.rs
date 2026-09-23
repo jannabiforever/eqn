@@ -114,7 +114,7 @@ mod tests {
     #[operator(domain = i64, symbol = "+", apply = Add::add, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
     pub(super) struct Addition;
 
-    pub(super) type IntegerAdditionGroup = (i64, Addition);
+    pub(super) type IntegerAdditionGroup = (Addition,);
 
     struct EvenIntegers;
 

@@ -305,7 +305,7 @@ mod tests {
     use crate::operator_impl::{QAdd, QMul};
     use crate::ring::{CommutativeRing, SemiRing, SubSemiRing};
 
-    type Rationals = (Q, QAdd, QMul);
+    type Rationals = (QAdd, QMul);
 
     struct AllRationals;
 

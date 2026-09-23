@@ -160,11 +160,11 @@ impl<F: Field> DifferentialRing for ElementaryFunctionRing<F> {
 mod tests {
     use eqn_algebra::algebra::Algebra;
     use eqn_algebra::operator_impl::{QAdd, QMul};
-    use eqn_core::set::{Q, Rational};
+    use eqn_core::set::Rational;
 
     use super::*;
 
-    type Rationals = (Q, QAdd, QMul);
+    type Rationals = (QAdd, QMul);
     type Functions = ElementaryFunctionRing<Rationals>;
 
     #[test]

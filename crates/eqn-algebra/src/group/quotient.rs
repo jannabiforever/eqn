@@ -67,7 +67,7 @@ pub struct QuotientOp<N: NormalSubgroup>(PhantomData<N>);
 impl<N: NormalSubgroup> Commutative for QuotientOp<N> where N::Parent: AbelianGroup {}
 
 /// The quotient of a group by a normal subgroup.
-pub type QuotientGroup<N> = (Coset<N>, QuotientOp<N>);
+pub type QuotientGroup<N> = (QuotientOp<N>,);
 
 #[cfg(test)]
 mod tests {
@@ -77,7 +77,7 @@ mod tests {
     use crate::monoid::Submonoid;
     use crate::operator_impl::ZAdd;
 
-    type Integers = (Z, ZAdd);
+    type Integers = (ZAdd,);
 
     struct EvenIntegers;
 
@@ -228,7 +228,7 @@ mod tests {
     #[operator(domain = Symmetry, symbol = "*", apply = Symmetry::applied, identity = Symmetry::identity(), inverse = Symmetry::inversed, inverse_symbol = "/")]
     struct Compose;
 
-    type D3 = (Symmetry, Compose);
+    type D3 = (Compose,);
 
     struct Rotations;
 

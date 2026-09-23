@@ -78,14 +78,13 @@ pub trait SemiRing {
     }
 }
 
-// Blanket implementation on tuple - mathematical convention.
-impl<D, A, M> SemiRing for (D, A, M)
+/// A semi-ring is an addition and a multiplication on one domain, as a pair.
+impl<A, M> SemiRing for (A, M)
 where
-    D: Set,
-    A: BinaryOperator<Domain = D> + Associative + Commutative + Identity,
-    M: BinaryOperator<Domain = D> + Associative + Identity,
+    A: BinaryOperator + Associative + Commutative + Identity,
+    M: BinaryOperator<Domain = A::Domain> + Associative + Identity,
 {
-    type Domain = D;
+    type Domain = A::Domain;
     type Addition = A;
     type Multiplication = M;
 }
@@ -274,7 +273,7 @@ mod tests {
     use super::*;
     use crate::operator_impl::{ZAdd, ZMul};
 
-    type Integers = (Z, ZAdd, ZMul);
+    type Integers = (ZAdd, ZMul);
 
     struct NonnegativeIntegers;
 

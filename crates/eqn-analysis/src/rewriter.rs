@@ -427,11 +427,10 @@ impl<F: Field> Rewriter for ElementaryRewriter<F> {
 #[cfg(test)]
 mod tests {
     use eqn_algebra::operator_impl::{QAdd, QMul};
-    use eqn_core::set::Q;
 
     use super::*;
 
-    type Expr = ElementaryExpr<(Q, QAdd, QMul)>;
+    type Expr = ElementaryExpr<(QAdd, QMul)>;
 
     fn expr(src: &str) -> Expr {
         src.parse().unwrap()
@@ -492,7 +491,7 @@ mod tests {
     fn derive_agrees_with_the_d_route() {
         use eqn_algebra::ring::differential::DifferentialRing;
 
-        type Ring = crate::ElementaryFunctionRing<(Q, QAdd, QMul)>;
+        type Ring = crate::ElementaryFunctionRing<(QAdd, QMul)>;
 
         let rewriter = ElementaryRewriter::new();
         let x = Symbol::new("x");

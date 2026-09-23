@@ -24,7 +24,7 @@ mod tests {
     use crate::monoid::Submonoid;
     use crate::operator_impl::{ZAdd, ZMul};
 
-    type Integers = (Z, ZAdd, ZMul);
+    type Integers = (ZAdd, ZMul);
 
     struct EvenIntegers;
 
@@ -37,7 +37,7 @@ mod tests {
     }
 
     impl Submonoid for EvenIntegers {
-        type Parent = (Z, ZAdd);
+        type Parent = (ZAdd,);
     }
 
     impl Subgroup for EvenIntegers {}
@@ -57,7 +57,7 @@ mod tests {
     }
 
     impl Submonoid for WholeRing {
-        type Parent = (Z, ZAdd);
+        type Parent = (ZAdd,);
     }
 
     impl Subgroup for WholeRing {}

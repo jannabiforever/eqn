@@ -105,12 +105,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::Z;
 
     use super::*;
     use crate::operator_impl::ZAdd;
 
-    type Expr = GroupExpr<(Z, ZAdd)>;
+    type Expr = GroupExpr<(ZAdd,)>;
 
     fn x() -> Expr {
         Expr::Symbol(Symbol::new("x"))
@@ -134,7 +133,7 @@ mod tests {
 
     #[test]
     fn spellings_come_from_the_operator() {
-        type Mul = GroupExpr<(eqn_core::set::Q, crate::operator_impl::QMul)>;
+        type Mul = GroupExpr<(crate::operator_impl::QMul,)>;
         let (x, y) = (Mul::Symbol(Symbol::new("x")), Mul::Symbol(Symbol::new("y")));
         let expected = Mul::Op(vec![x.clone(), Mul::Inv(Box::new(y))]);
         assert_eq!("x / y".parse::<Mul>().unwrap(), expected);

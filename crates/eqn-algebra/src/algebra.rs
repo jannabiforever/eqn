@@ -37,7 +37,7 @@ mod tests {
     use crate::operator_impl::{ZAdd, ZMul};
     use crate::ring::SubSemiRing;
 
-    type Integers = (Z, ZAdd, ZMul);
+    type Integers = (ZAdd, ZMul);
 
     struct IntegerAlgebra;
 

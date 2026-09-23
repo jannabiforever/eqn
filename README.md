@@ -30,7 +30,7 @@ use eqn_core::set::Z;
 use eqn_core::symbol::Symbol;
 
 // x + y - x, written in the group's operation.
-let expr = "x + y - x".parse::<GroupExpr<(Z, ZAdd)>>().unwrap();
+let expr = "x + y - x".parse::<GroupExpr<(ZAdd,)>>().unwrap();
 
 // The abelian rewriter may reorder terms, so x cancels -x.
 assert_eq!(expr.rewritten(&AbelianGroupRewriter::new()), Symbol::new("y").into());
