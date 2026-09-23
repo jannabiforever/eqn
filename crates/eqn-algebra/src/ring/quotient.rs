@@ -1,34 +1,33 @@
 use std::marker::PhantomData;
 
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
-use eqn_core::quotient::NormalForm;
+use eqn_core::quotient::{NormalForm, Quotient};
 
 use super::{CommutativeRing, RingElem, SemiRing};
-use crate::group::quotient::{Coset, Modulo, QuotientOp};
+use crate::group::quotient::{Modulo, QuotientOp};
 use crate::ring::ideal::Ideal;
-
-/// A residue class modulo `I`: a coset of `I` in the additive group, held by
-/// the representative `I` chooses.
-pub type ResidueClass<I> = Coset<I>;
 
 impl<I: Ideal + NormalForm<RingElem<I::Ring>>> Modulo<I> {
     /// `(a + I)(b + I) = ab + I`, well defined because `I` absorbs
     /// multiplication.
-    pub fn multiplied(lhs: ResidueClass<I>, rhs: ResidueClass<I>) -> ResidueClass<I> {
-        ResidueClass::new(I::Ring::multiply(
+    pub fn multiplied(
+        lhs: Quotient<RingElem<I::Ring>, I>,
+        rhs: Quotient<RingElem<I::Ring>, I>,
+    ) -> Quotient<RingElem<I::Ring>, I> {
+        Quotient::new(I::Ring::multiply(
             lhs.into_representative(),
             rhs.into_representative(),
         ))
     }
 
-    pub fn one() -> ResidueClass<I> {
-        ResidueClass::new(I::Ring::one())
+    pub fn one() -> Quotient<RingElem<I::Ring>, I> {
+        Quotient::new(I::Ring::one())
     }
 }
 
 /// Multiplication of residue classes.
 #[derive(Associative, BinaryOperator)]
-#[operator(domain = ResidueClass<I>, symbol = <I::Ring as SemiRing>::MUL_SYMBOL, apply = Modulo::<I>::multiplied, identity = Modulo::<I>::one())]
+#[operator(domain = Quotient<RingElem<I::Ring>, I>, symbol = <I::Ring as SemiRing>::MUL_SYMBOL, apply = Modulo::<I>::multiplied, identity = Modulo::<I>::one())]
 pub struct QuotientMul<I: Ideal + NormalForm<RingElem<I::Ring>>>(PhantomData<I>);
 
 impl<I> Commutative for QuotientMul<I>
@@ -83,8 +82,8 @@ mod tests {
 
     type IntegersModTwo = QuotientRing<EvenIntegers>;
 
-    fn modulo_two(value: impl Into<Z>) -> ResidueClass<EvenIntegers> {
-        ResidueClass::new(value.into())
+    fn modulo_two(value: impl Into<Z>) -> Quotient<Z, EvenIntegers> {
+        Quotient::new(value.into())
     }
 
     #[test]
@@ -254,11 +253,11 @@ mod tests {
                     Modulo::<EvenIntegers>::equivalent(&a, &b)
                 );
                 assert_eq!(
-                    ResidueClass::<WholeRing>::new(a) == ResidueClass::new(b),
+                    Quotient::<Z, WholeRing>::new(a) == Quotient::new(b),
                     Modulo::<WholeRing>::equivalent(&a, &b)
                 );
                 assert_eq!(
-                    ResidueClass::<ZeroIdeal>::new(a) == ResidueClass::new(b),
+                    Quotient::<Z, ZeroIdeal>::new(a) == Quotient::new(b),
                     Modulo::<ZeroIdeal>::equivalent(&a, &b)
                 );
             }
@@ -303,7 +302,7 @@ mod tests {
         for lhs in (-3..=3).map(Z::from) {
             for rhs in (-3..=3).map(Z::from) {
                 assert_eq!(
-                    ResidueClass::<ZeroIdeal>::new(lhs) == ResidueClass::new(rhs),
+                    Quotient::<Z, ZeroIdeal>::new(lhs) == Quotient::new(rhs),
                     lhs == rhs
                 );
             }

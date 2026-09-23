@@ -89,12 +89,12 @@ pub type BaseFieldElem<E> = RingElem<<E as FieldExtension>::BaseField>;
 /// A residue modulo the prime `P`. The type is the set `F_p`;
 /// [`PrimeField<P>`] is its field structure.
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Set)]
-pub struct PrimeFieldElement<const P: u64> {
+pub struct Fp<const P: u64> {
     value: u64,
 }
 
 /// TODO: Implement as bignum
-impl<const P: u64> PrimeFieldElement<P> {
+impl<const P: u64> Fp<P> {
     /// TODO: Use a faster primality test algorithm
     /// Thought of using Miller-Rabin, but a slight problem is to define the
     /// bounds on determining how many primes to test
@@ -176,28 +176,26 @@ impl<const P: u64> PrimeFieldElement<P> {
     }
 }
 
-impl<const P: u64> fmt::Debug for PrimeFieldElement<P> {
+impl<const P: u64> fmt::Debug for Fp<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("PrimeFieldElement")
-            .field(&self.value)
-            .finish()
+        f.debug_tuple("Fp").field(&self.value).finish()
     }
 }
 
-impl<const P: u64> From<u64> for PrimeFieldElement<P> {
+impl<const P: u64> From<u64> for Fp<P> {
     fn from(value: u64) -> Self {
         Self::new(value)
     }
 }
 
-impl<const P: u64> From<i64> for PrimeFieldElement<P> {
+impl<const P: u64> From<i64> for Fp<P> {
     fn from(value: i64) -> Self {
         Self::from_i64(value)
     }
 }
 
 /// Reads an integer, reduced modulo `P`; negative values are allowed.
-impl<const P: u64> FromStr for PrimeFieldElement<P> {
+impl<const P: u64> FromStr for Fp<P> {
     type Err = std::num::ParseIntError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -208,7 +206,7 @@ impl<const P: u64> FromStr for PrimeFieldElement<P> {
     }
 }
 
-impl<const P: u64> Add for PrimeFieldElement<P> {
+impl<const P: u64> Add for Fp<P> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
@@ -220,7 +218,7 @@ impl<const P: u64> Add for PrimeFieldElement<P> {
     }
 }
 
-impl<const P: u64> Sub for PrimeFieldElement<P> {
+impl<const P: u64> Sub for Fp<P> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
@@ -228,7 +226,7 @@ impl<const P: u64> Sub for PrimeFieldElement<P> {
     }
 }
 
-impl<const P: u64> Neg for PrimeFieldElement<P> {
+impl<const P: u64> Neg for Fp<P> {
     type Output = Self;
 
     fn neg(self) -> Self {
@@ -243,7 +241,7 @@ impl<const P: u64> Neg for PrimeFieldElement<P> {
     }
 }
 
-impl<const P: u64> Mul for PrimeFieldElement<P> {
+impl<const P: u64> Mul for Fp<P> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self {
@@ -251,7 +249,7 @@ impl<const P: u64> Mul for PrimeFieldElement<P> {
     }
 }
 
-impl<const P: u64> Div for PrimeFieldElement<P> {
+impl<const P: u64> Div for Fp<P> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self {
@@ -260,17 +258,17 @@ impl<const P: u64> Div for PrimeFieldElement<P> {
 }
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldElement<P>, symbol = "+", apply = Add::add, identity = PrimeFieldElement::zero(), inverse = Neg::neg, inverse_symbol = "-")]
-pub struct PrimeFieldAdd<const P: u64>;
+#[operator(domain = Fp<P>, symbol = "+", apply = Add::add, identity = Fp::zero(), inverse = Neg::neg, inverse_symbol = "-")]
+pub struct FpAdd<const P: u64>;
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldElement<P>, symbol = "*", apply = Mul::mul, identity = PrimeFieldElement::one(), inverse = |a| a.inverse(), inverse_symbol = "/")]
-pub struct PrimeFieldMul<const P: u64>;
+#[operator(domain = Fp<P>, symbol = "*", apply = Mul::mul, identity = Fp::one(), inverse = |a| a.inverse(), inverse_symbol = "/")]
+pub struct FpMul<const P: u64>;
 
 /// The finite prime field `F_p`: the tuple of its operations.
 ///
 /// `P` is part of the algebraic contract: it must be prime.
-pub type PrimeField<const P: u64> = (PrimeFieldAdd<P>, PrimeFieldMul<P>);
+pub type PrimeField<const P: u64> = (FpAdd<P>, FpMul<P>);
 
 #[cfg(test)]
 mod tests {
@@ -311,7 +309,7 @@ mod tests {
 
     #[test]
     fn prime_field_elements_normalize_residues() {
-        type F5 = PrimeFieldElement<5>;
+        type F5 = Fp<5>;
 
         assert_eq!(F5::new(7).value(), 2);
         assert_eq!(F5::from_i64(-1).value(), 4);
@@ -320,7 +318,7 @@ mod tests {
 
     #[test]
     fn prime_field_elements_parse_modulo_p() {
-        type E = PrimeFieldElement<5>;
+        type E = Fp<5>;
 
         assert_eq!("7".parse::<E>().unwrap(), E::new(2));
         assert_eq!("-1".parse::<E>().unwrap(), E::new(4));
@@ -330,7 +328,7 @@ mod tests {
     #[test]
     fn prime_field_arithmetic_is_modulo_p() {
         type F5 = PrimeField<5>;
-        type E = PrimeFieldElement<5>;
+        type E = Fp<5>;
 
         assert_eq!(F5::add(E::new(3), E::new(4)), E::new(2));
         assert_eq!(F5::negate(E::new(2)), E::new(3));
@@ -343,7 +341,7 @@ mod tests {
     #[test]
     fn every_nonzero_prime_field_element_has_an_inverse() {
         type F7 = PrimeField<7>;
-        type E = PrimeFieldElement<7>;
+        type E = Fp<7>;
 
         for value in 1..7 {
             let x = E::new(value);
@@ -354,7 +352,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "prime-field characteristic must be prime")]
     fn composite_characteristics_fail_fast() {
-        PrimeField::<4>::multiply(PrimeFieldElement::one(), PrimeFieldElement::one());
+        PrimeField::<4>::multiply(Fp::one(), Fp::one());
     }
 
     #[test]
@@ -362,7 +360,7 @@ mod tests {
         fn assert_field<F: Field>() {}
 
         type F5 = PrimeField<5>;
-        type E = PrimeFieldElement<5>;
+        type E = Fp<5>;
 
         assert_field::<F5>();
         assert_eq!(F5::zero(), E::zero());

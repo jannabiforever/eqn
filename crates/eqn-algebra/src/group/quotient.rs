@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
-use eqn_core::quotient::{EqClass, Equivalence, NormalForm};
+use eqn_core::quotient::{Equivalence, NormalForm, Quotient};
 
 use crate::group::normal::NormalSubgroup;
 use crate::group::{AbelianGroup, Group, Subgroup};
@@ -20,30 +20,27 @@ impl<S: Subgroup> Equivalence<Dom<S>> for Modulo<S> {
     }
 }
 
-/// A left coset of `S`, held by the representative `S` chooses.
-pub type Coset<S> = EqClass<Dom<S>, S>;
-
 impl<N: NormalSubgroup + NormalForm<Dom<N>>> Modulo<N> {
     /// `(aN)(bN) = (ab)N`, well defined because `N` is normal.
-    pub fn applied(lhs: Coset<N>, rhs: Coset<N>) -> Coset<N> {
-        Coset::new(N::Parent::apply(
+    pub fn applied(lhs: Quotient<Dom<N>, N>, rhs: Quotient<Dom<N>, N>) -> Quotient<Dom<N>, N> {
+        Quotient::new(N::Parent::apply(
             lhs.into_representative(),
             rhs.into_representative(),
         ))
     }
 
-    pub fn inversed(coset: Coset<N>) -> Coset<N> {
-        Coset::new(N::Parent::inverse(coset.into_representative()))
+    pub fn inversed(coset: Quotient<Dom<N>, N>) -> Quotient<Dom<N>, N> {
+        Quotient::new(N::Parent::inverse(coset.into_representative()))
     }
 
-    pub fn identity() -> Coset<N> {
-        Coset::new(N::Parent::identity())
+    pub fn identity() -> Quotient<Dom<N>, N> {
+        Quotient::new(N::Parent::identity())
     }
 }
 
 /// Multiplication of cosets of a normal subgroup.
 #[derive(Associative, BinaryOperator)]
-#[operator(domain = Coset<N>, symbol = <N::Parent as Monoid>::SYMBOL, apply = Modulo::<N>::applied, identity = Modulo::<N>::identity(), inverse = Modulo::<N>::inversed, inverse_symbol = <N::Parent as Group>::INVERSE_SYMBOL)]
+#[operator(domain = Quotient<Dom<N>, N>, symbol = <N::Parent as Monoid>::SYMBOL, apply = Modulo::<N>::applied, identity = Modulo::<N>::identity(), inverse = Modulo::<N>::inversed, inverse_symbol = <N::Parent as Group>::INVERSE_SYMBOL)]
 pub struct QuotientOp<N: NormalSubgroup + NormalForm<Dom<N>>>(PhantomData<N>);
 
 impl<N: NormalSubgroup + NormalForm<Dom<N>>> Commutative for QuotientOp<N> where
@@ -88,8 +85,8 @@ mod tests {
 
     type IntegersModTwo = QuotientGroup<EvenIntegers>;
 
-    fn modulo_two(value: impl Into<Z>) -> Coset<EvenIntegers> {
-        Coset::new(value.into())
+    fn modulo_two(value: impl Into<Z>) -> Quotient<Z, EvenIntegers> {
+        Quotient::new(value.into())
     }
 
     #[test]
@@ -126,7 +123,7 @@ mod tests {
         for a in symmetries() {
             for b in symmetries() {
                 assert_eq!(
-                    Coset::<Rotations>::new(a) == Coset::new(b),
+                    Quotient::<Symmetry, Rotations>::new(a) == Quotient::new(b),
                     Modulo::<Rotations>::equivalent(&a, &b)
                 );
             }
@@ -282,8 +279,8 @@ mod tests {
         ]
     }
 
-    fn modulo_rotations(rotation: u8, reflected: bool) -> Coset<Rotations> {
-        Coset::new(symmetry(rotation, reflected))
+    fn modulo_rotations(rotation: u8, reflected: bool) -> Quotient<Symmetry, Rotations> {
+        Quotient::new(symmetry(rotation, reflected))
     }
 
     #[test]
