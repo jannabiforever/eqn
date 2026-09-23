@@ -16,7 +16,7 @@ use crate::ring::{Ring, RingElem, Subring};
 // ================================================================================
 
 /// A field: a commutative ring whose multiplication has inverses for every
-/// element except `ZERO`. `invert(ZERO)` is a contract violation, not an
+/// element except `zero()`. `invert(zero())` is a contract violation, not an
 /// error; the operator's `Inverse` impl is only consulted for non-zero input.
 pub trait Field: Ring<Multiplication: Commutative + Inverse> {
     /// Source spelling of division.
@@ -124,8 +124,13 @@ pub struct PrimeFieldElement<const P: u64> {
 
 /// TODO: Implement as bignum
 impl<const P: u64> PrimeFieldElement<P> {
-    pub const ZERO: Self = Self { value: 0 };
-    pub const ONE: Self = Self { value: 1 };
+    pub const fn zero() -> Self {
+        Self { value: 0 }
+    }
+
+    pub const fn one() -> Self {
+        Self { value: 1 }
+    }
 
     pub fn new(value: u64) -> Self {
         PrimeField::<P>::assert_valid();
@@ -150,7 +155,7 @@ impl<const P: u64> PrimeFieldElement<P> {
     }
 
     pub fn pow(self, mut exponent: u64) -> Self {
-        let mut acc = Self::ONE;
+        let mut acc = Self::one();
         let mut base = self;
         while exponent > 0 {
             if exponent & 1 == 1 {
@@ -263,11 +268,11 @@ impl<const P: u64> Div for PrimeFieldElement<P> {
 }
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldElement<P>, symbol = "+", apply = Add::add, identity = PrimeFieldElement::ZERO, inverse = Neg::neg, inverse_symbol = "-")]
+#[operator(domain = PrimeFieldElement<P>, symbol = "+", apply = Add::add, identity = PrimeFieldElement::zero(), inverse = Neg::neg, inverse_symbol = "-")]
 pub struct PrimeFieldAdd<const P: u64>(PhantomData<PrimeField<P>>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldElement<P>, symbol = "*", apply = Mul::mul, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse(), inverse_symbol = "/")]
+#[operator(domain = PrimeFieldElement<P>, symbol = "*", apply = Mul::mul, identity = PrimeFieldElement::one(), inverse = |a| a.inverse(), inverse_symbol = "/")]
 pub struct PrimeFieldMul<const P: u64>(PhantomData<PrimeField<P>>);
 
 impl<const P: u64> crate::ring::SemiRing for PrimeField<P> {
@@ -386,7 +391,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "prime-field characteristic must be prime")]
     fn composite_characteristics_fail_fast() {
-        PrimeField::<4>::multiply(PrimeFieldElement::ONE, PrimeFieldElement::ONE);
+        PrimeField::<4>::multiply(PrimeFieldElement::one(), PrimeFieldElement::one());
     }
 
     #[test]
@@ -410,8 +415,8 @@ mod tests {
         assert_finite_extension::<F5>();
         assert_algebraic_extension::<F5>();
 
-        assert_eq!(F5::zero(), E::ZERO);
-        assert_eq!(F5::one(), E::ONE);
+        assert_eq!(F5::zero(), E::zero());
+        assert_eq!(F5::one(), E::one());
         assert_eq!(F5::from_scalar(E::new(3)), E::new(3));
         assert_eq!(F5::scale(E::new(3), E::new(4)), E::new(2));
         assert_eq!(F5::DEGREE, 1);
