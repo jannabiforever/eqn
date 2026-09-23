@@ -106,6 +106,8 @@ where
 #[cfg(test)]
 mod tests {
 
+    use eqn_core::set::Z;
+
     use super::*;
     use crate::operator_impl::ZAdd;
 
@@ -155,9 +157,15 @@ mod tests {
 
     #[test]
     fn negative_literals_are_constants() {
-        assert_eq!("-3".parse::<Expr>().unwrap(), Expr::Const(-3));
-        assert_eq!("inv(3)".parse::<Expr>().unwrap(), Expr::Const(3).inverted());
-        assert_eq!("-(3)".parse::<Expr>().unwrap(), Expr::Const(3).inverted());
+        assert_eq!("-3".parse::<Expr>().unwrap(), Expr::Const(Z::from(-3)));
+        assert_eq!(
+            "inv(3)".parse::<Expr>().unwrap(),
+            Expr::Const(Z::from(3)).inverted()
+        );
+        assert_eq!(
+            "-(3)".parse::<Expr>().unwrap(),
+            Expr::Const(Z::from(3)).inverted()
+        );
     }
 
     #[test]

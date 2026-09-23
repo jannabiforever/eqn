@@ -274,7 +274,7 @@ pub type PrimeField<const P: u64> = (PrimeFieldAdd<P>, PrimeFieldMul<P>);
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::{Q, Rational, Subset};
+    use eqn_core::set::{Q, Subset};
 
     use super::*;
     use crate::operator_impl::{QAdd, QMul};
@@ -287,7 +287,7 @@ mod tests {
     impl Subset for AllRationals {
         type Superset = Q;
 
-        fn contains(_: &Rational) -> bool {
+        fn contains(_: &Q) -> bool {
             true
         }
     }
@@ -304,7 +304,7 @@ mod tests {
         fn assert_subfield<S: Subfield>() {}
 
         assert_subfield::<AllRationals>();
-        for value in [Rational::from(-3), Rational::from(1), Rational::from(4)] {
+        for value in [Q::from(-3), Q::from(1), Q::from(4)] {
             assert!(AllRationals::contains(&Rationals::invert(value)));
         }
     }

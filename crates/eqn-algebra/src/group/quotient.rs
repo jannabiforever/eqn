@@ -69,8 +69,8 @@ mod tests {
     impl Subset for EvenIntegers {
         type Superset = Z;
 
-        fn contains(value: &i64) -> bool {
-            value % 2 == 0
+        fn contains(value: &Z) -> bool {
+            i64::from(*value) % 2 == 0
         }
     }
 
@@ -81,23 +81,23 @@ mod tests {
     impl Subgroup for EvenIntegers {}
 
     impl NormalForm<Z> for EvenIntegers {
-        fn reduce(value: i64) -> i64 {
-            value.rem_euclid(2)
+        fn reduce(value: Z) -> Z {
+            Z::from(i64::from(value).rem_euclid(2))
         }
     }
 
     type IntegersModTwo = QuotientGroup<EvenIntegers>;
 
-    fn modulo_two(value: i64) -> Coset<EvenIntegers> {
-        Coset::new(value)
+    fn modulo_two(value: impl Into<Z>) -> Coset<EvenIntegers> {
+        Coset::new(value.into())
     }
 
     #[test]
     fn coset_equality_is_an_equivalence_relation() {
-        for a in -3..=3 {
+        for a in (-3..=3).map(Z::from) {
             assert_eq!(modulo_two(a), modulo_two(a));
 
-            for b in -3..=3 {
+            for b in (-3..=3).map(Z::from) {
                 assert_eq!(
                     modulo_two(a) == modulo_two(b),
                     modulo_two(b) == modulo_two(a)
@@ -114,8 +114,8 @@ mod tests {
 
     #[test]
     fn coset_representatives_agree_with_the_left_coset_relation() {
-        for a in -3..=3 {
-            for b in -3..=3 {
+        for a in (-3..=3).map(Z::from) {
+            for b in (-3..=3).map(Z::from) {
                 assert_eq!(
                     modulo_two(a) == modulo_two(b),
                     Modulo::<EvenIntegers>::equivalent(&a, &b)
@@ -160,13 +160,13 @@ mod tests {
         let same_product = IntegersModTwo::apply(modulo_two(3), modulo_two(4));
 
         assert_eq!(product, same_product);
-        assert_eq!(modulo_two(5).representative(), &1);
-        assert_eq!(modulo_two(5).into_representative(), 1);
+        assert_eq!(modulo_two(5).representative(), &Z::ONE);
+        assert_eq!(modulo_two(5).into_representative(), Z::from(1));
     }
 
     #[test]
     fn quotient_operator_satisfies_the_group_laws() {
-        for a in -2..=2 {
+        for a in (-2..=2).map(Z::from) {
             let value = modulo_two(a);
             let inverse = IntegersModTwo::inverse(value.clone());
 
@@ -179,7 +179,7 @@ mod tests {
                 IntegersModTwo::identity()
             );
 
-            for b in -2..=2 {
+            for b in (-2..=2).map(Z::from) {
                 for c in -2..=2 {
                     assert_eq!(
                         IntegersModTwo::apply(
