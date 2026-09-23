@@ -1,11 +1,11 @@
-use super::{Ring, RingAdd, RingDom, SemiRing};
+use super::{Ring, RingAdd, RingElem, SemiRing};
 use crate::group::normal::NormalSubgroup;
 use crate::monoid::Monoid;
 
 /// A two-sided ideal of a ring: a normal subgroup of the additive group that
 /// absorbs multiplication from both sides by every element of the ring.
 pub trait Ideal:
-    NormalSubgroup<Parent: Monoid<Domain = RingDom<Self::Ring>, Operator = RingAdd<Self::Ring>>>
+    NormalSubgroup<Parent: Monoid<Domain = RingElem<Self::Ring>, Operator = RingAdd<Self::Ring>>>
 {
     type Ring: Ring;
 

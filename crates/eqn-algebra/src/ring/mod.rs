@@ -15,11 +15,8 @@ pub mod rewriter;
 // Ring
 // ================================================================================
 
-/// Alias for Ring's element.
+/// Alias for Ring's domain.
 pub type RingElem<S> = <S as SemiRing>::Domain;
-
-/// Alias for Ring's domain. (element set)
-pub type RingDom<S> = <S as SemiRing>::Domain;
 
 /// Alias for Ring's add operation
 pub type RingAdd<S> = <S as SemiRing>::Addition;
@@ -95,7 +92,7 @@ where
 
 /// A subset containing zero and one and closed under addition and
 /// multiplication.
-pub trait SubSemiRing: Subset<Superset = RingDom<Self::Parent>> {
+pub trait SubSemiRing: Subset<Superset = RingElem<Self::Parent>> {
     type Parent: SemiRing;
 }
 
