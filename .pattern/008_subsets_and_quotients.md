@@ -29,6 +29,10 @@ proof in `\Sigma (x : A), P(x)`, and whose equality is structural.
 An inclusion that changes the carrier, such as `\mathbb{Z} \subset
 \mathbb{Q}`, is a `Map`, never a `Subset`.
 
+An ideal is a normal subgroup of the ring's additive group that absorbs
+multiplication, so a quotient ring adds its classes with the group quotient
+operator. A subgroup of an abelian group is normal, as a blanket impl.
+
 ## One thing the compiler refuses
 
 - Pin a parent group by its parts, `Monoid<Domain = D, Operator = Op>`, not
