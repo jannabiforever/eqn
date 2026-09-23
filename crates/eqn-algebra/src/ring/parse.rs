@@ -165,12 +165,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::Z;
 
     use super::*;
     use crate::operator_impl::{ZAdd, ZMul};
 
-    type Integers = (Z, ZAdd, ZMul);
+    type Integers = (ZAdd, ZMul);
     type Expr = SemiRingExpr<Integers>;
     type RExpr = RingExpr<Integers>;
 

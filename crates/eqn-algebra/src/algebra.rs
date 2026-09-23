@@ -14,7 +14,7 @@ pub trait Algebra:
     >
 {
     fn from_scalar(scalar: ModuleScalar<Self>) -> RingElem<Self> {
-        Self::scale(scalar, Self::ONE)
+        Self::scale(scalar, Self::one())
     }
 }
 
@@ -30,14 +30,14 @@ pub trait Subalgebra: Subring<Parent: Algebra> {}
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::Z;
+    use eqn_core::set::{Subset, Z};
 
     use super::*;
     use crate::module::ModuleElem;
     use crate::operator_impl::{ZAdd, ZMul};
     use crate::ring::SubSemiRing;
 
-    type Integers = (Z, ZAdd, ZMul);
+    type Integers = (ZAdd, ZMul);
 
     struct IntegerAlgebra;
 
@@ -59,12 +59,16 @@ mod tests {
 
     struct AllIntegers;
 
-    impl SubSemiRing for AllIntegers {
-        type Parent = IntegerAlgebra;
+    impl Subset for AllIntegers {
+        type Superset = Z;
 
-        fn contains(_: &RingElem<Self::Parent>) -> bool {
+        fn contains(_: &i64) -> bool {
             true
         }
+    }
+
+    impl SubSemiRing for AllIntegers {
+        type Parent = IntegerAlgebra;
     }
 
     impl Subring for AllIntegers {}

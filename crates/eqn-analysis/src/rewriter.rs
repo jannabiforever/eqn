@@ -37,7 +37,7 @@ struct Term<F: Field> {
 impl<F: Field> Term<F> {
     fn one() -> Self {
         Self {
-            coeff: F::ONE,
+            coeff: F::one(),
             factors: vec![],
         }
     }
@@ -70,7 +70,7 @@ impl<F: Field> Term<F> {
                 }
             })
             .collect();
-        if factors.is_empty() || self.coeff != F::ONE {
+        if factors.is_empty() || self.coeff != F::one() {
             factors.insert(0, ElementaryExpr::Const(self.coeff));
         }
         match factors.len() {
@@ -141,7 +141,7 @@ impl<F: Field> ElementaryExpr<F> {
                 factors: vec![],
             }],
             ElementaryExpr::Symbol(s) => vec![Term {
-                coeff: F::ONE,
+                coeff: F::one(),
                 factors: vec![(Atom::Symbol(s), 1)],
             }],
             ElementaryExpr::Neg(x) => x.terms().into_iter().map(Term::negated).collect(),
@@ -184,7 +184,7 @@ impl<F: Field> ElementaryExpr<F> {
             [] => panic!("division by zero"),
             [t] => {
                 let inv = F::invert(t.coeff.clone());
-                let mut coeff = F::ONE;
+                let mut coeff = F::one();
                 for _ in 0..n.unsigned_abs() {
                     coeff = F::multiply(coeff, inv.clone());
                 }
@@ -206,7 +206,7 @@ impl<F: Field> ElementaryExpr<F> {
                 }
             }
             _ => vec![Term {
-                coeff: F::ONE,
+                coeff: F::one(),
                 factors: vec![(Atom::Sum(Self::from_terms(b)), n)],
             }],
         }
@@ -221,20 +221,20 @@ impl<F: Field> ElementaryExpr<F> {
 
         let a = Self::from_terms(Term::canonical(self.terms()));
         match (kind, a) {
-            (Exp, ElementaryExpr::Const(c)) if c == F::ZERO => vec![Term::one()],
-            (Log, ElementaryExpr::Const(c)) if c == F::ONE => vec![Term {
-                coeff: F::ZERO,
+            (Exp, ElementaryExpr::Const(c)) if c == F::zero() => vec![Term::one()],
+            (Log, ElementaryExpr::Const(c)) if c == F::one() => vec![Term {
+                coeff: F::zero(),
                 factors: vec![],
             }],
-            (Sin, ElementaryExpr::Const(c)) if c == F::ZERO => vec![Term {
-                coeff: F::ZERO,
+            (Sin, ElementaryExpr::Const(c)) if c == F::zero() => vec![Term {
+                coeff: F::zero(),
                 factors: vec![],
             }],
-            (Cos, ElementaryExpr::Const(c)) if c == F::ZERO => vec![Term::one()],
+            (Cos, ElementaryExpr::Const(c)) if c == F::zero() => vec![Term::one()],
             (Exp, ElementaryExpr::Fn(Log, u)) => u.terms(),
             (Log, ElementaryExpr::Fn(Exp, u)) => u.terms(),
             (k, a) => vec![Term {
-                coeff: F::ONE,
+                coeff: F::one(),
                 factors: vec![(Atom::Fn(k, a), 1)],
             }],
         }
@@ -247,8 +247,8 @@ impl<F: Field> ElementaryExpr<F> {
         use ElementaryExpr::*;
 
         match self {
-            Const(_) => Const(F::ZERO),
-            Symbol(s) => Const(if s == *wrt { F::ONE } else { F::ZERO }),
+            Const(_) => Const(F::zero()),
+            Symbol(s) => Const(if s == *wrt { F::one() } else { F::zero() }),
             Neg(u) => Neg(Box::new(u.derivative(wrt))),
             Add(v) => Add(v.into_iter().map(|u| u.derivative(wrt)).collect()),
             // Leibniz: d(a_1 * ... * a_n) = sum_i a_1 * ... * (d a_i) * ... * a_n.
@@ -307,7 +307,7 @@ impl<F: Field> ElementaryExpr<F> {
     /// or `D`: a negated term shows up as a negative constant coefficient.
     fn from_terms(mut ts: Vec<Term<F>>) -> Self {
         match ts.len() {
-            0 => ElementaryExpr::Const(F::ZERO),
+            0 => ElementaryExpr::Const(F::zero()),
             1 => ts.pop().unwrap().into_expr(),
             _ => ElementaryExpr::Add(ts.into_iter().map(Term::into_expr).collect()),
         }
@@ -391,7 +391,7 @@ impl<F: Field> Term<F> {
                 _ => out.push(t),
             }
         }
-        out.retain(|t| t.coeff != F::ZERO);
+        out.retain(|t| t.coeff != F::zero());
         out
     }
 }
@@ -427,11 +427,10 @@ impl<F: Field> Rewriter for ElementaryRewriter<F> {
 #[cfg(test)]
 mod tests {
     use eqn_algebra::operator_impl::{QAdd, QMul};
-    use eqn_core::set::Q;
 
     use super::*;
 
-    type Expr = ElementaryExpr<(Q, QAdd, QMul)>;
+    type Expr = ElementaryExpr<(QAdd, QMul)>;
 
     fn expr(src: &str) -> Expr {
         src.parse().unwrap()
@@ -492,7 +491,7 @@ mod tests {
     fn derive_agrees_with_the_d_route() {
         use eqn_algebra::ring::differential::DifferentialRing;
 
-        type Ring = crate::ElementaryFunctionRing<(Q, QAdd, QMul)>;
+        type Ring = crate::ElementaryFunctionRing<(QAdd, QMul)>;
 
         let rewriter = ElementaryRewriter::new();
         let x = Symbol::new("x");

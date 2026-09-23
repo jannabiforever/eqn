@@ -151,7 +151,7 @@ mod tests {
     use eqn_analysis::rewriter::ElementaryRewriter;
     use eqn_analysis::{ElementaryExpr, ElementaryFunctionRing};
     use eqn_core::rewriter::Rewriter;
-    use eqn_core::set::{Q, Rational, Z};
+    use eqn_core::set::Rational;
     use eqn_poly::PolynomialRing;
 
     use super::*;
@@ -160,14 +160,14 @@ mod tests {
     #[derive(Debug)]
     pub(super) struct Plane;
     impl Manifold for Plane {
-        type Functions = ElementaryFunctionRing<(Q, QAdd, QMul)>;
+        type Functions = ElementaryFunctionRing<(QAdd, QMul)>;
         type const DIM: usize = 2;
     }
 
     #[derive(Debug)]
     pub(super) struct IntPlane;
     impl Manifold for IntPlane {
-        type Functions = PolynomialRing<(Z, ZAdd, ZMul)>;
+        type Functions = PolynomialRing<(ZAdd, ZMul)>;
         type const DIM: usize = 2;
     }
 

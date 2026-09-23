@@ -1,5 +1,4 @@
 use eqn_core::rewriter::Rewriter;
-use eqn_core::set::Set;
 
 use super::{AbelianGroup, Group, GroupExpr};
 use crate::Flatten;
@@ -50,7 +49,7 @@ impl<G: Group> GroupExpr<G> {
 
     fn power(self, exponent: isize) -> Self {
         match exponent {
-            0 => GroupExpr::Const(G::IDENTITY),
+            0 => GroupExpr::Const(G::identity()),
             1 => self,
             -1 => GroupExpr::Inv(Box::new(self)),
             exponent => GroupExpr::Pow {
@@ -60,13 +59,13 @@ impl<G: Group> GroupExpr<G> {
         }
     }
 
-    fn pow_constant(mut base: <G::Domain as Set>::Element, exponent: isize) -> Self {
+    fn pow_constant(mut base: G::Domain, exponent: isize) -> Self {
         if exponent.is_negative() {
             base = G::inverse(base);
         }
 
         let mut exponent = exponent.unsigned_abs();
-        let mut value = G::IDENTITY;
+        let mut value = G::identity();
         while exponent != 0 {
             if exponent % 2 == 1 {
                 value = G::apply(value, base.clone());
@@ -81,7 +80,7 @@ impl<G: Group> GroupExpr<G> {
 
     fn finish(mut exprs: Vec<Self>) -> Self {
         match exprs.len() {
-            0 => GroupExpr::Const(G::IDENTITY),
+            0 => GroupExpr::Const(G::identity()),
             1 => exprs.pop().unwrap(),
             _ => GroupExpr::Op(exprs),
         }
@@ -152,7 +151,7 @@ impl<G: Group> GroupExpr<G> {
         };
         let exponent = *exponent;
         if exponent == 0 {
-            *self = GroupExpr::Const(G::IDENTITY);
+            *self = GroupExpr::Const(G::identity());
             return false;
         }
 
@@ -218,13 +217,13 @@ impl<G: Group> GroupExpr<G> {
         let mut out = Vec::new();
 
         for e in factors {
-            if e == GroupExpr::Const(G::IDENTITY) {
+            if e == GroupExpr::Const(G::identity()) {
                 continue;
             }
             match (out.pop(), e) {
                 (Some(GroupExpr::Const(lhs)), GroupExpr::Const(rhs)) => {
                     let value = G::apply(lhs, rhs);
-                    if value != G::IDENTITY {
+                    if value != G::identity() {
                         out.push(GroupExpr::Const(value));
                     }
                 }
@@ -318,7 +317,7 @@ impl<G: AbelianGroup> GroupExpr<G> {
     /// leading constant, sums exponents of equal bases wherever they appear,
     /// and sorts the bases structurally.
     fn collect_powers(factors: impl Iterator<Item = Self>) -> Self {
-        let mut constant = G::IDENTITY;
+        let mut constant = G::identity();
         let mut powers: Vec<(Self, isize)> = Vec::new();
 
         for e in factors {
@@ -342,7 +341,7 @@ impl<G: AbelianGroup> GroupExpr<G> {
         powers.sort_by(|(lhs, _), (rhs, _)| lhs.cmp_structural(rhs));
 
         let mut out = Vec::new();
-        if powers.is_empty() || constant != G::IDENTITY {
+        if powers.is_empty() || constant != G::identity() {
             out.push(GroupExpr::Const(constant));
         }
         out.extend(
@@ -454,7 +453,7 @@ mod tests {
         assert_eq!(group(commutator), expr("a + b + inv(a) + inv(b)"));
         assert_eq!(
             abelian(commutator),
-            Expr::Const(IntegerAdditionGroup::IDENTITY)
+            Expr::Const(IntegerAdditionGroup::identity())
         );
     }
 

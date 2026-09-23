@@ -204,14 +204,14 @@ where
 mod tests {
     use eqn_algebra::operator_impl::{QAdd, QMul};
     use eqn_analysis::ElementaryExpr;
-    use eqn_core::set::{Q, Rational};
+    use eqn_core::set::Rational;
     use eqn_core::symbol::Symbol;
 
     use super::*;
     use crate::tests::Plane;
 
     type Form = DifferentialForm<Plane>;
-    type Fun = ElementaryExpr<(Q, QAdd, QMul)>;
+    type Fun = ElementaryExpr<(QAdd, QMul)>;
 
     fn c(i: i64) -> Fun {
         Fun::Const(Rational::from(i))

@@ -79,15 +79,19 @@ pub struct Polynomial<R: CommutativeRing> {
 }
 
 impl<R: CommutativeRing> Polynomial<R> {
-    pub const ZERO: Self = Self {
-        constant: R::ZERO,
-        terms: BTreeMap::new(),
-    };
+    pub fn zero() -> Self {
+        Self {
+            constant: R::zero(),
+            terms: BTreeMap::new(),
+        }
+    }
 
-    pub const ONE: Self = Self {
-        constant: R::ONE,
-        terms: BTreeMap::new(),
-    };
+    pub fn one() -> Self {
+        Self {
+            constant: R::one(),
+            terms: BTreeMap::new(),
+        }
+    }
 
     pub fn constant(value: RingElem<R>) -> Self {
         Self {
@@ -109,7 +113,7 @@ impl<R: CommutativeRing> Polynomial<R> {
 /// Collects like terms and drops zero coefficients.
 impl<R: CommutativeRing> FromIterator<(Monomial<R::Domain>, RingElem<R>)> for Polynomial<R> {
     fn from_iter<I: IntoIterator<Item = (Monomial<R::Domain>, RingElem<R>)>>(iter: I) -> Self {
-        let mut polynomial = Self::ZERO;
+        let mut polynomial = Self::zero();
         for (monomial, coefficient) in iter {
             if monomial.is_one() {
                 polynomial.constant = R::add(polynomial.constant, coefficient);
@@ -126,14 +130,14 @@ impl<R: CommutativeRing> FromIterator<(Monomial<R::Domain>, RingElem<R>)> for Po
         }
         polynomial
             .terms
-            .retain(|_, coefficient| *coefficient != R::ZERO);
+            .retain(|_, coefficient| *coefficient != R::zero());
         polynomial
     }
 }
 
 impl<R: CommutativeRing> From<Symbol<R::Domain>> for Polynomial<R> {
     fn from(s: Symbol<R::Domain>) -> Self {
-        [(Monomial::from(s), R::ONE)].into_iter().collect()
+        [(Monomial::from(s), R::one())].into_iter().collect()
     }
 }
 
@@ -145,8 +149,8 @@ impl<R: CommutativeRing> From<RingExpr<R>> for Polynomial<R> {
             RingExpr::Const(c) => Self::constant(c),
             RingExpr::Symbol(s) => Self::from(s),
             RingExpr::Neg(inner) => -Self::from(*inner),
-            RingExpr::Add(v) => v.into_iter().map(Self::from).fold(Self::ZERO, Add::add),
-            RingExpr::Mul(v) => v.into_iter().map(Self::from).fold(Self::ONE, Mul::mul),
+            RingExpr::Add(v) => v.into_iter().map(Self::from).fold(Self::zero(), Add::add),
+            RingExpr::Mul(v) => v.into_iter().map(Self::from).fold(Self::one(), Mul::mul),
             RingExpr::Pow { base, exponent } => Self::from(*base).pow(exponent),
         }
     }
@@ -188,17 +192,14 @@ impl<R: CommutativeRing> Mul for Polynomial<R> {
 // PolynomialRing
 // ================================================================================
 
-/// The set of polynomials over `R`.
-#[derive(Set)]
-#[set(element = Polynomial<R>)]
-pub struct Polynomials<R: CommutativeRing>(PhantomData<R>);
+impl<R: CommutativeRing> Set for Polynomial<R> {}
 
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
-    domain = Polynomials<R>,
+    domain = Polynomial<R>,
     symbol = R::ADD_SYMBOL,
     apply = Add::add,
-    identity = Polynomial::ZERO,
+    identity = Polynomial::zero(),
     inverse = Neg::neg,
     inverse_symbol = R::SUB_SYMBOL
 )]
@@ -206,28 +207,28 @@ pub struct PolyAdd<R: CommutativeRing>(PhantomData<R>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
-    domain = Polynomials<R>,
+    domain = Polynomial<R>,
     symbol = R::MUL_SYMBOL,
     apply = Mul::mul,
-    identity = Polynomial::ONE
+    identity = Polynomial::one()
 )]
 pub struct PolyMul<R: CommutativeRing>(PhantomData<R>);
 
 /// The commutative ring of polynomials over `R`.
 ///
-/// A newtype rather than the `(Polynomials, PolyAdd, PolyMul)` tuple so this
+/// A newtype rather than the `(Polynomial, PolyAdd, PolyMul)` tuple so this
 /// crate can implement foreign traits like [`DifferentialRing`] on it.
 pub struct PolynomialRing<R: CommutativeRing>(PhantomData<R>);
 
 impl<R: CommutativeRing> SemiRing for PolynomialRing<R> {
-    type Domain = Polynomials<R>;
+    type Domain = Polynomial<R>;
     type Addition = PolyAdd<R>;
     type Multiplication = PolyMul<R>;
 }
 
 impl<R: CommutativeRing> Module for PolynomialRing<R> {
     type Scalars = R;
-    type Domain = Polynomials<R>;
+    type Domain = Polynomial<R>;
     type Addition = PolyAdd<R>;
 
     fn scale(scalar: ModuleScalar<Self>, value: ModuleElem<Self>) -> ModuleElem<Self> {
@@ -258,7 +259,7 @@ mod tests {
 
     use super::*;
 
-    type R = (Z, ZAdd, ZMul);
+    type R = (ZAdd, ZMul);
     type P = Polynomial<R>;
     type Poly = PolynomialRing<R>;
 
@@ -277,9 +278,9 @@ mod tests {
     #[test]
     fn equality_is_equality_of_polynomials() {
         assert_eq!(poly("x + y"), poly("y + x"));
-        assert_eq!(poly("x - x"), P::ZERO);
+        assert_eq!(poly("x - x"), P::zero());
         assert_eq!(poly("(x + 1) (x - 1)"), poly("x^2 - 1"));
-        assert_eq!(poly("0 x"), P::ZERO);
+        assert_eq!(poly("0 x"), P::zero());
         assert_ne!(poly("x"), poly("y"));
     }
 
@@ -323,7 +324,7 @@ mod tests {
         let p = poly("x + 2");
         let q = poly("y - 3");
 
-        assert_eq!(Poly::scale(0, p.clone()), P::ZERO);
+        assert_eq!(Poly::scale(0, p.clone()), P::zero());
         assert_eq!(Poly::scale(1, p.clone()), p);
         assert_eq!(
             Poly::scale(2 + 3, p.clone()),
@@ -366,7 +367,7 @@ mod tests {
 
     #[test]
     fn derive_of_a_constant_is_zero() {
-        assert_eq!(Poly::derive(poly("5"), &xs()), P::ZERO);
+        assert_eq!(Poly::derive(poly("5"), &xs()), P::zero());
     }
 
     #[test]

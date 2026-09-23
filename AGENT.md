@@ -12,10 +12,13 @@ holding the author to it.
 - **Minimal complete axioms.** A new structure is the structure one rung
   below plus the laws that distinguish it. A hypothesis no existing marker
   expresses becomes a new marker trait, never a method or a comment.
+  Markers lose nothing: a law is a mere proposition, any two proofs of it
+  are equal, so a structure is determined by its data and the proof can be
+  erased.
 - **Relations are bounds.** If mathematics relates two notions, express the
-  relation as a trait bound or a conversion, so the compiler infers the
-  second from the first. Never ask an implementor to state what the bounds
-  already prove.
+  relation as a trait bound, a conversion, or an adapter type whose impl
+  states the theorem, so the compiler infers the second from the first.
+  Never ask an implementor to state what the bounds already prove.
 
 ## Rule 2. Test the laws you cannot encode
 
@@ -33,7 +36,8 @@ expressible at all. For every such law:
 
 Every rule in `.pattern/` is binding. Read the folder before writing code,
 and reread it before finishing. It covers `derive_where`, comment style,
-blanket impls on tuples, the ban on free functions, and law tests.
+blanket impls on tuples, the ban on free functions, law tests, and subsets
+and quotients.
 
 ## Before you finish
 

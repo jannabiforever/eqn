@@ -11,14 +11,14 @@ to use exactly the laws the structure declares and nothing else.
 
 ## Crates
 
-| Crate          | Contents                                                                                                                                                                                                                                                  |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `eqn-core`     | `Set`, `BinaryOperator`, the law markers (`Associative`, `Commutative`, `Identity`, `Inverse`), `Map`, `Symbol`, and the `Expression` / `Rewriter` traits every tree implements. Concrete sets `N`, `Z`, `Q`, `R`.                                        |
-| `eqn-macros`   | Derives for the above: `#[derive(Set)]`, `#[derive(BinaryOperator)]` with `#[operator(domain, apply, identity, inverse)]`, and the marker derives.                                                                                                        |
-| `eqn-algebra`  | Monoid, group, ring, field, module, algebra, and their substructures, ideals, and quotients. One rewriter per structure, one more for each law that unlocks a stronger canonical form. Prime fields `F_p` and the field-extension hierarchy up to Galois. |
-| `eqn-poly`     | `PolynomialRing<R>`, the free commutative `R`-algebra on its symbols with `\partial / \partial s`. Finite fields `F_{p^n}` as `F_p[x]/(M)`, with irreducible, primitive, and pseudo-Conway defining polynomials found by search.                          |
-| `eqn-analysis` | `ElementaryExpr<F>`: exp, log, sin, cos over a field, with symbolic differentiation. Its rewriter eliminates every unevaluated derivative and yields a sorted sum of products.                                                                            |
-| `eqn-diffgeom` | A `Manifold` is its `DifferentialRing` of functions. `DifferentialForm<M>`, `Chart<M>` with the contract `\partial_i x^j = \delta_{ij}`, and the exterior derivative, where `d^2 = 0` falls out of the coefficient ring's own `derive`.                   |
+| Crate          | Contents                                                                                                                                                                                                                                                                                     |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eqn-core`     | `Set` and `Subset`, `BinaryOperator`, the law markers (`Associative`, `Commutative`, `Identity`, `Inverse`), `Map`, `Symbol`, the `Expression` / `Rewriter` traits every tree implements, and `EqClass`, a quotient by an `Equivalence` or a `NormalForm`. Concrete sets `N`, `Z`, `Q`, `R`. |
+| `eqn-macros`   | Derives for the above: `#[derive(Set)]`, `#[derive(BinaryOperator)]` with `#[operator(domain, apply, identity, inverse)]`, and the marker derives.                                                                                                                                           |
+| `eqn-algebra`  | Monoid, group, ring, field, module, algebra, and their substructures, ideals, and quotients. One rewriter per structure, one more for each law that unlocks a stronger canonical form. Prime fields `F_p` and the field-extension hierarchy up to Galois.                                    |
+| `eqn-poly`     | `PolynomialRing<R>`, the free commutative `R`-algebra on its symbols with `\partial / \partial s`. Finite fields `F_{p^n}` as `F_p[x]/(M)`, with irreducible, primitive, and pseudo-Conway defining polynomials found by search.                                                             |
+| `eqn-analysis` | `ElementaryExpr<F>`: exp, log, sin, cos over a field, with symbolic differentiation. Its rewriter eliminates every unevaluated derivative and yields a sorted sum of products.                                                                                                               |
+| `eqn-diffgeom` | A `Manifold` is its `DifferentialRing` of functions. `DifferentialForm<M>`, `Chart<M>` with the contract `\partial_i x^j = \delta_{ij}`, and the exterior derivative, where `d^2 = 0` falls out of the coefficient ring's own `derive`.                                                      |
 
 ## A small example
 
@@ -30,7 +30,7 @@ use eqn_core::set::Z;
 use eqn_core::symbol::Symbol;
 
 // x + y - x, written in the group's operation.
-let expr = "x + y - x".parse::<GroupExpr<(Z, ZAdd)>>().unwrap();
+let expr = "x + y - x".parse::<GroupExpr<(ZAdd,)>>().unwrap();
 
 // The abelian rewriter may reorder terms, so x cancels -x.
 assert_eq!(expr.rewritten(&AbelianGroupRewriter::new()), Symbol::new("y").into());

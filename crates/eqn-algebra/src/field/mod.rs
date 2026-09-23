@@ -16,7 +16,7 @@ use crate::ring::{Ring, RingElem, Subring};
 // ================================================================================
 
 /// A field: a commutative ring whose multiplication has inverses for every
-/// element except `ZERO`. `invert(ZERO)` is a contract violation, not an
+/// element except `zero()`. `invert(zero())` is a contract violation, not an
 /// error; the operator's `Inverse` impl is only consulted for non-zero input.
 pub trait Field: Ring<Multiplication: Commutative + Inverse> {
     /// Source spelling of division.
@@ -91,7 +91,7 @@ pub type BaseFieldElem<E> = RingElem<<E as FieldExtension>::BaseField>;
 /// The finite prime field `F_p`.
 ///
 /// `P` is part of the algebraic contract: it must be prime.
-pub struct PrimeField<const P: u64>(PhantomData<PrimeFieldSet<P>>);
+pub struct PrimeField<const P: u64>(PhantomData<PrimeFieldElement<P>>);
 
 impl<const P: u64> PrimeField<P> {
     /// TODO: Use a faster primality test algorithm
@@ -117,15 +117,20 @@ impl<const P: u64> PrimeField<P> {
 }
 
 /// An element of [`PrimeField<P>`].
-#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Set)]
 pub struct PrimeFieldElement<const P: u64> {
     value: u64,
 }
 
 /// TODO: Implement as bignum
 impl<const P: u64> PrimeFieldElement<P> {
-    pub const ZERO: Self = Self { value: 0 };
-    pub const ONE: Self = Self { value: 1 };
+    pub const fn zero() -> Self {
+        Self { value: 0 }
+    }
+
+    pub const fn one() -> Self {
+        Self { value: 1 }
+    }
 
     pub fn new(value: u64) -> Self {
         PrimeField::<P>::assert_valid();
@@ -150,7 +155,7 @@ impl<const P: u64> PrimeFieldElement<P> {
     }
 
     pub fn pow(self, mut exponent: u64) -> Self {
-        let mut acc = Self::ONE;
+        let mut acc = Self::one();
         let mut base = self;
         while exponent > 0 {
             if exponent & 1 == 1 {
@@ -262,28 +267,23 @@ impl<const P: u64> Div for PrimeFieldElement<P> {
     }
 }
 
-/// The set underlying [`PrimeField<P>`].
-#[derive(Set)]
-#[set(element = PrimeFieldElement<P>)]
-pub struct PrimeFieldSet<const P: u64>(PhantomData<PrimeField<P>>);
-
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, symbol = "+", apply = Add::add, identity = PrimeFieldElement::ZERO, inverse = Neg::neg, inverse_symbol = "-")]
+#[operator(domain = PrimeFieldElement<P>, symbol = "+", apply = Add::add, identity = PrimeFieldElement::zero(), inverse = Neg::neg, inverse_symbol = "-")]
 pub struct PrimeFieldAdd<const P: u64>(PhantomData<PrimeField<P>>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
-#[operator(domain = PrimeFieldSet<P>, symbol = "*", apply = Mul::mul, identity = PrimeFieldElement::ONE, inverse = |a| a.inverse(), inverse_symbol = "/")]
+#[operator(domain = PrimeFieldElement<P>, symbol = "*", apply = Mul::mul, identity = PrimeFieldElement::one(), inverse = |a| a.inverse(), inverse_symbol = "/")]
 pub struct PrimeFieldMul<const P: u64>(PhantomData<PrimeField<P>>);
 
 impl<const P: u64> crate::ring::SemiRing for PrimeField<P> {
-    type Domain = PrimeFieldSet<P>;
+    type Domain = PrimeFieldElement<P>;
     type Addition = PrimeFieldAdd<P>;
     type Multiplication = PrimeFieldMul<P>;
 }
 
 impl<const P: u64> Module for PrimeField<P> {
     type Scalars = Self;
-    type Domain = PrimeFieldSet<P>;
+    type Domain = PrimeFieldElement<P>;
     type Addition = PrimeFieldAdd<P>;
 
     fn scale(scalar: ModuleScalar<Self>, value: ModuleElem<Self>) -> ModuleElem<Self> {
@@ -304,22 +304,26 @@ impl<const P: u64> SeparableExtension for PrimeField<P> {}
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::{Q, Rational};
+    use eqn_core::set::{Q, Rational, Subset};
 
     use super::*;
     use crate::operator_impl::{QAdd, QMul};
     use crate::ring::{CommutativeRing, SemiRing, SubSemiRing};
 
-    type Rationals = (Q, QAdd, QMul);
+    type Rationals = (QAdd, QMul);
 
     struct AllRationals;
 
-    impl SubSemiRing for AllRationals {
-        type Parent = Rationals;
+    impl Subset for AllRationals {
+        type Superset = Q;
 
-        fn contains(_: &RingElem<Self::Parent>) -> bool {
+        fn contains(_: &Rational) -> bool {
             true
         }
+    }
+
+    impl SubSemiRing for AllRationals {
+        type Parent = Rationals;
     }
 
     impl Subring for AllRationals {}
@@ -380,14 +384,14 @@ mod tests {
 
         for value in 1..7 {
             let x = E::new(value);
-            assert_eq!(F7::multiply(x, F7::invert(x)), F7::ONE);
+            assert_eq!(F7::multiply(x, F7::invert(x)), F7::one());
         }
     }
 
     #[test]
     #[should_panic(expected = "prime-field characteristic must be prime")]
     fn composite_characteristics_fail_fast() {
-        PrimeField::<4>::multiply(PrimeFieldElement::ONE, PrimeFieldElement::ONE);
+        PrimeField::<4>::multiply(PrimeFieldElement::one(), PrimeFieldElement::one());
     }
 
     #[test]
@@ -411,8 +415,8 @@ mod tests {
         assert_finite_extension::<F5>();
         assert_algebraic_extension::<F5>();
 
-        assert_eq!(F5::ZERO, E::ZERO);
-        assert_eq!(F5::ONE, E::ONE);
+        assert_eq!(F5::zero(), E::zero());
+        assert_eq!(F5::one(), E::one());
         assert_eq!(F5::from_scalar(E::new(3)), E::new(3));
         assert_eq!(F5::scale(E::new(3), E::new(4)), E::new(2));
         assert_eq!(F5::DEGREE, 1);

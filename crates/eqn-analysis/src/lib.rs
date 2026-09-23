@@ -28,7 +28,7 @@ pub enum Elementary {
 /// rewriter eliminates it.
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 pub enum ElementaryExpr<F: Field> {
-    Const(<F::Domain as Set>::Element),
+    Const(F::Domain),
     Symbol(Symbol<F::Domain>),
     Neg(Box<Self>),
     Add(Vec<Self>),
@@ -100,19 +100,15 @@ impl<F: Field> From<Symbol<F::Domain>> for ElementaryExpr<F> {
 // ElementaryFunctionRing: the differential ring of elementary functions
 // ================================================================================
 
-/// The set of elementary-function expressions over `F`, represented by
-/// [`ElementaryExpr`] trees.
-#[derive(Set)]
-#[set(element = ElementaryExpr<F>)]
-pub struct ElementaryFunctions<F: Field>(std::marker::PhantomData<F>);
+impl<F: Field> Set for ElementaryExpr<F> {}
 
 /// Symbolic addition: builds the tree, does not normalize.
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
-    domain = ElementaryFunctions<F>,
+    domain = ElementaryExpr<F>,
     symbol = F::ADD_SYMBOL,
     apply = |a, b| ElementaryExpr::Add(vec![a, b]),
-    identity = ElementaryExpr::Const(F::ZERO),
+    identity = ElementaryExpr::Const(F::zero()),
     inverse = |a| ElementaryExpr::Neg(Box::new(a)),
     inverse_symbol = F::SUB_SYMBOL
 )]
@@ -121,10 +117,10 @@ pub struct ElementaryAdd<F: Field>(std::marker::PhantomData<F>);
 /// Symbolic multiplication: builds the tree, does not normalize.
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
-    domain = ElementaryFunctions<F>,
+    domain = ElementaryExpr<F>,
     symbol = F::MUL_SYMBOL,
     apply = |a, b| ElementaryExpr::Mul(vec![a, b]),
-    identity = ElementaryExpr::Const(F::ONE)
+    identity = ElementaryExpr::Const(F::one())
 )]
 pub struct ElementaryMul<F: Field>(std::marker::PhantomData<F>);
 
@@ -134,14 +130,14 @@ pub struct ElementaryMul<F: Field>(std::marker::PhantomData<F>);
 pub struct ElementaryFunctionRing<F: Field>(std::marker::PhantomData<F>);
 
 impl<F: Field> SemiRing for ElementaryFunctionRing<F> {
-    type Domain = ElementaryFunctions<F>;
+    type Domain = ElementaryExpr<F>;
     type Addition = ElementaryAdd<F>;
     type Multiplication = ElementaryMul<F>;
 }
 
 impl<F: Field> Module for ElementaryFunctionRing<F> {
     type Scalars = F;
-    type Domain = ElementaryFunctions<F>;
+    type Domain = ElementaryExpr<F>;
     type Addition = ElementaryAdd<F>;
 
     fn scale(scalar: ModuleScalar<Self>, value: ModuleElem<Self>) -> ModuleElem<Self> {
@@ -164,11 +160,11 @@ impl<F: Field> DifferentialRing for ElementaryFunctionRing<F> {
 mod tests {
     use eqn_algebra::algebra::Algebra;
     use eqn_algebra::operator_impl::{QAdd, QMul};
-    use eqn_core::set::{Q, Rational};
+    use eqn_core::set::Rational;
 
     use super::*;
 
-    type Rationals = (Q, QAdd, QMul);
+    type Rationals = (QAdd, QMul);
     type Functions = ElementaryFunctionRing<Rationals>;
 
     #[test]

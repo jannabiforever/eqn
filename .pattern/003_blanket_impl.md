@@ -1,27 +1,32 @@
 # Rule 003 - Blanket implementation
 
-As canonical expressions lie, algebras and spaces are encoded as tuples.
+A structure is the tuple of its operations. The carrier is not a component:
+every operation carries its domain, so the operations determine the set, and
+a tuple with the carrier in it would have one value per element instead of
+one value per structure. The tuple of operations is zero-sized, so its one
+value is the structure.
 
-For example, in measure theory, `(X, \Sigma)` represents a measurable space.
-So the api must provide immediate inference for the tuple, such as
+A monoid is a one-tuple and a ring is a pair, and the api must provide
+immediate inference for the tuple:
 
 ```rust
-impl MeasurableSpace for (X, Sigma)
+impl<Op> Monoid for (Op,)
 where
-    X: Set,
-    Sigma: SigmaAlgebra<X>
+    Op: BinaryOperator + Associative + Identity,
 {
-    fn some_trait_function(&self) -> Return {
-        ...
-    }
+    type Domain = Op::Domain;
+    type Operator = Op;
 }
 ```
 
-so that the users would just call the methods as
+so that users name a structure by its operations and call the associated
+functions on the type:
 
 ```rust
-use MeasurableSpace;
+type Integers = (ZAdd, ZMul);
 
-let head_tail_measure_space = (HeadTailSet, HeadTailSetSigmaAlgebra);
-head_tail_measure_space.some_trait_function();
+Integers::add(2, 3);
 ```
+
+A structure with data of its own, such as a module with its scalars, is a
+struct that implements the trait directly.

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::set::{Elem, Set};
+use crate::set::Set;
 use crate::symbol::Symbol;
 
 /// AST rewriter - a strategy pattern
@@ -148,9 +148,6 @@ pub trait Expression: Clone + From<Symbol<Self::Domain>> {
 
 /// Alias for the domain type of an expression.
 pub type ExprDom<E> = <E as Expression>::Domain;
-
-/// Alias for the element type of an expression's domain.
-pub type ExprDomElem<E> = Elem<ExprDom<E>>;
 
 /// Pre-order `&mut` walk over a tree, driven by a stack.
 ///

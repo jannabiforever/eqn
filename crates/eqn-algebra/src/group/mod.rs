@@ -15,7 +15,7 @@ pub mod rewriter;
 ///
 /// The inherited [`Monoid`] supplies the set, operation, and identity.
 /// [`Inverse`] declares that, for every element `x`, both
-/// `inverse(x) * x` and `x * inverse(x)` equal [`Monoid::IDENTITY`], where `*`
+/// `inverse(x) * x` and `x * inverse(x)` equal [`Monoid::identity`], where `*`
 /// denotes [`Monoid::apply`]. Rust cannot verify these laws, so implementations
 /// should cover them with property tests where practical.
 pub trait Group: Monoid<Operator: BinaryOperator + Inverse> {
@@ -106,27 +106,28 @@ mod tests {
     use std::ops::Add;
 
     use eqn_core::op::{Associative, BinaryOperator};
+    use eqn_core::set::Subset;
 
     use super::*;
 
-    #[derive(Set)]
-    #[set(element = i64)]
-    pub(super) struct IntegerSet;
-
     #[derive(Associative, BinaryOperator, Commutative)]
-    #[operator(domain = IntegerSet, symbol = "+", apply = Add::add, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
+    #[operator(domain = i64, symbol = "+", apply = Add::add, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
     pub(super) struct Addition;
 
-    pub(super) type IntegerAdditionGroup = (IntegerSet, Addition);
+    pub(super) type IntegerAdditionGroup = (Addition,);
 
     struct EvenIntegers;
 
-    impl Submonoid for EvenIntegers {
-        type Parent = IntegerAdditionGroup;
+    impl Subset for EvenIntegers {
+        type Superset = i64;
 
-        fn contains(value: &MonoidElem<Self::Parent>) -> bool {
+        fn contains(value: &i64) -> bool {
             value % 2 == 0
         }
+    }
+
+    impl Submonoid for EvenIntegers {
+        type Parent = IntegerAdditionGroup;
     }
 
     impl Subgroup for EvenIntegers {}
@@ -143,11 +144,11 @@ mod tests {
 
             assert_eq!(
                 IntegerAdditionGroup::apply(inverse, value),
-                IntegerAdditionGroup::IDENTITY
+                IntegerAdditionGroup::identity()
             );
             assert_eq!(
                 IntegerAdditionGroup::apply(value, inverse),
-                IntegerAdditionGroup::IDENTITY
+                IntegerAdditionGroup::identity()
             );
         }
     }
@@ -157,7 +158,7 @@ mod tests {
         fn assert_subgroup<S: Subgroup>() {}
 
         assert_subgroup::<EvenIntegers>();
-        assert!(EvenIntegers::contains(&IntegerAdditionGroup::IDENTITY));
+        assert!(EvenIntegers::contains(&IntegerAdditionGroup::identity()));
 
         for value in [-10, -2, 0, 4, 12] {
             assert!(EvenIntegers::contains(&IntegerAdditionGroup::inverse(

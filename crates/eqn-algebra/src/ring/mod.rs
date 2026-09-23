@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
 use eqn_core::rewriter::Expression;
-use eqn_core::set::{Elem, Set};
+use eqn_core::set::{Set, Subset};
 use eqn_core::symbol::Symbol;
 
 pub mod differential;
@@ -15,11 +15,8 @@ pub mod rewriter;
 // Ring
 // ================================================================================
 
-/// Alias for Ring's element.
-pub type RingElem<S> = Elem<<S as SemiRing>::Domain>;
-
-/// Alias for Ring's domain. (element set)
-pub type RingDom<S> = <S as SemiRing>::Domain;
+/// Alias for Ring's domain.
+pub type RingElem<S> = <S as SemiRing>::Domain;
 
 /// Alias for Ring's add operation
 pub type RingAdd<S> = <S as SemiRing>::Addition;
@@ -44,10 +41,14 @@ pub trait SemiRing {
     type Multiplication: BinaryOperator<Domain = Self::Domain> + Associative + Identity;
 
     /// Addition's identity
-    const ZERO: RingElem<Self> = <Self::Addition as Identity>::IDENTITY;
+    fn zero() -> RingElem<Self> {
+        <Self::Addition as Identity>::identity()
+    }
 
     /// Multiplication's identity
-    const ONE: RingElem<Self> = <Self::Multiplication as Identity>::IDENTITY;
+    fn one() -> RingElem<Self> {
+        <Self::Multiplication as Identity>::identity()
+    }
 
     /// Source spelling of addition.
     const ADD_SYMBOL: &'static str = <Self::Addition as BinaryOperator>::SYMBOL;
@@ -66,8 +67,8 @@ pub trait SemiRing {
     /// `n * ONE`: the image of `n` under the unique semi-ring map from the
     /// naturals, computed by double-and-add in `O(log n)` additions.
     fn from_usize(mut n: usize) -> RingElem<Self> {
-        let mut acc = Self::ZERO;
-        let mut power = Self::ONE;
+        let mut acc = Self::zero();
+        let mut power = Self::one();
         while n > 0 {
             if n & 1 == 1 {
                 acc = Self::add(acc, power.clone());
@@ -81,24 +82,21 @@ pub trait SemiRing {
     }
 }
 
-// Blanket implementation on tuple - mathematical convention.
-impl<D, A, M> SemiRing for (D, A, M)
+/// A semi-ring is an addition and a multiplication on one domain, as a pair.
+impl<A, M> SemiRing for (A, M)
 where
-    D: Set,
-    A: BinaryOperator<Domain = D> + Associative + Commutative + Identity,
-    M: BinaryOperator<Domain = D> + Associative + Identity,
+    A: BinaryOperator + Associative + Commutative + Identity,
+    M: BinaryOperator<Domain = A::Domain> + Associative + Identity,
 {
-    type Domain = D;
+    type Domain = A::Domain;
     type Addition = A;
     type Multiplication = M;
 }
 
 /// A subset containing zero and one and closed under addition and
 /// multiplication.
-pub trait SubSemiRing {
+pub trait SubSemiRing: Subset<Superset = RingElem<Self::Parent>> {
     type Parent: SemiRing;
-
-    fn contains(value: &RingElem<Self::Parent>) -> bool;
 }
 
 /// A ring: a semi-ring whose addition also has inverses.
@@ -142,7 +140,7 @@ where
 /// and products, and powers (repeated multiplication, exponent >= 1).
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 pub enum SemiRingExpr<SR: SemiRing> {
-    Const(<SR::Domain as Set>::Element),
+    Const(SR::Domain),
     Symbol(Symbol<SR::Domain>),
     Add(Vec<SemiRingExpr<SR>>),
     Mul(Vec<SemiRingExpr<SR>>),
@@ -193,7 +191,7 @@ impl<D: Set, SR: SemiRing<Domain = D>> From<Symbol<D>> for SemiRingExpr<SR> {
 /// what distinguishes it from [`SemiRingExpr`].
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 pub enum RingExpr<R: Ring> {
-    Const(<R::Domain as Set>::Element),
+    Const(R::Domain),
     Symbol(Symbol<R::Domain>),
     Neg(Box<RingExpr<R>>),
     Add(Vec<RingExpr<R>>),
@@ -245,7 +243,7 @@ impl<R: Ring> From<RingExpr<R>> for SemiRingExpr<R> {
             RingExpr::Const(c) => Self::Const(c),
             RingExpr::Symbol(s) => Self::Symbol(s),
             RingExpr::Neg(inner) => {
-                Self::Mul(vec![Self::Const(R::negate(R::ONE)), (*inner).into()])
+                Self::Mul(vec![Self::Const(R::negate(R::one())), (*inner).into()])
             }
             RingExpr::Add(v) => Self::Add(v.into_iter().map(Into::into).collect()),
             RingExpr::Mul(v) => Self::Mul(v.into_iter().map(Into::into).collect()),
@@ -279,34 +277,42 @@ mod tests {
     use super::*;
     use crate::operator_impl::{ZAdd, ZMul};
 
-    type Integers = (Z, ZAdd, ZMul);
+    type Integers = (ZAdd, ZMul);
 
     struct NonnegativeIntegers;
 
-    impl SubSemiRing for NonnegativeIntegers {
-        type Parent = Integers;
+    impl Subset for NonnegativeIntegers {
+        type Superset = Z;
 
-        fn contains(value: &RingElem<Self::Parent>) -> bool {
+        fn contains(value: &i64) -> bool {
             *value >= 0
         }
     }
 
+    impl SubSemiRing for NonnegativeIntegers {
+        type Parent = Integers;
+    }
+
     struct AllIntegers;
+
+    impl Subset for AllIntegers {
+        type Superset = Z;
+
+        fn contains(_: &i64) -> bool {
+            true
+        }
+    }
 
     impl SubSemiRing for AllIntegers {
         type Parent = Integers;
-
-        fn contains(_: &RingElem<Self::Parent>) -> bool {
-            true
-        }
     }
 
     impl Subring for AllIntegers {}
 
     #[test]
     fn nonnegative_integers_form_a_subsemiring() {
-        assert!(NonnegativeIntegers::contains(&Integers::ZERO));
-        assert!(NonnegativeIntegers::contains(&Integers::ONE));
+        assert!(NonnegativeIntegers::contains(&Integers::zero()));
+        assert!(NonnegativeIntegers::contains(&Integers::one()));
 
         for lhs in [0, 1, 4, 9] {
             for rhs in [0, 2, 5, 8] {

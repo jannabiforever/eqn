@@ -1,10 +1,10 @@
 use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
-use eqn_core::set::{Elem, Set};
+use eqn_core::set::{Set, Subset};
 
 use crate::ring::{Ring, RingElem};
 
 /// An element of a module.
-pub type ModuleElem<M> = Elem<<M as Module>::Domain>;
+pub type ModuleElem<M> = <M as Module>::Domain;
 
 /// A scalar of a module.
 pub type ModuleScalar<M> = RingElem<<M as Module>::Scalars>;
@@ -28,10 +28,8 @@ pub trait Module {
 
 /// A subset containing zero and closed under addition, additive inverses, and
 /// scalar multiplication.
-pub trait Submodule {
+pub trait Submodule: Subset<Superset = <Self::Parent as Module>::Domain> {
     type Parent: Module;
-
-    fn contains(value: &ModuleElem<Self::Parent>) -> bool;
 }
 
 #[cfg(test)]
@@ -42,7 +40,7 @@ mod tests {
     use crate::operator_impl::{ZAdd, ZMul};
     use crate::ring::SemiRing;
 
-    type Integers = (Z, ZAdd, ZMul);
+    type Integers = (ZAdd, ZMul);
 
     struct IntegerModule;
 
@@ -58,12 +56,16 @@ mod tests {
 
     struct EvenIntegers;
 
-    impl Submodule for EvenIntegers {
-        type Parent = IntegerModule;
+    impl Subset for EvenIntegers {
+        type Superset = Z;
 
-        fn contains(value: &ModuleElem<Self::Parent>) -> bool {
+        fn contains(value: &i64) -> bool {
             value % 2 == 0
         }
+    }
+
+    impl Submodule for EvenIntegers {
+        type Parent = IntegerModule;
     }
 
     #[test]
@@ -73,7 +75,7 @@ mod tests {
         let scalar: ModuleScalar<IntegerModule> = -3;
         let value: ModuleElem<IntegerModule> = 4;
 
-        assert_eq!(Addition::IDENTITY, 0);
+        assert_eq!(Addition::identity(), 0);
         assert_eq!(Addition::apply(value, 5), 9);
         assert_eq!(Addition::inverse(value), -4);
         assert_eq!(IntegerModule::scale(scalar, value), -12);
@@ -108,7 +110,7 @@ mod tests {
                     );
                 }
 
-                assert_eq!(IntegerModule::scale(Integers::ONE, x), x);
+                assert_eq!(IntegerModule::scale(Integers::one(), x), x);
             }
         }
     }
@@ -120,7 +122,7 @@ mod tests {
         fn assert_submodule<S: Submodule>() {}
 
         assert_submodule::<EvenIntegers>();
-        assert!(EvenIntegers::contains(&Addition::IDENTITY));
+        assert!(EvenIntegers::contains(&Addition::identity()));
 
         for scalar in [-3, 0, 4] {
             for value in [-8, -2, 0, 6] {

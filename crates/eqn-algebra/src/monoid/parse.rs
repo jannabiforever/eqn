@@ -57,12 +57,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::Z;
 
     use super::*;
     use crate::operator_impl::ZAdd;
 
-    type Expr = MonoidExpr<(Z, ZAdd)>;
+    type Expr = MonoidExpr<(ZAdd,)>;
 
     fn x() -> Expr {
         Expr::Symbol(Symbol::new("x"))
