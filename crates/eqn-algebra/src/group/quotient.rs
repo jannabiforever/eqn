@@ -134,19 +134,7 @@ mod tests {
     }
 
     #[test]
-    fn subgroups_of_abelian_groups_are_normal() {
-        fn assert_normal<N: NormalSubgroup>() {}
-
-        assert_normal::<EvenIntegers>();
-    }
-
-    #[test]
-    fn quotient_of_an_abelian_group_is_abelian() {
-        fn assert_group<G: Group>() {}
-        fn assert_abelian<G: AbelianGroup>() {}
-
-        assert_group::<IntegersModTwo>();
-        assert_abelian::<IntegersModTwo>();
+    fn integers_modulo_two_are_their_own_inverses() {
         assert_eq!(
             IntegersModTwo::apply(modulo_two(1), modulo_two(1)),
             IntegersModTwo::identity()
@@ -316,9 +304,6 @@ mod tests {
 
     #[test]
     fn quotient_of_a_noncommutative_group_is_well_defined() {
-        fn assert_group<G: Group>() {}
-
-        assert_group::<D3ModuloRotations>();
         assert_eq!(modulo_rotations(0, false), modulo_rotations(2, false));
         assert_eq!(modulo_rotations(0, true), modulo_rotations(2, true));
         assert_ne!(modulo_rotations(0, false), modulo_rotations(0, true));

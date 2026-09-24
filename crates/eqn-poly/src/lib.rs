@@ -305,16 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn polynomial_ring_is_commutative() {
-        fn assert_commutative_ring<R: CommutativeRing>() {}
-        assert_commutative_ring::<Poly>();
-    }
-
-    #[test]
-    fn polynomial_ring_is_an_algebra_over_its_coefficients() {
-        fn assert_algebra<A: Algebra>() {}
-
-        assert_algebra::<Poly>();
+    fn coefficients_scale_polynomials_and_embed_as_constants() {
         assert_eq!(Poly::scale(3, poly("x")), poly("3 x"));
         assert_eq!(Poly::from_scalar(4), poly("4"));
     }

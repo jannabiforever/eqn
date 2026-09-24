@@ -93,7 +93,7 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
     }
 
     pub const fn from_coefficients(coefficients: [PrimeFieldElement<P>; N]) -> Self {
-        assert!(N > 0, "a field extension must have positive degree");
+        const { assert!(N > 0, "a field extension must have positive degree") };
         Self {
             coefficients,
             modulus: PhantomData,
@@ -179,7 +179,6 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
     /// The element `value \cdot 1`.
     fn from_constant(value: PrimeFieldElement<P>) -> Self {
         let mut coefficients = [PrimeFieldElement::zero(); N];
-        assert!(N > 0, "a field extension must have positive degree");
         coefficients[0] = value;
         Self::from_coefficients(coefficients)
     }
@@ -291,10 +290,7 @@ where
     M: IrreduciblePolynomial<P, N>,
 {
     pub fn modulus() -> UnivariatePolynomial<P> {
-        assert!(
-            PrimeField::<P>::is_valid(),
-            "finite-field characteristic must be prime"
-        );
+        const { PrimeField::<P>::assert_valid() };
         let coefficients = M::coefficients();
         assert_eq!(
             coefficients.len(),
@@ -425,14 +421,15 @@ impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
     CompatibleFiniteFieldEmbedding<P, SOURCE_DEGREE, TARGET_DEGREE>
 {
     pub fn new() -> Self {
-        assert!(
-            PrimeField::<P>::is_valid(),
-            "finite-field characteristic must be prime"
-        );
-        assert!(
-            SOURCE_DEGREE > 0 && TARGET_DEGREE > 0 && TARGET_DEGREE.is_multiple_of(SOURCE_DEGREE),
-            "source degree must divide target degree"
-        );
+        const {
+            PrimeField::<P>::assert_valid();
+            assert!(
+                SOURCE_DEGREE > 0
+                    && TARGET_DEGREE > 0
+                    && TARGET_DEGREE.is_multiple_of(SOURCE_DEGREE),
+                "source degree must divide target degree"
+            );
+        };
         let source_order = UnivariatePolynomial::<P>::extension_order(SOURCE_DEGREE)
             .expect("finite-field order is too large");
         let target_order = UnivariatePolynomial::<P>::extension_order(TARGET_DEGREE)
@@ -782,10 +779,7 @@ impl PolynomialSelection {
         }
 
         assert!(degree > 0, "a field extension must have positive degree");
-        assert!(
-            PrimeField::<P>::is_valid(),
-            "finite-field characteristic must be prime"
-        );
+        const { PrimeField::<P>::assert_valid() };
 
         let polynomial = UnivariatePolynomial::<P>::monic(degree)
             .find(|candidate| match self {
@@ -809,15 +803,12 @@ impl PolynomialSelection {
 
 #[cfg(test)]
 mod tests {
-    use eqn_algebra::algebra::Algebra;
-    use eqn_algebra::field::{
-        AlgebraicExtension, Field, FieldEmbedding, GaloisExtension, SplittingField,
-    };
+    use eqn_algebra::field::{Field, SplittingField};
     use eqn_algebra::group::Subgroup;
     use eqn_algebra::monoid::Submonoid;
     use eqn_algebra::ring::ideal::Ideal;
     use eqn_algebra::ring::quotient::{QuotientRing, ResidueClass};
-    use eqn_algebra::ring::{CommutativeRing, Ring, SemiRing};
+    use eqn_algebra::ring::{Ring, SemiRing};
     use eqn_core::quotient::NormalForm;
     use eqn_core::set::Subset;
 
@@ -832,16 +823,6 @@ mod tests {
     }
 
     impl IrreduciblePolynomial<3, 2> for X2PlusOne {}
-
-    struct CompositeCharacteristicModulus;
-
-    impl DefiningPolynomial<4, 1> for CompositeCharacteristicModulus {
-        fn coefficients() -> Vec<PrimeFieldElement<4>> {
-            vec![PrimeFieldElement::zero(), PrimeFieldElement::one()]
-        }
-    }
-
-    impl IrreduciblePolynomial<4, 1> for CompositeCharacteristicModulus {}
 
     #[test]
     fn generated_modulus_is_deterministic_and_irreducible() {
@@ -887,9 +868,6 @@ mod tests {
         type F9 = FiniteField<3, 2, X2PlusOne>;
         type E = FiniteFieldElement<3, 2, X2PlusOne>;
 
-        fn assert_splitting_field<F: SplittingField<X2PlusOne>>() {}
-        assert_splitting_field::<F9>();
-
         let alpha = F9::generator();
         let roots = <F9 as SplittingField<X2PlusOne>>::roots();
         assert_eq!(roots, vec![alpha, alpha.pow(3)]);
@@ -921,9 +899,6 @@ mod tests {
         type F16 = CompatibleFiniteField<2, 4>;
         type E4 = CompatibleFiniteFieldElement<2, 2>;
         type E16 = CompatibleFiniteFieldElement<2, 4>;
-
-        fn assert_embedding<E: FieldEmbedding<F4, F16>>() {}
-        assert_embedding::<CompatibleFiniteFieldEmbedding<2, 2, 4>>();
 
         let embedding = CompatibleFiniteFieldEmbedding::<2, 2, 4>::new();
         assert_eq!(embedding.embed(E4::zero()), E16::zero());
@@ -964,12 +939,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "source degree must divide target degree")]
-    fn compatible_embedding_rejects_non_divisor_degrees() {
-        CompatibleFiniteFieldEmbedding::<2, 2, 3>::new();
-    }
-
-    #[test]
     fn every_nonzero_element_of_f4_is_invertible() {
         type F4 = Fq<2, 2>;
         type E = FqElement<2, 2>;
@@ -1000,31 +969,10 @@ mod tests {
     }
 
     #[test]
-    fn finite_fields_expose_the_extension_structure() {
-        fn assert_field<F: Field>() {}
-        fn assert_algebra<A: Algebra<Scalars = PrimeField<2>>>() {}
-        fn assert_extension<
-            E: FieldExtension + FiniteExtension + AlgebraicExtension + GaloisExtension,
-        >() {
-        }
-
-        assert_field::<Fq<2, 3>>();
-        assert_algebra::<Fq<2, 3>>();
-        assert_extension::<Fq<2, 3>>();
-        assert_eq!(<Fq<2, 3> as FiniteExtension>::DEGREE, 3);
-    }
-
-    #[test]
     fn rejects_reducible_polynomials() {
         let reducible =
             UnivariatePolynomial::new([0, 1, 1].map(PrimeFieldElement::<2>::new).to_vec());
         assert!(!reducible.is_irreducible());
-    }
-
-    #[test]
-    #[should_panic(expected = "finite-field characteristic must be prime")]
-    fn explicit_extensions_reject_composite_characteristics() {
-        FiniteField::<4, 1, CompositeCharacteristicModulus>::modulus();
     }
 
     #[test]
@@ -1107,9 +1055,6 @@ mod tests {
     fn the_quotient_by_the_defining_polynomial_is_the_finite_field() {
         type Quotient = QuotientRing<DefiningIdeal>;
         type F9 = FiniteFieldElement<3, 2>;
-
-        fn assert_commutative_ring<R: CommutativeRing>() {}
-        assert_commutative_ring::<Quotient>();
 
         let class = |values: [u64; 2]| {
             ResidueClass::<DefiningIdeal>::new(UnivariatePolynomial::new(

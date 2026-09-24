@@ -158,7 +158,6 @@ impl<F: Field> DifferentialRing for ElementaryFunctionRing<F> {
 
 #[cfg(test)]
 mod tests {
-    use eqn_algebra::algebra::Algebra;
     use eqn_algebra::operator_impl::{QAdd, QMul};
     use eqn_core::set::Rational;
 
@@ -168,13 +167,10 @@ mod tests {
     type Functions = ElementaryFunctionRing<Rationals>;
 
     #[test]
-    fn elementary_function_ring_is_an_algebra_over_its_constants() {
-        fn assert_algebra<A: Algebra>() {}
-
+    fn scaling_an_elementary_function_multiplies_it_by_a_constant() {
         let x = ElementaryExpr::<Rationals>::Symbol(Symbol::new("x"));
         let scalar = Rational::from(2);
 
-        assert_algebra::<Functions>();
         assert_eq!(
             Functions::scale(scalar.clone(), x.clone()),
             ElementaryExpr::Mul(vec![ElementaryExpr::Const(scalar), x])

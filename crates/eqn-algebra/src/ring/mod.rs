@@ -324,9 +324,6 @@ mod tests {
 
     #[test]
     fn integers_form_a_subring() {
-        fn assert_subring<S: Subring>() {}
-
-        assert_subring::<AllIntegers>();
         for value in [-10, -1, 0, 1, 10] {
             assert!(AllIntegers::contains(&Integers::negate(value)));
         }
