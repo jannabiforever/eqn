@@ -41,15 +41,15 @@ assert_ne!(expr.rewritten(&GroupRewriter::new()), Symbol::new("y").into());
 
 ## Building
 
-The workspace tracks a pinned nightly (see `rust-toolchain.toml`) for
-`min_generic_const_args`, which lets a field extension carry its degree and a
-manifold its dimension as associated constants. A `flake.nix` and
-`.devcontainer` provide the same toolchain.
+The library compiles on stable Rust. The workspace still tracks a pinned
+nightly (see `rust-toolchain.toml`) because `.rustfmt.toml` uses nightly-only
+formatting options; nothing in the crates themselves needs it. A `flake.nix`
+and `.devcontainer` provide the same toolchain.
 
 ```bash
 cargo test --workspace
 ```
 
 CI runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -D
-warnings`, and the tests. All three must pass. There are no warnings in this
-repository, allowed or otherwise.
+warnings`, and the tests on both the pinned nightly and stable. All four must
+pass. There are no warnings in this repository, allowed or otherwise.
