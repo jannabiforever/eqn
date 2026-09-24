@@ -9,6 +9,8 @@ edition = "2024"
 [workspace.dependencies]
 anyhow = "1.0.104"
 derive-where = "1.6.1"
+num-bigint = "0.5.1"
+num-integer = "0.1.47"
 thiserror = "2.0.20"
 
 eqn-algebra = { path = "crates/eqn-algebra" }

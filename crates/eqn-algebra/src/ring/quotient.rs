@@ -46,6 +46,7 @@ pub type QuotientRing<I> = (QuotientOp<I>, QuotientMul<I>);
 mod tests {
     use eqn_core::quotient::Equivalence;
     use eqn_core::set::{Subset, Z};
+    use num_integer::Integer;
 
     use super::*;
     use crate::group::Subgroup;
@@ -60,8 +61,8 @@ mod tests {
     impl Subset for EvenIntegers {
         type Superset = Z;
 
-        fn contains(value: &i64) -> bool {
-            value % 2 == 0
+        fn contains(value: &Z) -> bool {
+            value % Z::from(2) == Z::ZERO
         }
     }
 
@@ -72,8 +73,8 @@ mod tests {
     impl Subgroup for EvenIntegers {}
 
     impl NormalForm<Z> for EvenIntegers {
-        fn reduce(value: i64) -> i64 {
-            value.rem_euclid(2)
+        fn reduce(value: Z) -> Z {
+            value.mod_floor(&Z::from(2))
         }
     }
 
@@ -84,7 +85,7 @@ mod tests {
     type IntegersModTwo = QuotientRing<EvenIntegers>;
 
     fn modulo_two(value: i64) -> ResidueClass<EvenIntegers> {
-        ResidueClass::new(value)
+        ResidueClass::new(Z::from(value))
     }
 
     #[test]
@@ -94,8 +95,8 @@ mod tests {
         assert_ne!(modulo_two(0), modulo_two(1));
 
         let value = modulo_two(5);
-        assert_eq!(value.representative(), &1);
-        assert_eq!(value.into_representative(), 1);
+        assert_eq!(value.representative(), &Z::from(1));
+        assert_eq!(value.into_representative(), Z::from(1));
     }
 
     #[test]
@@ -224,7 +225,7 @@ mod tests {
     impl Subset for WholeRing {
         type Superset = Z;
 
-        fn contains(_: &i64) -> bool {
+        fn contains(_: &Z) -> bool {
             true
         }
     }
@@ -236,8 +237,8 @@ mod tests {
     impl Subgroup for WholeRing {}
 
     impl NormalForm<Z> for WholeRing {
-        fn reduce(_: i64) -> i64 {
-            0
+        fn reduce(_: Z) -> Z {
+            Z::ZERO
         }
     }
 
@@ -251,15 +252,15 @@ mod tests {
             for b in -3..=3 {
                 assert_eq!(
                     modulo_two(a) == modulo_two(b),
-                    Modulo::<EvenIntegers>::equivalent(&a, &b)
+                    Modulo::<EvenIntegers>::equivalent(&Z::from(a), &Z::from(b))
                 );
                 assert_eq!(
-                    ResidueClass::<WholeRing>::new(a) == ResidueClass::new(b),
-                    Modulo::<WholeRing>::equivalent(&a, &b)
+                    ResidueClass::<WholeRing>::new(Z::from(a)) == ResidueClass::new(Z::from(b)),
+                    Modulo::<WholeRing>::equivalent(&Z::from(a), &Z::from(b))
                 );
                 assert_eq!(
-                    ResidueClass::<ZeroIdeal>::new(a) == ResidueClass::new(b),
-                    Modulo::<ZeroIdeal>::equivalent(&a, &b)
+                    ResidueClass::<ZeroIdeal>::new(Z::from(a)) == ResidueClass::new(Z::from(b)),
+                    Modulo::<ZeroIdeal>::equivalent(&Z::from(a), &Z::from(b))
                 );
             }
         }
@@ -277,7 +278,7 @@ mod tests {
     impl Subset for ZeroIdeal {
         type Superset = Z;
 
-        fn contains(value: &i64) -> bool {
+        fn contains(value: &Z) -> bool {
             *value == Integers::zero()
         }
     }
@@ -289,7 +290,7 @@ mod tests {
     impl Subgroup for ZeroIdeal {}
 
     impl NormalForm<Z> for ZeroIdeal {
-        fn reduce(value: i64) -> i64 {
+        fn reduce(value: Z) -> Z {
             value
         }
     }
@@ -303,7 +304,7 @@ mod tests {
         for lhs in -3..=3 {
             for rhs in -3..=3 {
                 assert_eq!(
-                    ResidueClass::<ZeroIdeal>::new(lhs) == ResidueClass::new(rhs),
+                    ResidueClass::<ZeroIdeal>::new(Z::from(lhs)) == ResidueClass::new(Z::from(rhs)),
                     lhs == rhs
                 );
             }

@@ -59,8 +59,8 @@ mod tests {
     impl Subset for EvenIntegers {
         type Superset = Z;
 
-        fn contains(value: &i64) -> bool {
-            value % 2 == 0
+        fn contains(value: &Z) -> bool {
+            value % Z::from(2) == Z::ZERO
         }
     }
 
@@ -72,45 +72,51 @@ mod tests {
     fn integer_module_exposes_its_structure_and_scalar_action() {
         type Addition = <IntegerModule as Module>::Addition;
 
-        let scalar: ModuleScalar<IntegerModule> = -3;
-        let value: ModuleElem<IntegerModule> = 4;
+        let scalar: ModuleScalar<IntegerModule> = Z::from(-3);
+        let value: ModuleElem<IntegerModule> = Z::from(4);
 
-        assert_eq!(Addition::identity(), 0);
-        assert_eq!(Addition::apply(value, 5), 9);
-        assert_eq!(Addition::inverse(value), -4);
-        assert_eq!(IntegerModule::scale(scalar, value), -12);
+        assert_eq!(Addition::identity(), Z::ZERO);
+        assert_eq!(Addition::apply(value.clone(), Z::from(5)), Z::from(9));
+        assert_eq!(Addition::inverse(value.clone()), Z::from(-4));
+        assert_eq!(IntegerModule::scale(scalar, value), Z::from(-12));
     }
 
     #[test]
     fn integers_satisfy_the_module_laws() {
         type Addition = <IntegerModule as Module>::Addition;
 
-        let scalars = [-2, -1, 0, 1, 3];
-        let values = [-3, -1, 0, 2, 4];
+        let scalars = [-2, -1, 0, 1, 3].map(Z::from);
+        let values = [-3, -1, 0, 2, 4].map(Z::from);
 
-        for &r in &scalars {
-            for &s in &scalars {
-                for &x in &values {
+        for r in &scalars {
+            for s in &scalars {
+                for x in &values {
                     assert_eq!(
-                        IntegerModule::scale(Integers::add(r, s), x),
-                        Addition::apply(IntegerModule::scale(r, x), IntegerModule::scale(s, x))
+                        IntegerModule::scale(Integers::add(r.clone(), s.clone()), x.clone()),
+                        Addition::apply(
+                            IntegerModule::scale(r.clone(), x.clone()),
+                            IntegerModule::scale(s.clone(), x.clone())
+                        )
                     );
                     assert_eq!(
-                        IntegerModule::scale(Integers::multiply(r, s), x),
-                        IntegerModule::scale(r, IntegerModule::scale(s, x))
+                        IntegerModule::scale(Integers::multiply(r.clone(), s.clone()), x.clone()),
+                        IntegerModule::scale(r.clone(), IntegerModule::scale(s.clone(), x.clone()))
                     );
                 }
             }
 
-            for &x in &values {
-                for &y in &values {
+            for x in &values {
+                for y in &values {
                     assert_eq!(
-                        IntegerModule::scale(r, Addition::apply(x, y)),
-                        Addition::apply(IntegerModule::scale(r, x), IntegerModule::scale(r, y))
+                        IntegerModule::scale(r.clone(), Addition::apply(x.clone(), y.clone())),
+                        Addition::apply(
+                            IntegerModule::scale(r.clone(), x.clone()),
+                            IntegerModule::scale(r.clone(), y.clone())
+                        )
                     );
                 }
 
-                assert_eq!(IntegerModule::scale(Integers::one(), x), x);
+                assert_eq!(IntegerModule::scale(Integers::one(), x.clone()), *x);
             }
         }
     }
@@ -124,9 +130,12 @@ mod tests {
         assert_submodule::<EvenIntegers>();
         assert!(EvenIntegers::contains(&Addition::identity()));
 
-        for scalar in [-3, 0, 4] {
-            for value in [-8, -2, 0, 6] {
-                assert!(EvenIntegers::contains(&IntegerModule::scale(scalar, value)));
+        for scalar in [-3, 0, 4].map(Z::from) {
+            for value in [-8, -2, 0, 6].map(Z::from) {
+                assert!(EvenIntegers::contains(&IntegerModule::scale(
+                    scalar.clone(),
+                    value
+                )));
             }
         }
     }

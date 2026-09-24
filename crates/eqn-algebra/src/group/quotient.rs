@@ -58,6 +58,7 @@ pub type QuotientGroup<N> = (QuotientOp<N>,);
 #[cfg(test)]
 mod tests {
     use eqn_core::set::{Set, Subset, Z};
+    use num_integer::Integer;
 
     use super::*;
     use crate::operator_impl::ZAdd;
@@ -69,8 +70,8 @@ mod tests {
     impl Subset for EvenIntegers {
         type Superset = Z;
 
-        fn contains(value: &i64) -> bool {
-            value % 2 == 0
+        fn contains(value: &Z) -> bool {
+            value % Z::from(2) == Z::ZERO
         }
     }
 
@@ -81,15 +82,15 @@ mod tests {
     impl Subgroup for EvenIntegers {}
 
     impl NormalForm<Z> for EvenIntegers {
-        fn reduce(value: i64) -> i64 {
-            value.rem_euclid(2)
+        fn reduce(value: Z) -> Z {
+            value.mod_floor(&Z::from(2))
         }
     }
 
     type IntegersModTwo = QuotientGroup<EvenIntegers>;
 
     fn modulo_two(value: i64) -> Coset<EvenIntegers> {
-        Coset::new(value)
+        Coset::new(Z::from(value))
     }
 
     #[test]
@@ -118,7 +119,7 @@ mod tests {
             for b in -3..=3 {
                 assert_eq!(
                     modulo_two(a) == modulo_two(b),
-                    Modulo::<EvenIntegers>::equivalent(&a, &b)
+                    Modulo::<EvenIntegers>::equivalent(&Z::from(a), &Z::from(b))
                 );
             }
         }
@@ -160,8 +161,8 @@ mod tests {
         let same_product = IntegersModTwo::apply(modulo_two(3), modulo_two(4));
 
         assert_eq!(product, same_product);
-        assert_eq!(modulo_two(5).representative(), &1);
-        assert_eq!(modulo_two(5).into_representative(), 1);
+        assert_eq!(modulo_two(5).representative(), &Z::from(1));
+        assert_eq!(modulo_two(5).into_representative(), Z::from(1));
     }
 
     #[test]

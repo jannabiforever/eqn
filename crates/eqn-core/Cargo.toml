@@ -6,3 +6,5 @@ edition.workspace = true
 [dependencies]
 derive-where.workspace = true
 eqn-macros.workspace = true
+num-bigint.workspace = true
+num-integer.workspace = true

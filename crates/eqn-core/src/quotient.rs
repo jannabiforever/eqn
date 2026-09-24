@@ -60,6 +60,8 @@ impl<X: Set, N: NormalForm<X>> Set for EqClass<X, N> {}
 mod tests {
     use std::hash::{DefaultHasher, Hash, Hasher};
 
+    use num_integer::Integer;
+
     use super::*;
     use crate::set::Z;
 
@@ -67,8 +69,8 @@ mod tests {
     struct Mod2;
 
     impl NormalForm<Z> for Mod2 {
-        fn reduce(element: i64) -> i64 {
-            element.rem_euclid(2)
+        fn reduce(element: Z) -> Z {
+            element.mod_floor(&Z::from(2))
         }
     }
 
@@ -76,8 +78,8 @@ mod tests {
     struct SameParity;
 
     impl Equivalence<Z> for SameParity {
-        fn equivalent(a: &i64, b: &i64) -> bool {
-            (a - b) % 2 == 0
+        fn equivalent(a: &Z, b: &Z) -> bool {
+            (a - b) % Z::from(2) == Z::ZERO
         }
     }
 
@@ -85,10 +87,10 @@ mod tests {
 
     #[test]
     fn classes_are_equal_exactly_when_the_relation_holds() {
-        for a in -3..=3 {
-            for b in -3..=3 {
+        for a in (-3..=3).map(Z::from) {
+            for b in (-3..=3).map(Z::from) {
                 assert_eq!(
-                    Parity::new(a) == Parity::new(b),
+                    Parity::new(a.clone()) == Parity::new(b.clone()),
                     SameParity::equivalent(&a, &b)
                 );
             }
@@ -103,9 +105,9 @@ mod tests {
             hasher.finish()
         }
 
-        for a in -3..=3 {
-            for b in -3..=3 {
-                let (lhs, rhs) = (Parity::new(a), Parity::new(b));
+        for a in (-3..=3).map(Z::from) {
+            for b in (-3..=3).map(Z::from) {
+                let (lhs, rhs) = (Parity::new(a.clone()), Parity::new(b));
 
                 if lhs == rhs {
                     assert_eq!(hash(&lhs), hash(&rhs));
@@ -114,7 +116,7 @@ mod tests {
             }
         }
 
-        assert!(Parity::new(2) < Parity::new(-3));
+        assert!(Parity::new(Z::from(2)) < Parity::new(Z::from(-3)));
     }
 
     #[test]
@@ -122,8 +124,8 @@ mod tests {
         fn assert_set<S: Set>() {}
 
         assert_set::<Parity>();
-        assert_eq!(Parity::new(7).representative(), &1);
-        assert_eq!(Parity::new(-4).representative(), &0);
-        assert_eq!(Parity::new(5).into_representative(), 1);
+        assert_eq!(Parity::new(Z::from(7)).representative(), &Z::from(1));
+        assert_eq!(Parity::new(Z::from(-4)).representative(), &Z::ZERO);
+        assert_eq!(Parity::new(Z::from(5)).into_representative(), Z::from(1));
     }
 }

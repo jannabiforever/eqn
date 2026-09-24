@@ -62,7 +62,7 @@ mod tests {
     impl Subset for AllIntegers {
         type Superset = Z;
 
-        fn contains(_: &i64) -> bool {
+        fn contains(_: &Z) -> bool {
             true
         }
     }
@@ -80,7 +80,7 @@ mod tests {
         fn assert_algebra<A: Algebra>() {}
 
         assert_algebra::<IntegerAlgebra>();
-        assert_eq!(IntegerAlgebra::from_scalar(7), 7);
+        assert_eq!(IntegerAlgebra::from_scalar(Z::from(7)), Z::from(7));
     }
 
     #[test]

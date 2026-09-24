@@ -315,8 +315,8 @@ mod tests {
         fn assert_algebra<A: Algebra>() {}
 
         assert_algebra::<Poly>();
-        assert_eq!(Poly::scale(3, poly("x")), poly("3 x"));
-        assert_eq!(Poly::from_scalar(4), poly("4"));
+        assert_eq!(Poly::scale(Z::from(3), poly("x")), poly("3 x"));
+        assert_eq!(Poly::from_scalar(Z::from(4)), poly("4"));
     }
 
     #[test]
@@ -324,25 +324,28 @@ mod tests {
         let p = poly("x + 2");
         let q = poly("y - 3");
 
-        assert_eq!(Poly::scale(0, p.clone()), P::zero());
-        assert_eq!(Poly::scale(1, p.clone()), p);
+        assert_eq!(Poly::scale(Z::ZERO, p.clone()), P::zero());
+        assert_eq!(Poly::scale(Z::from(1), p.clone()), p);
         assert_eq!(
-            Poly::scale(2 + 3, p.clone()),
-            Poly::scale(2, p.clone()) + Poly::scale(3, p.clone())
+            Poly::scale(Z::from(2 + 3), p.clone()),
+            Poly::scale(Z::from(2), p.clone()) + Poly::scale(Z::from(3), p.clone())
         );
         assert_eq!(
-            Poly::scale(2 * 3, p.clone()),
-            Poly::scale(2, Poly::scale(3, p.clone()))
+            Poly::scale(Z::from(2 * 3), p.clone()),
+            Poly::scale(Z::from(2), Poly::scale(Z::from(3), p.clone()))
         );
         assert_eq!(
-            Poly::scale(2, p.clone() + q.clone()),
-            Poly::scale(2, p.clone()) + Poly::scale(2, q.clone())
+            Poly::scale(Z::from(2), p.clone() + q.clone()),
+            Poly::scale(Z::from(2), p.clone()) + Poly::scale(Z::from(2), q.clone())
         );
         assert_eq!(
-            Poly::scale(2, p.clone() * q.clone()),
-            Poly::scale(2, p.clone()) * q.clone()
+            Poly::scale(Z::from(2), p.clone() * q.clone()),
+            Poly::scale(Z::from(2), p.clone()) * q.clone()
         );
-        assert_eq!(Poly::scale(2, p.clone() * q.clone()), p * Poly::scale(2, q));
+        assert_eq!(
+            Poly::scale(Z::from(2), p.clone() * q.clone()),
+            p * Poly::scale(Z::from(2), q)
+        );
     }
 
     #[test]
