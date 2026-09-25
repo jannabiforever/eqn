@@ -1,34 +1,33 @@
 use std::marker::PhantomData;
 
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
-use eqn_core::quotient::NormalForm;
+use eqn_core::quotient::{NormalForm, Quotient};
 
 use super::{CommutativeRing, RingElem, SemiRing};
-use crate::group::quotient::{Coset, Modulo, QuotientOp};
+use crate::group::quotient::{Modulo, QuotientOp};
 use crate::ring::ideal::Ideal;
-
-/// A residue class modulo `I`: a coset of `I` in the additive group, held by
-/// the representative `I` chooses.
-pub type ResidueClass<I> = Coset<I>;
 
 impl<I: Ideal + NormalForm<RingElem<I::Ring>>> Modulo<I> {
     /// `(a + I)(b + I) = ab + I`, well defined because `I` absorbs
     /// multiplication.
-    pub fn multiplied(lhs: ResidueClass<I>, rhs: ResidueClass<I>) -> ResidueClass<I> {
-        ResidueClass::new(I::Ring::multiply(
+    pub fn multiplied(
+        lhs: Quotient<RingElem<I::Ring>, I>,
+        rhs: Quotient<RingElem<I::Ring>, I>,
+    ) -> Quotient<RingElem<I::Ring>, I> {
+        Quotient::new(I::Ring::multiply(
             lhs.into_representative(),
             rhs.into_representative(),
         ))
     }
 
-    pub fn one() -> ResidueClass<I> {
-        ResidueClass::new(I::Ring::one())
+    pub fn one() -> Quotient<RingElem<I::Ring>, I> {
+        Quotient::new(I::Ring::one())
     }
 }
 
 /// Multiplication of residue classes.
 #[derive(Associative, BinaryOperator)]
-#[operator(domain = ResidueClass<I>, symbol = <I::Ring as SemiRing>::MUL_SYMBOL, apply = Modulo::<I>::multiplied, identity = Modulo::<I>::one())]
+#[operator(domain = Quotient<RingElem<I::Ring>, I>, symbol = <I::Ring as SemiRing>::MUL_SYMBOL, apply = Modulo::<I>::multiplied, identity = Modulo::<I>::one())]
 pub struct QuotientMul<I: Ideal + NormalForm<RingElem<I::Ring>>>(PhantomData<I>);
 
 impl<I> Commutative for QuotientMul<I>
@@ -60,8 +59,8 @@ mod tests {
     impl Subset for EvenIntegers {
         type Superset = Z;
 
-        fn contains(value: &i64) -> bool {
-            value % 2 == 0
+        fn contains(value: &Z) -> bool {
+            i64::from(*value) % 2 == 0
         }
     }
 
@@ -72,8 +71,8 @@ mod tests {
     impl Subgroup for EvenIntegers {}
 
     impl NormalForm<Z> for EvenIntegers {
-        fn reduce(value: i64) -> i64 {
-            value.rem_euclid(2)
+        fn reduce(value: Z) -> Z {
+            Z::from(i64::from(value).rem_euclid(2))
         }
     }
 
@@ -83,8 +82,8 @@ mod tests {
 
     type IntegersModTwo = QuotientRing<EvenIntegers>;
 
-    fn modulo_two(value: i64) -> ResidueClass<EvenIntegers> {
-        ResidueClass::new(value)
+    fn modulo_two(value: impl Into<Z>) -> Quotient<Z, EvenIntegers> {
+        Quotient::new(value.into())
     }
 
     #[test]
@@ -94,16 +93,16 @@ mod tests {
         assert_ne!(modulo_two(0), modulo_two(1));
 
         let value = modulo_two(5);
-        assert_eq!(value.representative(), &1);
-        assert_eq!(value.into_representative(), 1);
+        assert_eq!(value.representative(), &Z::ONE);
+        assert_eq!(value.into_representative(), Z::from(1));
     }
 
     #[test]
     fn quotient_equality_is_an_equivalence_relation() {
-        for a in -3..=3 {
+        for a in (-3..=3).map(Z::from) {
             assert_eq!(modulo_two(a), modulo_two(a));
 
-            for b in -3..=3 {
+            for b in (-3..=3).map(Z::from) {
                 assert_eq!(
                     modulo_two(a) == modulo_two(b),
                     modulo_two(b) == modulo_two(a)
@@ -144,7 +143,7 @@ mod tests {
 
     #[test]
     fn quotient_operators_satisfy_the_ring_laws() {
-        for a in -2..=2 {
+        for a in (-2..=2).map(Z::from) {
             assert_eq!(
                 IntegersModTwo::add(modulo_two(a), IntegersModTwo::zero()),
                 modulo_two(a)
@@ -158,7 +157,7 @@ mod tests {
                 modulo_two(a)
             );
 
-            for b in -2..=2 {
+            for b in (-2..=2).map(Z::from) {
                 assert_eq!(
                     IntegersModTwo::add(modulo_two(a), modulo_two(b)),
                     IntegersModTwo::add(modulo_two(b), modulo_two(a))
@@ -219,7 +218,7 @@ mod tests {
     impl Subset for WholeRing {
         type Superset = Z;
 
-        fn contains(_: &i64) -> bool {
+        fn contains(_: &Z) -> bool {
             true
         }
     }
@@ -231,8 +230,8 @@ mod tests {
     impl Subgroup for WholeRing {}
 
     impl NormalForm<Z> for WholeRing {
-        fn reduce(_: i64) -> i64 {
-            0
+        fn reduce(_: Z) -> Z {
+            Z::ZERO
         }
     }
 
@@ -242,18 +241,18 @@ mod tests {
 
     #[test]
     fn residue_classes_agree_with_the_ideal() {
-        for a in -3..=3 {
-            for b in -3..=3 {
+        for a in (-3..=3).map(Z::from) {
+            for b in (-3..=3).map(Z::from) {
                 assert_eq!(
                     modulo_two(a) == modulo_two(b),
                     Modulo::<EvenIntegers>::equivalent(&a, &b)
                 );
                 assert_eq!(
-                    ResidueClass::<WholeRing>::new(a) == ResidueClass::new(b),
+                    Quotient::<Z, WholeRing>::new(a) == Quotient::new(b),
                     Modulo::<WholeRing>::equivalent(&a, &b)
                 );
                 assert_eq!(
-                    ResidueClass::<ZeroIdeal>::new(a) == ResidueClass::new(b),
+                    Quotient::<Z, ZeroIdeal>::new(a) == Quotient::new(b),
                     Modulo::<ZeroIdeal>::equivalent(&a, &b)
                 );
             }
@@ -272,7 +271,7 @@ mod tests {
     impl Subset for ZeroIdeal {
         type Superset = Z;
 
-        fn contains(value: &i64) -> bool {
+        fn contains(value: &Z) -> bool {
             *value == Integers::zero()
         }
     }
@@ -284,7 +283,7 @@ mod tests {
     impl Subgroup for ZeroIdeal {}
 
     impl NormalForm<Z> for ZeroIdeal {
-        fn reduce(value: i64) -> i64 {
+        fn reduce(value: Z) -> Z {
             value
         }
     }
@@ -295,10 +294,10 @@ mod tests {
 
     #[test]
     fn quotient_by_zero_preserves_equality() {
-        for lhs in -3..=3 {
-            for rhs in -3..=3 {
+        for lhs in (-3..=3).map(Z::from) {
+            for rhs in (-3..=3).map(Z::from) {
                 assert_eq!(
-                    ResidueClass::<ZeroIdeal>::new(lhs) == ResidueClass::new(rhs),
+                    Quotient::<Z, ZeroIdeal>::new(lhs) == Quotient::new(rhs),
                     lhs == rhs
                 );
             }

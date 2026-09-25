@@ -182,14 +182,14 @@ where
 #[cfg(test)]
 mod tests {
     use eqn_algebra::operator_impl::{QAdd, QMul};
-    use eqn_core::set::Rational;
+    use eqn_core::set::Q;
 
     use super::*;
 
     type Expr = ElementaryExpr<(QAdd, QMul)>;
 
     fn c(i: i64) -> Expr {
-        Expr::Const(Rational::from(i))
+        Expr::Const(Q::from(i))
     }
 
     fn x() -> Expr {

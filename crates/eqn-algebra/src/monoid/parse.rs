@@ -58,6 +58,8 @@ where
 #[cfg(test)]
 mod tests {
 
+    use eqn_core::set::Z;
+
     use super::*;
     use crate::operator_impl::ZAdd;
 
@@ -73,7 +75,7 @@ mod tests {
 
     #[test]
     fn symbol_and_juxtaposition_are_the_operation() {
-        let expected = Expr::Op(vec![Expr::Const(1), x(), Expr::Const(-2)]);
+        let expected = Expr::Op(vec![Expr::Const(Z::from(1)), x(), Expr::Const(Z::from(-2))]);
         assert_eq!("1 + x + -2".parse::<Expr>().unwrap(), expected);
         assert_eq!("1 (x) (-2)".parse::<Expr>().unwrap(), expected);
         assert_eq!(error("1 * x"), ParseError::at(2, "unexpected `*`"));
@@ -83,7 +85,10 @@ mod tests {
     fn parentheses_nest() {
         assert_eq!(
             "1 + (x + 2)".parse::<Expr>().unwrap(),
-            Expr::Op(vec![Expr::Const(1), Expr::Op(vec![x(), Expr::Const(2)])])
+            Expr::Op(vec![
+                Expr::Const(Z::from(1)),
+                Expr::Op(vec![x(), Expr::Const(Z::from(2))])
+            ])
         );
         assert_eq!("(x)".parse::<Expr>().unwrap(), x());
     }

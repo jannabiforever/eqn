@@ -3,8 +3,7 @@
 A set is a type; its values are its elements. `Set` marks a type whose `Eq`
 is equality of canonical representations. Membership is the typing judgment
 `x: S`, decided by the compiler, so `Set` carries no membership predicate and
-this library has no `\in`. A name for a set is a type alias, never a second
-type.
+this library has no `\in`. How a set is named is Rule 009.
 
 ## A subset is a predicate
 
@@ -46,13 +45,13 @@ pub trait NormalForm<X: Set> {
 }
 ```
 
-`EqClass<X, N>` is the one class type. It holds the representative that the
-normal form `N` chooses, so its `Eq`, `Hash` and `Ord` are those of `X`. A
-quotient is a set only through a normal form. An equivalence is the
-specification a normal form is tested against: `Modulo<S>` is the left-coset
-relation of a subgroup, and a normal form for `G/N` must agree with
-`Modulo<N>`. A `PartialEq` written by hand on a representative is the setoid
-pattern and is not used.
+`Quotient<X, N>` is the one quotient type, the set `X / N`. A value is a
+class, held by the representative that the normal form `N` chooses, so its
+`Eq`, `Hash` and `Ord` are those of `X`. A quotient is a set only through a
+normal form. An equivalence is the specification a normal form is tested
+against: `Modulo<S>` is the left-coset relation of a subgroup, and a normal
+form for `G/N` must agree with `Modulo<N>`. A `PartialEq` written by hand on
+a representative is the setoid pattern and is not used.
 
 An identity is a function, `identity()`, not a `const`: the identity of a
 quotient is the reduced form of the parent's, and reduction is not `const`.

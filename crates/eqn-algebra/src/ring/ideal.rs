@@ -31,8 +31,8 @@ mod tests {
     impl Subset for EvenIntegers {
         type Superset = Z;
 
-        fn contains(value: &i64) -> bool {
-            value % 2 == 0
+        fn contains(value: &Z) -> bool {
+            i64::from(*value) % 2 == 0
         }
     }
 
@@ -51,7 +51,7 @@ mod tests {
     impl Subset for WholeRing {
         type Superset = Z;
 
-        fn contains(_: &i64) -> bool {
+        fn contains(_: &Z) -> bool {
             true
         }
     }
@@ -68,17 +68,17 @@ mod tests {
 
     #[test]
     fn membership_and_properness() {
-        assert!(EvenIntegers::contains(&0));
-        assert!(EvenIntegers::contains(&6));
-        assert!(!EvenIntegers::contains(&3));
+        assert!(EvenIntegers::contains(&Z::from(0)));
+        assert!(EvenIntegers::contains(&Z::from(6)));
+        assert!(!EvenIntegers::contains(&Z::from(3)));
         assert!(EvenIntegers::is_proper());
         assert!(!WholeRing::is_proper());
     }
 
     #[test]
     fn even_integers_satisfy_the_ideal_laws() {
-        let ideal_elements = [-6, -2, 0, 4, 8];
-        let ring_elements = [-3, -1, 0, 2, 5];
+        let ideal_elements = [-6, -2, 0, 4, 8].map(Z::from);
+        let ring_elements = [-3, -1, 0, 2, 5].map(Z::from);
 
         for &lhs in &ideal_elements {
             for &rhs in &ideal_elements {

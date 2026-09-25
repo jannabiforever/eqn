@@ -284,8 +284,8 @@ mod tests {
     impl Subset for NonnegativeIntegers {
         type Superset = Z;
 
-        fn contains(value: &i64) -> bool {
-            *value >= 0
+        fn contains(value: &Z) -> bool {
+            i64::from(*value) >= 0
         }
     }
 
@@ -298,7 +298,7 @@ mod tests {
     impl Subset for AllIntegers {
         type Superset = Z;
 
-        fn contains(_: &i64) -> bool {
+        fn contains(_: &Z) -> bool {
             true
         }
     }
@@ -314,8 +314,8 @@ mod tests {
         assert!(NonnegativeIntegers::contains(&Integers::zero()));
         assert!(NonnegativeIntegers::contains(&Integers::one()));
 
-        for lhs in [0, 1, 4, 9] {
-            for rhs in [0, 2, 5, 8] {
+        for lhs in [0, 1, 4, 9].map(Z::from) {
+            for rhs in [0, 2, 5, 8].map(Z::from) {
                 assert!(NonnegativeIntegers::contains(&Integers::add(lhs, rhs)));
                 assert!(NonnegativeIntegers::contains(&Integers::multiply(lhs, rhs)));
             }

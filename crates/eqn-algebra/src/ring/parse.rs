@@ -166,6 +166,8 @@ where
 #[cfg(test)]
 mod tests {
 
+    use eqn_core::set::Z;
+
     use super::*;
     use crate::operator_impl::{ZAdd, ZMul};
 
@@ -188,11 +190,11 @@ mod tests {
         assert_eq!(
             "1 + 2 x + x^2 * (x + 1)".parse::<Expr>().unwrap(),
             Expr::Add(vec![
-                Expr::Const(1),
-                Expr::Mul(vec![Expr::Const(2), x.clone()]),
+                Expr::Const(Z::from(1)),
+                Expr::Mul(vec![Expr::Const(Z::from(2)), x.clone()]),
                 Expr::Mul(vec![
                     Expr::Pow { base, exponent },
-                    Expr::Add(vec![x, Expr::Const(1)]),
+                    Expr::Add(vec![x, Expr::Const(Z::from(1))]),
                 ]),
             ])
         );
@@ -223,12 +225,12 @@ mod tests {
         assert_eq!(
             "2 x - 5 x + -(x)".parse::<RExpr>().unwrap(),
             RExpr::Add(vec![
-                RExpr::Mul(vec![RExpr::Const(2), x()]),
-                RExpr::Mul(vec![RExpr::Const(5), x()]).negated(),
+                RExpr::Mul(vec![RExpr::Const(Z::from(2)), x()]),
+                RExpr::Mul(vec![RExpr::Const(Z::from(5)), x()]).negated(),
                 x().negated(),
             ])
         );
-        assert_eq!("-3".parse::<RExpr>().unwrap(), RExpr::Const(-3));
+        assert_eq!("-3".parse::<RExpr>().unwrap(), RExpr::Const(Z::from(-3)));
         assert_eq!("--x".parse::<RExpr>().unwrap(), x().negated().negated());
         assert_eq!(error::<RExpr>("x / 2"), ParseError::at(2, "unexpected `/`"));
     }
