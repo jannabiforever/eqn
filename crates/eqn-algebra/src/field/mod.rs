@@ -265,7 +265,6 @@ pub struct FpAdd<const P: u64>;
 #[operator(domain = Fp<P>, symbol = "*", apply = Mul::mul, identity = Fp::one(), inverse = |a| a.inverse(), inverse_symbol = "/")]
 pub struct FpMul<const P: u64>;
 
-<<<<<<< HEAD
 /// The finite prime field `F_p`: the tuple of its operations.
 ///
 /// `P` is part of the algebraic contract: it must be prime.
