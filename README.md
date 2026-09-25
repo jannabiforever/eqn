@@ -13,7 +13,7 @@ to use exactly the laws the structure declares and nothing else.
 
 | Crate          | Contents                                                                                                                                                                                                                                                                                     |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `eqn-core`     | `Set` and `Subset`, `BinaryOperator`, the law markers (`Associative`, `Commutative`, `Identity`, `Inverse`), `Map`, `Symbol`, the `Expression` / `Rewriter` traits every tree implements, and `EqClass`, a quotient by an `Equivalence` or a `NormalForm`. Concrete sets `N`, `Z` and `Q`, exact at any size, `R`, and the inclusions between them. |
+| `eqn-core`     | `Set` and `Subset`, `BinaryOperator`, the law markers (`Associative`, `Commutative`, `Identity`, `Inverse`), `Map`, `Symbol`, the `Expression` / `Rewriter` traits every tree implements, and `Quotient`, a quotient by an `Equivalence` or a `NormalForm`. Concrete sets `N`, `Z` and `Q`, exact at any size, `R`, and the inclusions between them. |
 | `eqn-macros`   | Derives for the above: `#[derive(Set)]`, `#[derive(BinaryOperator)]` with `#[operator(domain, apply, identity, inverse)]`, and the marker derives.                                                                                                                                           |
 | `eqn-algebra`  | Monoid, group, ring, field, module, algebra, and their substructures, ideals, and quotients. One rewriter per structure, one more for each law that unlocks a stronger canonical form. Prime fields `F_p` and the field-extension hierarchy up to Galois.                                    |
 | `eqn-poly`     | `PolynomialRing<R>`, the free commutative `R`-algebra on its symbols with `\partial / \partial s`. Finite fields `F_{p^n}` as `F_p[x]/(M)`, with irreducible, primitive, and pseudo-Conway defining polynomials found by search.                                                             |
@@ -41,15 +41,15 @@ assert_ne!(expr.rewritten(&GroupRewriter::new()), Symbol::new("y").into());
 
 ## Building
 
-The workspace tracks a pinned nightly (see `rust-toolchain.toml`) for
-`min_generic_const_args`, which lets a field extension carry its degree and a
-manifold its dimension as associated constants. A `flake.nix` and
-`.devcontainer` provide the same toolchain.
+The library compiles on stable Rust. The workspace still tracks a pinned
+nightly (see `rust-toolchain.toml`) because `.rustfmt.toml` uses nightly-only
+formatting options; nothing in the crates themselves needs it. A `flake.nix`
+and `.devcontainer` provide the same toolchain.
 
 ```bash
 cargo test --workspace
 ```
 
 CI runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -D
-warnings`, and the tests. All three must pass. There are no warnings in this
-repository, allowed or otherwise.
+warnings`, and the tests on both the pinned nightly and stable. All four must
+pass. There are no warnings in this repository, allowed or otherwise.

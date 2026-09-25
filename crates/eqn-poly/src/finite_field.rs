@@ -5,8 +5,8 @@ use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 use std::sync::{Mutex, OnceLock};
 
 use eqn_algebra::field::{
-    FieldExtension, FieldHomomorphism, FiniteExtension, NormalExtension, PrimeField,
-    PrimeFieldElement, SeparableExtension, SplittingField,
+    FieldExtension, FieldHomomorphism, FiniteExtension, Fp, NormalExtension, PrimeField,
+    SeparableExtension, SplittingField,
 };
 use eqn_algebra::module::{Module, ModuleElem, ModuleScalar};
 use eqn_algebra::ring::SemiRing;
@@ -17,7 +17,7 @@ use eqn_core::set::Set;
 /// A monic degree-`N` polynomial over `F_P`, stored from constant to leading
 /// coefficient.
 pub trait DefiningPolynomial<const P: u64, const N: usize> {
-    fn coefficients() -> Vec<PrimeFieldElement<P>>;
+    fn coefficients() -> Vec<Fp<P>>;
 }
 
 /// A defining polynomial known to be irreducible over `F_P`.
@@ -28,7 +28,7 @@ pub trait IrreduciblePolynomial<const P: u64, const N: usize>: DefiningPolynomia
 pub struct FirstIrreducible;
 
 impl<const P: u64, const N: usize> DefiningPolynomial<P, N> for FirstIrreducible {
-    fn coefficients() -> Vec<PrimeFieldElement<P>> {
+    fn coefficients() -> Vec<Fp<P>> {
         PolynomialSelection::Irreducible
             .generate(N)
             .into_coefficients()
@@ -42,7 +42,7 @@ impl<const P: u64, const N: usize> IrreduciblePolynomial<P, N> for FirstIrreduci
 pub struct FirstPrimitive;
 
 impl<const P: u64, const N: usize> DefiningPolynomial<P, N> for FirstPrimitive {
-    fn coefficients() -> Vec<PrimeFieldElement<P>> {
+    fn coefficients() -> Vec<Fp<P>> {
         PolynomialSelection::Primitive
             .generate(N)
             .into_coefficients()
@@ -57,7 +57,7 @@ impl<const P: u64, const N: usize> IrreduciblePolynomial<P, N> for FirstPrimitiv
 pub struct FirstCompatible;
 
 impl<const P: u64, const N: usize> DefiningPolynomial<P, N> for FirstCompatible {
-    fn coefficients() -> Vec<PrimeFieldElement<P>> {
+    fn coefficients() -> Vec<Fp<P>> {
         PolynomialSelection::Compatible
             .generate(N)
             .into_coefficients()
@@ -66,25 +66,27 @@ impl<const P: u64, const N: usize> DefiningPolynomial<P, N> for FirstCompatible 
 
 impl<const P: u64, const N: usize> IrreduciblePolynomial<P, N> for FirstCompatible {}
 
-/// A canonical power-basis representative of a finite-field element.
+/// The finite field `F_(P^N)` as a set: a value is a canonical power-basis
+/// representative of an element. [`FiniteField<P, N, M>`] is its field
+/// structure.
 #[derive_where::derive_where(Clone, Copy, Eq, PartialEq)]
-pub struct FiniteFieldElement<const P: u64, const N: usize, M = FirstIrreducible> {
-    coefficients: [PrimeFieldElement<P>; N],
+pub struct Fq<const P: u64, const N: usize, M = FirstIrreducible> {
+    coefficients: [Fp<P>; N],
     modulus: PhantomData<M>,
 }
 
-impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
+impl<const P: u64, const N: usize, M> Fq<P, N, M> {
     pub const fn zero() -> Self {
         Self {
-            coefficients: [PrimeFieldElement::zero(); N],
+            coefficients: [Fp::zero(); N],
             modulus: PhantomData,
         }
     }
 
     pub const fn one() -> Self {
-        let mut coefficients = [PrimeFieldElement::zero(); N];
+        let mut coefficients = [Fp::zero(); N];
         if N > 0 {
-            coefficients[0] = PrimeFieldElement::one();
+            coefficients[0] = Fp::one();
         }
         Self {
             coefficients,
@@ -92,7 +94,7 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
         }
     }
 
-    pub const fn from_coefficients(coefficients: [PrimeFieldElement<P>; N]) -> Self {
+    pub const fn from_coefficients(coefficients: [Fp<P>; N]) -> Self {
         assert!(N > 0, "a field extension must have positive degree");
         Self {
             coefficients,
@@ -101,14 +103,14 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
     }
 
     pub fn from_values(values: [u64; N]) -> Self {
-        Self::from_coefficients(values.map(PrimeFieldElement::new))
+        Self::from_coefficients(values.map(Fp::new))
     }
 
-    pub const fn coefficients(&self) -> &[PrimeFieldElement<P>; N] {
+    pub const fn coefficients(&self) -> &[Fp<P>; N] {
         &self.coefficients
     }
 
-    pub const fn into_coefficients(self) -> [PrimeFieldElement<P>; N] {
+    pub const fn into_coefficients(self) -> [Fp<P>; N] {
         self.coefficients
     }
 
@@ -126,11 +128,11 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
         let mut base = self;
         while exponent > 0 {
             if exponent & 1 == 1 {
-                result = FiniteFieldMul::apply(result, base);
+                result = FqMul::apply(result, base);
             }
             exponent >>= 1;
             if exponent > 0 {
-                base = FiniteFieldMul::apply(base, base);
+                base = FqMul::apply(base, base);
             }
         }
         result
@@ -177,8 +179,8 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
     }
 
     /// The element `value \cdot 1`.
-    fn from_constant(value: PrimeFieldElement<P>) -> Self {
-        let mut coefficients = [PrimeFieldElement::zero(); N];
+    fn from_constant(value: Fp<P>) -> Self {
+        let mut coefficients = [Fp::zero(); N];
         assert!(N > 0, "a field extension must have positive degree");
         coefficients[0] = value;
         Self::from_coefficients(coefficients)
@@ -186,7 +188,7 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
 
     /// The power-basis element of a polynomial of degree below `N`.
     fn from_polynomial(polynomial: UnivariatePolynomial<P>) -> Self {
-        let mut coefficients = [PrimeFieldElement::zero(); N];
+        let mut coefficients = [Fp::zero(); N];
         for (target, coefficient) in coefficients.iter_mut().zip(polynomial.into_coefficients()) {
             *target = coefficient;
         }
@@ -198,25 +200,25 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
     }
 }
 
-impl<const P: u64, const N: usize, M> Add for FiniteFieldElement<P, N, M> {
+impl<const P: u64, const N: usize, M> Add for Fq<P, N, M> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        FiniteFieldElement::from_coefficients(std::array::from_fn(|i| {
+        Fq::from_coefficients(std::array::from_fn(|i| {
             self.coefficients[i] + rhs.coefficients[i]
         }))
     }
 }
 
-impl<const P: u64, const N: usize, M> Sub for FiniteFieldElement<P, N, M> {
+impl<const P: u64, const N: usize, M> Sub for Fq<P, N, M> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        FiniteFieldAdd::apply(self, FiniteFieldAdd::inverse(rhs))
+        FqAdd::apply(self, FqAdd::inverse(rhs))
     }
 }
 
-impl<const P: u64, const N: usize, M> Mul for FiniteFieldElement<P, N, M>
+impl<const P: u64, const N: usize, M> Mul for Fq<P, N, M>
 where
     M: IrreduciblePolynomial<P, N>,
 {
@@ -228,7 +230,7 @@ where
     }
 }
 
-impl<const P: u64, const N: usize, M> Div for FiniteFieldElement<P, N, M>
+impl<const P: u64, const N: usize, M> Div for Fq<P, N, M>
 where
     M: IrreduciblePolynomial<P, N>,
 {
@@ -239,49 +241,45 @@ where
     }
 }
 
-impl<const P: u64, const N: usize, M> std::ops::Neg for FiniteFieldElement<P, N, M> {
+impl<const P: u64, const N: usize, M> std::ops::Neg for Fq<P, N, M> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        FiniteFieldElement::from_coefficients(self.coefficients.map(Neg::neg))
+        Fq::from_coefficients(self.coefficients.map(Neg::neg))
     }
 }
 
-impl<const P: u64, const N: usize, M> fmt::Debug for FiniteFieldElement<P, N, M> {
+impl<const P: u64, const N: usize, M> fmt::Debug for Fq<P, N, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("FiniteFieldElement")
-            .field(&self.coefficients)
-            .finish()
+        f.debug_tuple("Fq").field(&self.coefficients).finish()
     }
 }
 
-impl<const P: u64, const N: usize, M> Set for FiniteFieldElement<P, N, M> {}
+impl<const P: u64, const N: usize, M> Set for Fq<P, N, M> {}
 
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
-    domain = FiniteFieldElement<P, N, M>,
+    domain = Fq<P, N, M>,
     symbol = "+",
     apply = Add::add,
-    identity = FiniteFieldElement::zero(),
+    identity = Fq::zero(),
     inverse = Neg::neg,
     inverse_symbol = "-"
 )]
-pub struct FiniteFieldAdd<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
+pub struct FqAdd<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
 
 #[derive(Associative, BinaryOperator, Commutative)]
 #[operator(
-    domain = FiniteFieldElement<P, N, M>,
+    domain = Fq<P, N, M>,
     symbol = "*",
     apply = Mul::mul,
-    identity = FiniteFieldElement::one(),
+    identity = Fq::one(),
     inverse = |a| a.inverse(),
     inverse_symbol = "/"
 )]
-pub struct FiniteFieldMul<
-    const P: u64,
-    const N: usize,
-    M: IrreduciblePolynomial<P, N> = FirstIrreducible,
->(PhantomData<M>);
+pub struct FqMul<const P: u64, const N: usize, M: IrreduciblePolynomial<P, N> = FirstIrreducible>(
+    PhantomData<M>,
+);
 
 /// The quotient field `F_P[x] / (M)` of degree `N`.
 pub struct FiniteField<const P: u64, const N: usize, M = FirstIrreducible>(PhantomData<M>);
@@ -292,7 +290,7 @@ where
 {
     pub fn modulus() -> UnivariatePolynomial<P> {
         assert!(
-            PrimeField::<P>::is_valid(),
+            Fp::<P>::is_valid(),
             "finite-field characteristic must be prime"
         );
         let coefficients = M::coefficients();
@@ -303,7 +301,7 @@ where
         );
         assert_eq!(
             coefficients.last(),
-            Some(&PrimeFieldElement::one()),
+            Some(&Fp::one()),
             "defining polynomial must be monic"
         );
         UnivariatePolynomial::new(coefficients)
@@ -313,24 +311,24 @@ where
         Self::modulus().is_irreducible()
     }
 
-    pub fn generator() -> FiniteFieldElement<P, N, M> {
-        FiniteFieldElement::from_polynomial(UnivariatePolynomial::x() % &Self::modulus())
+    pub fn generator() -> Fq<P, N, M> {
+        Fq::from_polynomial(UnivariatePolynomial::x() % &Self::modulus())
     }
 
     pub fn evaluate_base_polynomial(
         polynomial: &UnivariatePolynomial<P>,
-        value: FiniteFieldElement<P, N, M>,
-    ) -> FiniteFieldElement<P, N, M> {
+        value: Fq<P, N, M>,
+    ) -> Fq<P, N, M> {
         polynomial
             .coefficients()
             .iter()
             .rev()
-            .fold(FiniteFieldElement::zero(), |result, &coefficient| {
-                result * value + FiniteFieldElement::from_constant(coefficient)
+            .fold(Fq::zero(), |result, &coefficient| {
+                result * value + Fq::from_constant(coefficient)
             })
     }
 
-    pub fn roots_of_defining_polynomial() -> Vec<FiniteFieldElement<P, N, M>> {
+    pub fn roots_of_defining_polynomial() -> Vec<Fq<P, N, M>> {
         let mut root = Self::generator();
         let mut roots = Vec::with_capacity(N);
         for _ in 0..N {
@@ -345,9 +343,9 @@ impl<const P: u64, const N: usize, M> SemiRing for FiniteField<P, N, M>
 where
     M: IrreduciblePolynomial<P, N>,
 {
-    type Domain = FiniteFieldElement<P, N, M>;
-    type Addition = FiniteFieldAdd<P, N, M>;
-    type Multiplication = FiniteFieldMul<P, N, M>;
+    type Domain = Fq<P, N, M>;
+    type Addition = FqAdd<P, N, M>;
+    type Multiplication = FqMul<P, N, M>;
 }
 
 impl<const P: u64, const N: usize, M> Module for FiniteField<P, N, M>
@@ -355,13 +353,11 @@ where
     M: IrreduciblePolynomial<P, N>,
 {
     type Scalars = PrimeField<P>;
-    type Domain = FiniteFieldElement<P, N, M>;
-    type Addition = FiniteFieldAdd<P, N, M>;
+    type Domain = Fq<P, N, M>;
+    type Addition = FqAdd<P, N, M>;
 
     fn scale(scalar: ModuleScalar<Self>, value: ModuleElem<Self>) -> ModuleElem<Self> {
-        FiniteFieldElement::from_coefficients(
-            value.coefficients.map(|coefficient| scalar * coefficient),
-        )
+        Fq::from_coefficients(value.coefficients.map(|coefficient| scalar * coefficient))
     }
 }
 
@@ -376,7 +372,7 @@ impl<const P: u64, const N: usize, M> FiniteExtension for FiniteField<P, N, M>
 where
     M: IrreduciblePolynomial<P, N>,
 {
-    type const DEGREE: usize = N;
+    const DEGREE: usize = N;
 }
 
 impl<const P: u64, const N: usize, M> NormalExtension for FiniteField<P, N, M> where
@@ -393,24 +389,16 @@ impl<const P: u64, const N: usize, M> SplittingField<M> for FiniteField<P, N, M>
 where
     M: IrreduciblePolynomial<P, N>,
 {
-    fn roots() -> Vec<FiniteFieldElement<P, N, M>> {
+    fn roots() -> Vec<Fq<P, N, M>> {
         Self::roots_of_defining_polynomial()
     }
 }
 
-/// `F_(P^N)` using the deterministic default defining polynomial.
-pub type Fq<const P: u64, const N: usize> = FiniteField<P, N, FirstIrreducible>;
-pub type FqElement<const P: u64, const N: usize> = FiniteFieldElement<P, N, FirstIrreducible>;
-
 /// `F_(P^N)` whose power-basis generator is multiplicatively primitive.
 pub type PrimitiveFiniteField<const P: u64, const N: usize> = FiniteField<P, N, FirstPrimitive>;
-pub type PrimitiveFiniteFieldElement<const P: u64, const N: usize> =
-    FiniteFieldElement<P, N, FirstPrimitive>;
 
 /// A deterministic pseudo-Conway-style finite field.
 pub type CompatibleFiniteField<const P: u64, const N: usize> = FiniteField<P, N, FirstCompatible>;
-pub type CompatibleFiniteFieldElement<const P: u64, const N: usize> =
-    FiniteFieldElement<P, N, FirstCompatible>;
 
 #[derive(Clone, Copy, Debug)]
 pub struct CompatibleFiniteFieldEmbedding<
@@ -418,7 +406,7 @@ pub struct CompatibleFiniteFieldEmbedding<
     const SOURCE_DEGREE: usize,
     const TARGET_DEGREE: usize,
 > {
-    generator_image: CompatibleFiniteFieldElement<P, TARGET_DEGREE>,
+    generator_image: Fq<P, TARGET_DEGREE, FirstCompatible>,
 }
 
 impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
@@ -426,7 +414,7 @@ impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
 {
     pub fn new() -> Self {
         assert!(
-            PrimeField::<P>::is_valid(),
+            Fp::<P>::is_valid(),
             "finite-field characteristic must be prime"
         );
         assert!(
@@ -444,12 +432,12 @@ impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
 
     pub fn embed(
         &self,
-        value: CompatibleFiniteFieldElement<P, SOURCE_DEGREE>,
-    ) -> CompatibleFiniteFieldElement<P, TARGET_DEGREE> {
+        value: Fq<P, SOURCE_DEGREE, FirstCompatible>,
+    ) -> Fq<P, TARGET_DEGREE, FirstCompatible> {
         self.map(value)
     }
 
-    pub const fn generator_image(&self) -> CompatibleFiniteFieldElement<P, TARGET_DEGREE> {
+    pub const fn generator_image(&self) -> Fq<P, TARGET_DEGREE, FirstCompatible> {
         self.generator_image
     }
 }
@@ -463,22 +451,20 @@ impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize> Defau
 }
 
 impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
-    Map<
-        FiniteFieldElement<P, SOURCE_DEGREE, FirstCompatible>,
-        FiniteFieldElement<P, TARGET_DEGREE, FirstCompatible>,
-    > for CompatibleFiniteFieldEmbedding<P, SOURCE_DEGREE, TARGET_DEGREE>
+    Map<Fq<P, SOURCE_DEGREE, FirstCompatible>, Fq<P, TARGET_DEGREE, FirstCompatible>>
+    for CompatibleFiniteFieldEmbedding<P, SOURCE_DEGREE, TARGET_DEGREE>
 {
     fn map(
         &self,
-        value: CompatibleFiniteFieldElement<P, SOURCE_DEGREE>,
-    ) -> CompatibleFiniteFieldElement<P, TARGET_DEGREE> {
-        value.coefficients.iter().rev().fold(
-            CompatibleFiniteFieldElement::zero(),
-            |result, &coefficient| {
-                result * self.generator_image
-                    + CompatibleFiniteFieldElement::from_constant(coefficient)
-            },
-        )
+        value: Fq<P, SOURCE_DEGREE, FirstCompatible>,
+    ) -> Fq<P, TARGET_DEGREE, FirstCompatible> {
+        value
+            .coefficients
+            .iter()
+            .rev()
+            .fold(Fq::zero(), |result, &coefficient| {
+                result * self.generator_image + Fq::from_constant(coefficient)
+            })
     }
 }
 
@@ -493,12 +479,12 @@ impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
 /// A polynomial in one variable over `F_P`, stored from constant to leading
 /// coefficient with no trailing zeros, so the zero polynomial is empty.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct UnivariatePolynomial<const P: u64>(Vec<PrimeFieldElement<P>>);
+pub struct UnivariatePolynomial<const P: u64>(Vec<Fp<P>>);
 
 impl<const P: u64> Set for UnivariatePolynomial<P> {}
 
 impl<const P: u64> UnivariatePolynomial<P> {
-    pub fn new(coefficients: Vec<PrimeFieldElement<P>>) -> Self {
+    pub fn new(coefficients: Vec<Fp<P>>) -> Self {
         let mut polynomial = Self(coefficients);
         polynomial.trim();
         polynomial
@@ -509,19 +495,19 @@ impl<const P: u64> UnivariatePolynomial<P> {
     }
 
     pub fn one() -> Self {
-        Self(vec![PrimeFieldElement::one()])
+        Self(vec![Fp::one()])
     }
 
     /// The indeterminate `x`.
     pub fn x() -> Self {
-        Self(vec![PrimeFieldElement::zero(), PrimeFieldElement::one()])
+        Self(vec![Fp::zero(), Fp::one()])
     }
 
-    pub fn coefficients(&self) -> &[PrimeFieldElement<P>] {
+    pub fn coefficients(&self) -> &[Fp<P>] {
         &self.0
     }
 
-    pub fn into_coefficients(self) -> Vec<PrimeFieldElement<P>> {
+    pub fn into_coefficients(self) -> Vec<Fp<P>> {
         self.0
     }
 
@@ -530,7 +516,7 @@ impl<const P: u64> UnivariatePolynomial<P> {
     }
 
     fn trim(&mut self) {
-        while self.0.last() == Some(&PrimeFieldElement::zero()) {
+        while self.0.last() == Some(&Fp::zero()) {
             self.0.pop();
         }
     }
@@ -541,9 +527,8 @@ impl<const P: u64> UnivariatePolynomial<P> {
         let mut lower = Some(vec![0u64; degree]);
         std::iter::from_fn(move || {
             let digits = lower.as_mut()?;
-            let mut coefficients: Vec<_> =
-                digits.iter().copied().map(PrimeFieldElement::new).collect();
-            coefficients.push(PrimeFieldElement::one());
+            let mut coefficients: Vec<_> = digits.iter().copied().map(Fp::new).collect();
+            coefficients.push(Fp::one());
 
             let mut overflowed = true;
             for digit in digits.iter_mut() {
@@ -571,7 +556,7 @@ impl<const P: u64> UnivariatePolynomial<P> {
     }
 
     pub fn is_irreducible(&self) -> bool {
-        if !PrimeField::<P>::is_valid() || self.0.len() < 2 {
+        if !Fp::<P>::is_valid() || self.0.len() < 2 {
             return false;
         }
         let degree = self.0.len() - 1;
@@ -597,7 +582,7 @@ impl<const P: u64> UnivariatePolynomial<P> {
             factors
         }
 
-        if self.0.last() != Some(&PrimeFieldElement::one()) || !self.is_irreducible() {
+        if self.0.last() != Some(&Fp::one()) || !self.is_irreducible() {
             return false;
         }
         let Some(order) = Self::extension_order(self.0.len() - 1).map(|order| order - 1) else {
@@ -666,13 +651,7 @@ impl<const P: u64> UnivariatePolynomial<P> {
             if coefficient.0.len() > 1 {
                 return None;
             }
-            coefficients.push(
-                coefficient
-                    .0
-                    .first()
-                    .copied()
-                    .unwrap_or(PrimeFieldElement::zero()),
-            );
+            coefficients.push(coefficient.0.first().copied().unwrap_or(Fp::zero()));
         }
         Some(Self::new(coefficients))
     }
@@ -683,7 +662,7 @@ impl<const P: u64> UnivariatePolynomial<P> {
             return (Self::zero(), self);
         }
 
-        let mut quotient = vec![PrimeFieldElement::zero(); self.0.len() - divisor.0.len() + 1];
+        let mut quotient = vec![Fp::zero(); self.0.len() - divisor.0.len() + 1];
         let leading_inverse = divisor.0.last().copied().unwrap().inverse();
         while self.0.len() >= divisor.0.len() {
             let shift = self.0.len() - divisor.0.len();
@@ -702,8 +681,7 @@ impl<const P: u64> Add for UnivariatePolynomial<P> {
     type Output = Self;
 
     fn add(mut self, rhs: Self) -> Self {
-        self.0
-            .resize(self.0.len().max(rhs.0.len()), PrimeFieldElement::zero());
+        self.0.resize(self.0.len().max(rhs.0.len()), Fp::zero());
         for (i, coefficient) in rhs.0.into_iter().enumerate() {
             self.0[i] = self.0[i] + coefficient;
         }
@@ -715,8 +693,7 @@ impl<const P: u64> Sub for UnivariatePolynomial<P> {
     type Output = Self;
 
     fn sub(mut self, rhs: Self) -> Self {
-        self.0
-            .resize(self.0.len().max(rhs.0.len()), PrimeFieldElement::zero());
+        self.0.resize(self.0.len().max(rhs.0.len()), Fp::zero());
         for (i, coefficient) in rhs.0.into_iter().enumerate() {
             self.0[i] = self.0[i] - coefficient;
         }
@@ -739,7 +716,7 @@ impl<const P: u64> Mul for &UnivariatePolynomial<P> {
         if self.is_zero() || rhs.is_zero() {
             return UnivariatePolynomial::zero();
         }
-        let mut product = vec![PrimeFieldElement::zero(); self.0.len() + rhs.0.len() - 1];
+        let mut product = vec![Fp::zero(); self.0.len() + rhs.0.len() - 1];
         for (i, &a) in self.0.iter().enumerate() {
             for (j, &b) in rhs.0.iter().enumerate() {
                 product[i + j] = product[i + j] + a * b;
@@ -773,17 +750,12 @@ impl PolynomialSelection {
         let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
 
         if let Some(coefficients) = cache.lock().unwrap().get(&(P, degree, self)).cloned() {
-            return UnivariatePolynomial::new(
-                coefficients
-                    .into_iter()
-                    .map(PrimeFieldElement::new)
-                    .collect(),
-            );
+            return UnivariatePolynomial::new(coefficients.into_iter().map(Fp::new).collect());
         }
 
         assert!(degree > 0, "a field extension must have positive degree");
         assert!(
-            PrimeField::<P>::is_valid(),
+            Fp::<P>::is_valid(),
             "finite-field characteristic must be prime"
         );
 
@@ -816,9 +788,9 @@ mod tests {
     use eqn_algebra::group::Subgroup;
     use eqn_algebra::monoid::Submonoid;
     use eqn_algebra::ring::ideal::Ideal;
-    use eqn_algebra::ring::quotient::{QuotientRing, ResidueClass};
+    use eqn_algebra::ring::quotient::QuotientRing;
     use eqn_algebra::ring::{CommutativeRing, Ring, SemiRing};
-    use eqn_core::quotient::NormalForm;
+    use eqn_core::quotient::{NormalForm, Quotient};
     use eqn_core::set::Subset;
 
     use super::*;
@@ -826,8 +798,8 @@ mod tests {
     struct X2PlusOne;
 
     impl DefiningPolynomial<3, 2> for X2PlusOne {
-        fn coefficients() -> Vec<PrimeFieldElement<3>> {
-            [1, 0, 1].map(PrimeFieldElement::new).to_vec()
+        fn coefficients() -> Vec<Fp<3>> {
+            [1, 0, 1].map(Fp::new).to_vec()
         }
     }
 
@@ -836,8 +808,8 @@ mod tests {
     struct CompositeCharacteristicModulus;
 
     impl DefiningPolynomial<4, 1> for CompositeCharacteristicModulus {
-        fn coefficients() -> Vec<PrimeFieldElement<4>> {
-            vec![PrimeFieldElement::zero(), PrimeFieldElement::one()]
+        fn coefficients() -> Vec<Fp<4>> {
+            vec![Fp::zero(), Fp::one()]
         }
     }
 
@@ -845,20 +817,23 @@ mod tests {
 
     #[test]
     fn generated_modulus_is_deterministic_and_irreducible() {
-        let expected = UnivariatePolynomial::new([1, 1, 1].map(PrimeFieldElement::new).to_vec());
-        assert_eq!(Fq::<2, 2>::modulus(), expected);
-        assert!(Fq::<2, 2>::modulus_is_irreducible());
-        assert_eq!(Fq::<2, 2>::modulus(), Fq::<2, 2>::modulus());
+        let expected = UnivariatePolynomial::new([1, 1, 1].map(Fp::new).to_vec());
+        assert_eq!(FiniteField::<2, 2>::modulus(), expected);
+        assert!(FiniteField::<2, 2>::modulus_is_irreducible());
+        assert_eq!(
+            FiniteField::<2, 2>::modulus(),
+            FiniteField::<2, 2>::modulus()
+        );
 
-        let expected = UnivariatePolynomial::new([1, 1, 0, 1].map(PrimeFieldElement::new).to_vec());
-        assert_eq!(Fq::<2, 3>::modulus(), expected);
-        assert!(Fq::<2, 3>::modulus_is_irreducible());
+        let expected = UnivariatePolynomial::new([1, 1, 0, 1].map(Fp::new).to_vec());
+        assert_eq!(FiniteField::<2, 3>::modulus(), expected);
+        assert!(FiniteField::<2, 3>::modulus_is_irreducible());
     }
 
     #[test]
     fn primitive_modulus_gives_a_multiplicative_generator() {
         type F9 = PrimitiveFiniteField<3, 2>;
-        type E = PrimitiveFiniteFieldElement<3, 2>;
+        type E = Fq<3, 2, FirstPrimitive>;
 
         let modulus = F9::modulus();
         let generator = E::from_values([0, 1]);
@@ -866,8 +841,7 @@ mod tests {
         assert_eq!(generator.pow(8), E::one());
         assert_ne!(generator.pow(4), E::one());
 
-        let irreducible =
-            UnivariatePolynomial::new([1, 0, 1].map(PrimeFieldElement::<3>::new).to_vec());
+        let irreducible = UnivariatePolynomial::new([1, 0, 1].map(Fp::<3>::new).to_vec());
         assert!(irreducible.is_irreducible());
         assert!(!irreducible.is_primitive());
     }
@@ -875,7 +849,7 @@ mod tests {
     #[test]
     fn explicit_modulus_defines_multiplication() {
         type F9 = FiniteField<3, 2, X2PlusOne>;
-        type E = FiniteFieldElement<3, 2, X2PlusOne>;
+        type E = Fq<3, 2, X2PlusOne>;
 
         let alpha = E::from_values([0, 1]);
         assert_eq!(F9::multiply(alpha, alpha), E::from_values([2, 0]));
@@ -885,7 +859,7 @@ mod tests {
     #[test]
     fn defining_polynomial_splits_into_frobenius_conjugates() {
         type F9 = FiniteField<3, 2, X2PlusOne>;
-        type E = FiniteFieldElement<3, 2, X2PlusOne>;
+        type E = Fq<3, 2, X2PlusOne>;
 
         fn assert_splitting_field<F: SplittingField<X2PlusOne>>() {}
         assert_splitting_field::<F9>();
@@ -911,7 +885,7 @@ mod tests {
         let subfield_generator = target_generator.pow(5);
         assert_eq!(
             F16::evaluate_base_polynomial(&F4::modulus(), subfield_generator),
-            CompatibleFiniteFieldElement::zero()
+            Fq::zero()
         );
     }
 
@@ -919,8 +893,8 @@ mod tests {
     fn compatible_embedding_preserves_field_operations() {
         type F4 = CompatibleFiniteField<2, 2>;
         type F16 = CompatibleFiniteField<2, 4>;
-        type E4 = CompatibleFiniteFieldElement<2, 2>;
-        type E16 = CompatibleFiniteFieldElement<2, 4>;
+        type E4 = Fq<2, 2, FirstCompatible>;
+        type E16 = Fq<2, 4, FirstCompatible>;
 
         fn assert_embedding<E: FieldEmbedding<F4, F16>>() {}
         assert_embedding::<CompatibleFiniteFieldEmbedding<2, 2, 4>>();
@@ -949,7 +923,7 @@ mod tests {
 
     #[test]
     fn compatible_embeddings_compose_across_towers() {
-        type E4 = CompatibleFiniteFieldElement<2, 2>;
+        type E4 = Fq<2, 2, FirstCompatible>;
 
         let into_f16 = CompatibleFiniteFieldEmbedding::<2, 2, 4>::new();
         let into_f256 = CompatibleFiniteFieldEmbedding::<2, 4, 8>::new();
@@ -971,8 +945,8 @@ mod tests {
 
     #[test]
     fn every_nonzero_element_of_f4_is_invertible() {
-        type F4 = Fq<2, 2>;
-        type E = FqElement<2, 2>;
+        type F4 = FiniteField<2, 2>;
+        type E = Fq<2, 2>;
 
         for a in 0..2 {
             for b in 0..2 {
@@ -987,7 +961,7 @@ mod tests {
     #[test]
     fn every_nonzero_element_of_explicit_f9_is_invertible() {
         type F9 = FiniteField<3, 2, X2PlusOne>;
-        type E = FiniteFieldElement<3, 2, X2PlusOne>;
+        type E = Fq<3, 2, X2PlusOne>;
 
         for a in 0..3 {
             for b in 0..3 {
@@ -1008,16 +982,15 @@ mod tests {
         >() {
         }
 
-        assert_field::<Fq<2, 3>>();
-        assert_algebra::<Fq<2, 3>>();
-        assert_extension::<Fq<2, 3>>();
-        assert_eq!(<Fq<2, 3> as FiniteExtension>::DEGREE, 3);
+        assert_field::<FiniteField<2, 3>>();
+        assert_algebra::<FiniteField<2, 3>>();
+        assert_extension::<FiniteField<2, 3>>();
+        assert_eq!(<FiniteField<2, 3> as FiniteExtension>::DEGREE, 3);
     }
 
     #[test]
     fn rejects_reducible_polynomials() {
-        let reducible =
-            UnivariatePolynomial::new([0, 1, 1].map(PrimeFieldElement::<2>::new).to_vec());
+        let reducible = UnivariatePolynomial::new([0, 1, 1].map(Fp::<2>::new).to_vec());
         assert!(!reducible.is_irreducible());
     }
 
@@ -1029,8 +1002,8 @@ mod tests {
 
     #[test]
     fn extension_arithmetic_satisfies_field_laws() {
-        type F4 = Fq<2, 2>;
-        type E = FqElement<2, 2>;
+        type F4 = FiniteField<2, 2>;
+        type E = Fq<2, 2>;
 
         let elements: Vec<_> = (0..2)
             .flat_map(|a| (0..2).map(move |b| E::from_values([a, b])))
@@ -1105,37 +1078,38 @@ mod tests {
 
     #[test]
     fn the_quotient_by_the_defining_polynomial_is_the_finite_field() {
-        type Quotient = QuotientRing<DefiningIdeal>;
-        type F9 = FiniteFieldElement<3, 2>;
+        type ModM = QuotientRing<DefiningIdeal>;
+        type F9 = Fq<3, 2>;
 
         fn assert_commutative_ring<R: CommutativeRing>() {}
-        assert_commutative_ring::<Quotient>();
+        assert_commutative_ring::<ModM>();
 
         let class = |values: [u64; 2]| {
-            ResidueClass::<DefiningIdeal>::new(UnivariatePolynomial::new(
-                values.map(PrimeFieldElement::new).to_vec(),
+            Quotient::<UnivariatePolynomial<3>, DefiningIdeal>::new(UnivariatePolynomial::new(
+                values.map(Fp::new).to_vec(),
             ))
         };
-        let as_field =
-            |class: ResidueClass<DefiningIdeal>| F9::from_polynomial(class.into_representative());
+        let as_field = |class: Quotient<UnivariatePolynomial<3>, DefiningIdeal>| {
+            F9::from_polynomial(class.into_representative())
+        };
         let elements = || (0..9u64).map(|i| [i % 3, i / 3]);
 
         for a in elements() {
-            assert_eq!(as_field(Quotient::negate(class(a))), -F9::from_values(a));
+            assert_eq!(as_field(ModM::negate(class(a))), -F9::from_values(a));
 
             for b in elements() {
                 assert_eq!(
-                    as_field(Quotient::add(class(a), class(b))),
+                    as_field(ModM::add(class(a), class(b))),
                     F9::from_values(a) + F9::from_values(b)
                 );
                 assert_eq!(
-                    as_field(Quotient::multiply(class(a), class(b))),
+                    as_field(ModM::multiply(class(a), class(b))),
                     F9::from_values(a) * F9::from_values(b)
                 );
             }
         }
 
-        assert_eq!(as_field(Quotient::zero()), F9::zero());
-        assert_eq!(as_field(Quotient::one()), F9::one());
+        assert_eq!(as_field(ModM::zero()), F9::zero());
+        assert_eq!(as_field(ModM::one()), F9::one());
     }
 }

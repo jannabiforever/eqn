@@ -241,7 +241,7 @@ mod tests {
     use eqn_analysis::ElementaryExpr;
     use eqn_analysis::rewriter::ElementaryRewriter;
     use eqn_core::rewriter::TrivialRewriter;
-    use eqn_core::set::{Rational, Z};
+    use eqn_core::set::{Q, Z};
     use eqn_core::symbol::Symbol;
     use eqn_poly::Polynomial;
 
@@ -273,7 +273,7 @@ mod tests {
     }
 
     fn c(i: i64) -> ZeroForm<Plane> {
-        ElementaryExpr::Const(Rational::from(i))
+        ElementaryExpr::Const(Q::from(i))
     }
 
     fn sc(e: ZeroForm<Plane>) -> DifferentialForm<Plane> {

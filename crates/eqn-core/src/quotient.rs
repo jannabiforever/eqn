@@ -24,20 +24,21 @@ pub trait NormalForm<X: Set> {
 }
 
 // ================================================================================
-// Classes
+// Quotients
 // ================================================================================
 
-/// A class of `X` modulo `N`, held by the representative `N` chooses, so
-/// equality of classes is equality of representatives.
+/// The quotient set `X / N`. A value is a class of `X` modulo `N`, held by
+/// the representative `N` chooses, so equality of classes is equality of
+/// representatives.
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 #[derive_where(Hash, Ord, PartialOrd; X)]
-pub struct EqClass<X: Set, N: NormalForm<X>> {
+pub struct Quotient<X: Set, N: NormalForm<X>> {
     representative: X,
     #[derive_where(skip)]
     normal_form: PhantomData<N>,
 }
 
-impl<X: Set, N: NormalForm<X>> EqClass<X, N> {
+impl<X: Set, N: NormalForm<X>> Quotient<X, N> {
     pub fn new(element: X) -> Self {
         Self {
             representative: N::reduce(element),
@@ -54,7 +55,7 @@ impl<X: Set, N: NormalForm<X>> EqClass<X, N> {
     }
 }
 
-impl<X: Set, N: NormalForm<X>> Set for EqClass<X, N> {}
+impl<X: Set, N: NormalForm<X>> Set for Quotient<X, N> {}
 
 #[cfg(test)]
 mod tests {
@@ -83,7 +84,7 @@ mod tests {
         }
     }
 
-    type Parity = EqClass<Z, Mod2>;
+    type Parity = Quotient<Z, Mod2>;
 
     #[test]
     fn classes_are_equal_exactly_when_the_relation_holds() {

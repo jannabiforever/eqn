@@ -93,7 +93,7 @@ impl Rational {
     }
 }
 
-impl std::ops::Neg for Rational {
+impl std::ops::Neg for Q {
     type Output = Self;
 
     fn neg(self) -> Self {
@@ -104,7 +104,7 @@ impl std::ops::Neg for Rational {
     }
 }
 
-impl std::ops::Add for Rational {
+impl std::ops::Add for Q {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -115,7 +115,7 @@ impl std::ops::Add for Rational {
     }
 }
 
-impl std::ops::Mul for Rational {
+impl std::ops::Mul for Q {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
@@ -141,7 +141,7 @@ impl From<i64> for Rational {
     }
 }
 
-/// Why a string is not a [`Rational`].
+/// Why a string is not a [`Q`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ParseRationalError {
     Int(num_bigint::ParseBigIntError),
@@ -166,7 +166,7 @@ impl From<num_bigint::ParseBigIntError> for ParseRationalError {
 }
 
 /// Reads an integer (`-3`) or a fraction (`3/4`).
-impl std::str::FromStr for Rational {
+impl std::str::FromStr for Q {
     type Err = ParseRationalError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -190,26 +190,23 @@ pub type Q = Rational;
 /// equality of the reals.
 /// TODO: an exact representation.
 #[derive(Clone, Debug, Set)]
-pub struct RealNumber(f64);
+pub struct R(f64);
 
-impl PartialEq for RealNumber {
+impl PartialEq for R {
     fn eq(&self, other: &Self) -> bool {
         other.0 >= self.0 && self.0 >= other.0
     }
 }
 
-impl Eq for RealNumber {}
+impl Eq for R {}
 
-impl std::str::FromStr for RealNumber {
+impl std::str::FromStr for R {
     type Err = std::num::ParseFloatError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         s.parse().map(Self)
     }
 }
-
-/// The real numbers.
-pub type R = RealNumber;
 
 // ================================================================================
 // Inclusions
@@ -234,7 +231,6 @@ impl Map<Z, Q> for IntegersInRationals {
         Q::from(element)
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,10 +244,10 @@ mod tests {
             Rational::new(Z::from(3), Z::from(2))
         );
         assert_eq!(
-            "1/0".parse::<Rational>().unwrap_err(),
+            "1/0".parse::<Q>().unwrap_err(),
             ParseRationalError::ZeroDenominator
         );
-        assert!("1.5".parse::<Rational>().is_err());
+        assert!("1.5".parse::<Q>().is_err());
     }
 
     #[test]
@@ -269,8 +265,8 @@ mod tests {
 
     #[test]
     fn reals_parse_decimals() {
-        assert_eq!("2.5".parse::<RealNumber>().unwrap(), RealNumber(2.5));
-        assert_eq!("-1".parse::<RealNumber>().unwrap(), RealNumber(-1.0));
+        assert_eq!("2.5".parse::<R>().unwrap(), R(2.5));
+        assert_eq!("-1".parse::<R>().unwrap(), R(-1.0));
     }
 
     #[test]

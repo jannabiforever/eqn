@@ -160,7 +160,7 @@ impl<F: Field> DifferentialRing for ElementaryFunctionRing<F> {
 mod tests {
     use eqn_algebra::algebra::Algebra;
     use eqn_algebra::operator_impl::{QAdd, QMul};
-    use eqn_core::set::Rational;
+    use eqn_core::set::Q;
 
     use super::*;
 
@@ -172,7 +172,7 @@ mod tests {
         fn assert_algebra<A: Algebra>() {}
 
         let x = ElementaryExpr::<Rationals>::Symbol(Symbol::new("x"));
-        let scalar = Rational::from(2);
+        let scalar = Q::from(2);
 
         assert_algebra::<Functions>();
         assert_eq!(
