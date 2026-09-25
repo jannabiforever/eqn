@@ -151,7 +151,7 @@ mod tests {
     use eqn_analysis::rewriter::ElementaryRewriter;
     use eqn_analysis::{ElementaryExpr, ElementaryFunctionRing};
     use eqn_core::rewriter::Rewriter;
-    use eqn_core::set::Rational;
+    use eqn_core::set::Q;
     use eqn_poly::PolynomialRing;
 
     use super::*;
@@ -171,7 +171,7 @@ mod tests {
         type const DIM: usize = 2;
     }
 
-    fn constant(c: Rational) -> DifferentialForm<Plane> {
+    fn constant(c: Q) -> DifferentialForm<Plane> {
         DifferentialForm::Scalar(ElementaryExpr::Const(c))
     }
 
@@ -200,12 +200,12 @@ mod tests {
         assert_eq!(omega.degrees_of_freedom(), 2);
 
         // theta := 3  =>  r \wedge d3
-        omega.substitute(Symbol::new("theta"), &constant(Rational::from(3)));
+        omega.substitute(Symbol::new("theta"), &constant(Q::from(3)));
         assert_eq!(
             omega,
             DifferentialForm::Wedged(vec![
                 polar.coordinate(0).unwrap(),
-                DifferentialForm::Differential(Box::new(constant(Rational::from(3)))),
+                DifferentialForm::Differential(Box::new(constant(Q::from(3)))),
             ])
         );
         assert_eq!(omega.degrees_of_freedom(), 1);
@@ -232,7 +232,7 @@ mod tests {
         assert_eq!(omega.degrees_of_freedom(), 2);
 
         // y := 3  =>  (x^2 + 3) dx
-        omega.substitute(Symbol::new("y"), &constant(Rational::from(3)));
+        omega.substitute(Symbol::new("y"), &constant(Q::from(3)));
         assert_eq!(omega.degrees_of_freedom(), 1);
 
         let expected = DifferentialForm::Wedged(vec![
@@ -241,7 +241,7 @@ mod tests {
                     base: Box::new(x()),
                     exponent: 2,
                 },
-                ElementaryExpr::Const(Rational::from(3)),
+                ElementaryExpr::Const(Q::from(3)),
             ])),
             xy.differential(0).unwrap(),
         ]);

@@ -27,23 +27,96 @@ impl_set!(
     i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize
 );
 
-/// The natural numbers, including `0`.
-/// TODO: big num
-pub type N = u32;
+/// A set of numbers as a type of its own, standing apart from the machine
+/// type that represents it: `Z` is the integers, `i64` is the 64-bit
+/// integers.
+macro_rules! number_set {
+    ($(#[$doc:meta])* $name:ident($repr:ty)) => {
+        $(#[$doc])*
+        #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Set)]
+        pub struct $name($repr);
 
-/// The integers.
-/// TODO: big num
-pub type Z = i64;
+        impl $name {
+            pub const ZERO: Self = Self(0);
+            pub const ONE: Self = Self(1);
+        }
 
-/// A rational number in lowest terms, with a positive denominator.
+        impl From<$repr> for $name {
+            fn from(value: $repr) -> Self {
+                Self(value)
+            }
+        }
+
+        impl From<$name> for $repr {
+            fn from(value: $name) -> Self {
+                value.0
+            }
+        }
+
+        impl std::str::FromStr for $name {
+            type Err = std::num::ParseIntError;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                s.parse().map(Self)
+            }
+        }
+
+        impl std::ops::Add for $name {
+            type Output = Self;
+
+            fn add(self, other: Self) -> Self {
+                Self(self.0 + other.0)
+            }
+        }
+
+        impl std::ops::Mul for $name {
+            type Output = Self;
+
+            fn mul(self, other: Self) -> Self {
+                Self(self.0 * other.0)
+            }
+        }
+    };
+}
+
+number_set!(
+    /// The natural numbers, including `0`.
+    /// TODO: big num
+    N(u32)
+);
+
+number_set!(
+    /// The integers.
+    /// TODO: big num
+    Z(i64)
+);
+
+impl std::ops::Neg for Z {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Self(-self.0)
+    }
+}
+
+impl std::ops::Sub for Z {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
+/// The rational numbers: fractions in lowest terms with a positive
+/// denominator.
 /// TODO: big num
 #[derive(Clone, Debug, Eq, PartialEq, Set)]
-pub struct Rational {
+pub struct Q {
     numerator: i64,
     denominator: i64,
 }
 
-impl Rational {
+impl Q {
     pub const ZERO: Self = Self {
         numerator: 0,
         denominator: 1,
@@ -79,7 +152,7 @@ impl Rational {
     }
 }
 
-impl std::ops::Neg for Rational {
+impl std::ops::Neg for Q {
     type Output = Self;
 
     fn neg(self) -> Self {
@@ -87,7 +160,7 @@ impl std::ops::Neg for Rational {
     }
 }
 
-impl std::ops::Add for Rational {
+impl std::ops::Add for Q {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -98,7 +171,7 @@ impl std::ops::Add for Rational {
     }
 }
 
-impl std::ops::Mul for Rational {
+impl std::ops::Mul for Q {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
@@ -109,13 +182,13 @@ impl std::ops::Mul for Rational {
     }
 }
 
-impl From<i64> for Rational {
+impl From<i64> for Q {
     fn from(value: i64) -> Self {
         Self::new(value, 1)
     }
 }
 
-/// Why a string is not a [`Rational`].
+/// Why a string is not a [`Q`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ParseRationalError {
     Int(std::num::ParseIntError),
@@ -140,7 +213,7 @@ impl From<std::num::ParseIntError> for ParseRationalError {
 }
 
 /// Reads an integer (`-3`) or a fraction (`3/4`).
-impl std::str::FromStr for Rational {
+impl std::str::FromStr for Q {
     type Err = ParseRationalError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -155,24 +228,20 @@ impl std::str::FromStr for Rational {
     }
 }
 
-/// The rational numbers.
-/// TODO: big num
-pub type Q = Rational;
-
-/// represent a real number
+/// The real numbers, as `f64`.
 /// NOTE: a bit hacky implementation on PartialEq / Eq
 #[derive(Clone, Debug, Set)]
-pub struct RealNumber(f64);
+pub struct R(f64);
 
-impl PartialEq for RealNumber {
+impl PartialEq for R {
     fn eq(&self, other: &Self) -> bool {
         other.0 >= self.0 && self.0 >= other.0
     }
 }
 
-impl Eq for RealNumber {}
+impl Eq for R {}
 
-impl std::str::FromStr for RealNumber {
+impl std::str::FromStr for R {
     type Err = std::num::ParseFloatError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -180,29 +249,25 @@ impl std::str::FromStr for RealNumber {
     }
 }
 
-/// The real numbers.
-/// TODO: big num
-pub type R = RealNumber;
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn rationals_parse_integers_and_fractions() {
-        assert_eq!("3".parse::<Rational>().unwrap(), Rational::from(3));
-        assert_eq!("-3".parse::<Rational>().unwrap(), Rational::from(-3));
-        assert_eq!("6/4".parse::<Rational>().unwrap(), Rational::new(3, 2));
+        assert_eq!("3".parse::<Q>().unwrap(), Q::from(3));
+        assert_eq!("-3".parse::<Q>().unwrap(), Q::from(-3));
+        assert_eq!("6/4".parse::<Q>().unwrap(), Q::new(3, 2));
         assert_eq!(
-            "1/0".parse::<Rational>().unwrap_err(),
+            "1/0".parse::<Q>().unwrap_err(),
             ParseRationalError::ZeroDenominator
         );
-        assert!("1.5".parse::<Rational>().is_err());
+        assert!("1.5".parse::<Q>().is_err());
     }
 
     #[test]
     fn reals_parse_decimals() {
-        assert_eq!("2.5".parse::<RealNumber>().unwrap(), RealNumber(2.5));
-        assert_eq!("-1".parse::<RealNumber>().unwrap(), RealNumber(-1.0));
+        assert_eq!("2.5".parse::<R>().unwrap(), R(2.5));
+        assert_eq!("-1".parse::<R>().unwrap(), R(-1.0));
     }
 }

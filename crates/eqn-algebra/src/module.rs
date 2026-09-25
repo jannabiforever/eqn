@@ -59,8 +59,8 @@ mod tests {
     impl Subset for EvenIntegers {
         type Superset = Z;
 
-        fn contains(value: &i64) -> bool {
-            value % 2 == 0
+        fn contains(value: &Z) -> bool {
+            i64::from(*value) % 2 == 0
         }
     }
 
@@ -72,21 +72,21 @@ mod tests {
     fn integer_module_exposes_its_structure_and_scalar_action() {
         type Addition = <IntegerModule as Module>::Addition;
 
-        let scalar: ModuleScalar<IntegerModule> = -3;
-        let value: ModuleElem<IntegerModule> = 4;
+        let scalar: ModuleScalar<IntegerModule> = Z::from(-3);
+        let value: ModuleElem<IntegerModule> = Z::from(4);
 
-        assert_eq!(Addition::identity(), 0);
-        assert_eq!(Addition::apply(value, 5), 9);
-        assert_eq!(Addition::inverse(value), -4);
-        assert_eq!(IntegerModule::scale(scalar, value), -12);
+        assert_eq!(Addition::identity(), Z::from(0));
+        assert_eq!(Addition::apply(value, Z::from(5)), Z::from(9));
+        assert_eq!(Addition::inverse(value), Z::from(-4));
+        assert_eq!(IntegerModule::scale(scalar, value), Z::from(-12));
     }
 
     #[test]
     fn integers_satisfy_the_module_laws() {
         type Addition = <IntegerModule as Module>::Addition;
 
-        let scalars = [-2, -1, 0, 1, 3];
-        let values = [-3, -1, 0, 2, 4];
+        let scalars = [-2, -1, 0, 1, 3].map(Z::from);
+        let values = [-3, -1, 0, 2, 4].map(Z::from);
 
         for &r in &scalars {
             for &s in &scalars {
@@ -124,8 +124,8 @@ mod tests {
         assert_submodule::<EvenIntegers>();
         assert!(EvenIntegers::contains(&Addition::identity()));
 
-        for scalar in [-3, 0, 4] {
-            for value in [-8, -2, 0, 6] {
+        for scalar in [-3, 0, 4].map(Z::from) {
+            for value in [-8, -2, 0, 6].map(Z::from) {
                 assert!(EvenIntegers::contains(&IntegerModule::scale(scalar, value)));
             }
         }
