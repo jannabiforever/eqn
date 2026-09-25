@@ -111,8 +111,9 @@ impl<const P: u64> PrimeField<P> {
         true
     }
 
-    /// The primality hypothesis on `P`. Call sites force it in a `const`
-    /// block, so a composite characteristic fails to compile.
+    /// The primality hypothesis on `P`. Every constructor of an element
+    /// forces it in a `const` block, so a composite characteristic fails to
+    /// compile and an element that exists carries the hypothesis with it.
     pub const fn assert_valid() {
         assert!(Self::is_valid(), "prime-field characteristic must be prime");
     }
@@ -127,10 +128,12 @@ pub struct PrimeFieldElement<const P: u64> {
 /// TODO: Implement as bignum
 impl<const P: u64> PrimeFieldElement<P> {
     pub const fn zero() -> Self {
+        const { PrimeField::<P>::assert_valid() };
         Self { value: 0 }
     }
 
     pub const fn one() -> Self {
+        const { PrimeField::<P>::assert_valid() };
         Self { value: 1 }
     }
 
@@ -172,13 +175,11 @@ impl<const P: u64> PrimeFieldElement<P> {
     }
 
     pub fn inverse(self) -> Self {
-        const { PrimeField::<P>::assert_valid() };
         assert!(!self.is_zero(), "zero has no multiplicative inverse");
         self.pow(P - 2)
     }
 
     fn product(self, rhs: Self) -> Self {
-        const { PrimeField::<P>::assert_valid() };
         let value = (u128::from(self.value) * u128::from(rhs.value)) % u128::from(P);
         Self {
             value: value as u64,
@@ -222,7 +223,6 @@ impl<const P: u64> Add for PrimeFieldElement<P> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
-        const { PrimeField::<P>::assert_valid() };
         let value = (u128::from(self.value) + u128::from(rhs.value)) % u128::from(P);
         Self {
             value: value as u64,
@@ -242,7 +242,6 @@ impl<const P: u64> Neg for PrimeFieldElement<P> {
     type Output = Self;
 
     fn neg(self) -> Self {
-        const { PrimeField::<P>::assert_valid() };
         if self.is_zero() {
             self
         } else {

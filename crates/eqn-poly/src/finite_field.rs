@@ -75,6 +75,7 @@ pub struct FiniteFieldElement<const P: u64, const N: usize, M = FirstIrreducible
 
 impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
     pub const fn zero() -> Self {
+        const { assert!(N > 0, "a field extension must have positive degree") };
         Self {
             coefficients: [PrimeFieldElement::zero(); N],
             modulus: PhantomData,
@@ -82,10 +83,9 @@ impl<const P: u64, const N: usize, M> FiniteFieldElement<P, N, M> {
     }
 
     pub const fn one() -> Self {
+        const { assert!(N > 0, "a field extension must have positive degree") };
         let mut coefficients = [PrimeFieldElement::zero(); N];
-        if N > 0 {
-            coefficients[0] = PrimeFieldElement::one();
-        }
+        coefficients[0] = PrimeFieldElement::one();
         Self {
             coefficients,
             modulus: PhantomData,
