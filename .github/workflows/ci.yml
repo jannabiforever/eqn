@@ -36,3 +36,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --workspace --all-targets
       - run: cargo test --workspace
+
+  stable:
+    runs-on: ubuntu-latest
+    env:
+      # The pinned nightly in rust-toolchain.toml is for rustfmt only, so
+      # override it here: the crates themselves must build on stable.
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --workspace --all-targets
+      - run: cargo test --workspace

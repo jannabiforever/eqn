@@ -1,7 +1,3 @@
-// mgca: `Chart<M>` hold `M::DIM` coordinates.
-#![feature(min_generic_const_args, macroless_generic_const_args)]
-#![allow(incomplete_features)]
-
 use std::collections::HashSet;
 
 use eqn_algebra::ring::RingElem;
@@ -21,7 +17,7 @@ pub trait Manifold {
     /// The ring of 0-forms along the [`Chart`].
     type Functions: DifferentialRing<Index: Clone + Into<RingElem<Self::Functions>>>;
 
-    type const DIM: usize;
+    const DIM: usize;
 }
 
 /// A 0-form on the manifold `M`: an element of `M::Functions`.
@@ -118,15 +114,23 @@ where
 /// x^j = \delta_ij`.
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq; Coordinate<M>)]
 pub struct Chart<M: Manifold> {
-    coordinates: [Coordinate<M>; M::DIM],
+    coordinates: Vec<Coordinate<M>>,
 }
 
 impl<M: Manifold> Chart<M> {
-    pub fn new(coordinates: [Coordinate<M>; M::DIM]) -> Self {
+    /// A chart names one coordinate per dimension; any other count is a
+    /// contract violation, not an error.
+    pub fn new(coordinates: impl Into<Vec<Coordinate<M>>>) -> Self {
+        let coordinates = coordinates.into();
+        assert_eq!(
+            coordinates.len(),
+            M::DIM,
+            "a chart names one coordinate per dimension"
+        );
         Self { coordinates }
     }
 
-    pub fn coordinates(&self) -> &[Coordinate<M>; M::DIM] {
+    pub fn coordinates(&self) -> &[Coordinate<M>] {
         &self.coordinates
     }
 
@@ -161,18 +165,34 @@ mod tests {
     pub(super) struct Plane;
     impl Manifold for Plane {
         type Functions = ElementaryFunctionRing<(QAdd, QMul)>;
-        type const DIM: usize = 2;
+        const DIM: usize = 2;
     }
 
     #[derive(Debug)]
     pub(super) struct IntPlane;
     impl Manifold for IntPlane {
         type Functions = PolynomialRing<(ZAdd, ZMul)>;
-        type const DIM: usize = 2;
+        const DIM: usize = 2;
     }
 
     fn constant(c: Q) -> DifferentialForm<Plane> {
         DifferentialForm::Scalar(ElementaryExpr::Const(c))
+    }
+
+    #[test]
+    fn a_chart_names_one_coordinate_per_dimension() {
+        assert_eq!(
+            Chart::<Plane>::new([Symbol::new("x"), Symbol::new("y")])
+                .coordinates()
+                .len(),
+            Plane::DIM
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "a chart names one coordinate per dimension")]
+    fn a_chart_of_the_wrong_size_is_rejected() {
+        Chart::<Plane>::new([Symbol::new("x")]);
     }
 
     #[test]

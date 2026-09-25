@@ -1,7 +1,3 @@
-// mgca: `FiniteExtension<M>` hold `M::DIM` coordinates.
-#![feature(min_generic_const_args, macroless_generic_const_args)]
-#![allow(incomplete_features)]
-
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::marker::PhantomData;
