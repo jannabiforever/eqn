@@ -204,7 +204,7 @@ where
 mod tests {
     use eqn_algebra::operator_impl::{QAdd, QMul};
     use eqn_analysis::ElementaryExpr;
-    use eqn_core::set::Rational;
+    use eqn_core::set::Q;
     use eqn_core::symbol::Symbol;
 
     use super::*;
@@ -214,7 +214,7 @@ mod tests {
     type Fun = ElementaryExpr<(QAdd, QMul)>;
 
     fn c(i: i64) -> Fun {
-        Fun::Const(Rational::from(i))
+        Fun::Const(Q::from(i))
     }
 
     fn x() -> Fun {

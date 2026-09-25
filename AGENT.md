@@ -36,8 +36,8 @@ expressible at all. For every such law:
 
 Every rule in `.pattern/` is binding. Read the folder before writing code,
 and reread it before finishing. It covers `derive_where`, comment style,
-blanket impls on tuples, the ban on free functions, law tests, and subsets
-and quotients.
+blanket impls on tuples, the ban on free functions, law tests, subsets and
+quotients, and naming.
 
 ## Before you finish
 

@@ -24,20 +24,21 @@ pub trait NormalForm<X: Set> {
 }
 
 // ================================================================================
-// Classes
+// Quotients
 // ================================================================================
 
-/// A class of `X` modulo `N`, held by the representative `N` chooses, so
-/// equality of classes is equality of representatives.
+/// The quotient set `X / N`. A value is a class of `X` modulo `N`, held by
+/// the representative `N` chooses, so equality of classes is equality of
+/// representatives.
 #[derive_where::derive_where(Clone, Debug, Eq, PartialEq)]
 #[derive_where(Hash, Ord, PartialOrd; X)]
-pub struct EqClass<X: Set, N: NormalForm<X>> {
+pub struct Quotient<X: Set, N: NormalForm<X>> {
     representative: X,
     #[derive_where(skip)]
     normal_form: PhantomData<N>,
 }
 
-impl<X: Set, N: NormalForm<X>> EqClass<X, N> {
+impl<X: Set, N: NormalForm<X>> Quotient<X, N> {
     pub fn new(element: X) -> Self {
         Self {
             representative: N::reduce(element),
@@ -54,7 +55,7 @@ impl<X: Set, N: NormalForm<X>> EqClass<X, N> {
     }
 }
 
-impl<X: Set, N: NormalForm<X>> Set for EqClass<X, N> {}
+impl<X: Set, N: NormalForm<X>> Set for Quotient<X, N> {}
 
 #[cfg(test)]
 mod tests {
@@ -67,8 +68,8 @@ mod tests {
     struct Mod2;
 
     impl NormalForm<Z> for Mod2 {
-        fn reduce(element: i64) -> i64 {
-            element.rem_euclid(2)
+        fn reduce(element: Z) -> Z {
+            Z::from(i64::from(element).rem_euclid(2))
         }
     }
 
@@ -76,17 +77,17 @@ mod tests {
     struct SameParity;
 
     impl Equivalence<Z> for SameParity {
-        fn equivalent(a: &i64, b: &i64) -> bool {
-            (a - b) % 2 == 0
+        fn equivalent(a: &Z, b: &Z) -> bool {
+            i64::from(*a - *b) % 2 == 0
         }
     }
 
-    type Parity = EqClass<Z, Mod2>;
+    type Parity = Quotient<Z, Mod2>;
 
     #[test]
     fn classes_are_equal_exactly_when_the_relation_holds() {
-        for a in -3..=3 {
-            for b in -3..=3 {
+        for a in (-3..=3).map(Z::from) {
+            for b in (-3..=3).map(Z::from) {
                 assert_eq!(
                     Parity::new(a) == Parity::new(b),
                     SameParity::equivalent(&a, &b)
@@ -103,8 +104,8 @@ mod tests {
             hasher.finish()
         }
 
-        for a in -3..=3 {
-            for b in -3..=3 {
+        for a in (-3..=3).map(Z::from) {
+            for b in (-3..=3).map(Z::from) {
                 let (lhs, rhs) = (Parity::new(a), Parity::new(b));
 
                 if lhs == rhs {
@@ -114,7 +115,7 @@ mod tests {
             }
         }
 
-        assert!(Parity::new(2) < Parity::new(-3));
+        assert!(Parity::new(Z::from(2)) < Parity::new(Z::from(-3)));
     }
 
     #[test]
@@ -122,8 +123,8 @@ mod tests {
         fn assert_set<S: Set>() {}
 
         assert_set::<Parity>();
-        assert_eq!(Parity::new(7).representative(), &1);
-        assert_eq!(Parity::new(-4).representative(), &0);
-        assert_eq!(Parity::new(5).into_representative(), 1);
+        assert_eq!(Parity::new(Z::from(7)).representative(), &Z::ONE);
+        assert_eq!(Parity::new(Z::from(-4)).representative(), &Z::ZERO);
+        assert_eq!(Parity::new(Z::from(5)).into_representative(), Z::from(1));
     }
 }
