@@ -288,7 +288,7 @@ where
     M: IrreduciblePolynomial<P, N>,
 {
     pub fn modulus() -> UnivariatePolynomial<P> {
-        const { PrimeField::<P>::assert_valid() };
+        const { Fp::<P>::assert_valid() };
         let coefficients = M::coefficients();
         assert_eq!(
             coefficients.len(),
@@ -410,7 +410,7 @@ impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
 {
     pub fn new() -> Self {
         const {
-            PrimeField::<P>::assert_valid();
+            Fp::<P>::assert_valid();
             assert!(
                 SOURCE_DEGREE > 0
                     && TARGET_DEGREE > 0
@@ -751,7 +751,7 @@ impl PolynomialSelection {
         }
 
         assert!(degree > 0, "a field extension must have positive degree");
-        const { PrimeField::<P>::assert_valid() };
+        const { Fp::<P>::assert_valid() };
 
         let polynomial = UnivariatePolynomial::<P>::monic(degree)
             .find(|candidate| match self {
@@ -942,6 +942,7 @@ mod tests {
         }
     }
 
+    #[test]
     fn rejects_reducible_polynomials() {
         let reducible = UnivariatePolynomial::new([0, 1, 1].map(Fp::<2>::new).to_vec());
         assert!(!reducible.is_irreducible());

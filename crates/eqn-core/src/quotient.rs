@@ -120,8 +120,8 @@ mod tests {
 
     #[test]
     fn classes_hold_a_reduced_representative() {
-        assert_eq!(Parity::new(7).representative(), &1);
-        assert_eq!(Parity::new(-4).representative(), &0);
-        assert_eq!(Parity::new(5).into_representative(), 1);
+        assert_eq!(Parity::new(Z::from(7)).representative(), &Z::from(1));
+        assert_eq!(Parity::new(Z::from(-4)).representative(), &Z::from(0));
+        assert_eq!(Parity::new(Z::from(5)).into_representative(), Z::from(1));
     }
 }

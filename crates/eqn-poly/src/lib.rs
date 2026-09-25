@@ -306,8 +306,8 @@ mod tests {
 
     #[test]
     fn coefficients_scale_polynomials_and_embed_as_constants() {
-        assert_eq!(Poly::scale(3, poly("x")), poly("3 x"));
-        assert_eq!(Poly::from_scalar(4), poly("4"));
+        assert_eq!(Poly::scale(Z::from(3), poly("x")), poly("3 x"));
+        assert_eq!(Poly::from_scalar(Z::from(4)), poly("4"));
     }
 
     #[test]

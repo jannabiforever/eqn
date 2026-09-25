@@ -58,6 +58,6 @@ mod tests {
 
     #[test]
     fn scalars_embed_into_an_algebra_by_scaling_one() {
-        assert_eq!(IntegerAlgebra::from_scalar(7), 7);
+        assert_eq!(IntegerAlgebra::from_scalar(Z::from(7)), Z::from(7));
     }
 }

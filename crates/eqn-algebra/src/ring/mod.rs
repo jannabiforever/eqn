@@ -324,7 +324,7 @@ mod tests {
 
     #[test]
     fn integers_form_a_subring() {
-        for value in [-10, -1, 0, 1, 10] {
+        for value in [-10, -1, 0, 1, 10].map(Z::from) {
             assert!(AllIntegers::contains(&Integers::negate(value)));
         }
     }

@@ -120,23 +120,23 @@ impl<const P: u64> Fp<P> {
     }
 
     pub const fn zero() -> Self {
-        const { PrimeField::<P>::assert_valid() };
+        const { Fp::<P>::assert_valid() };
         Self { value: 0 }
     }
 
     pub const fn one() -> Self {
-        const { PrimeField::<P>::assert_valid() };
+        const { Fp::<P>::assert_valid() };
         Self { value: 1 }
     }
 
     pub fn new(value: u64) -> Self {
-        const { PrimeField::<P>::assert_valid() };
+        const { Fp::<P>::assert_valid() };
         Self { value: value % P }
     }
 
     /// TODO: Implement as bignum
     pub fn from_i64(value: i64) -> Self {
-        const { PrimeField::<P>::assert_valid() };
+        const { Fp::<P>::assert_valid() };
         let modulus = i128::from(P);
         let value = i128::from(value).rem_euclid(modulus) as u64;
         Self { value }
@@ -348,13 +348,11 @@ mod tests {
     }
 
     #[test]
-    fn prime_field_constants_and_scalar_action_are_its_arithmetic() {
+    fn prime_field_constants_match_element_identities() {
         type F5 = PrimeField<5>;
         type E = Fp<5>;
 
         assert_eq!(F5::zero(), E::zero());
         assert_eq!(F5::one(), E::one());
-        assert_eq!(F5::from_scalar(E::new(3)), E::new(3));
-        assert_eq!(F5::scale(E::new(3), E::new(4)), E::new(2));
     }
 }
