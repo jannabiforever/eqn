@@ -141,6 +141,21 @@ impl From<i64> for Rational {
     }
 }
 
+impl<Z1, Z2> From<(Z1, Z2)> for Rational
+where
+    Z1: Into<Z>,
+    Z2: Into<Z>,
+{
+    fn from(value: (Z1, Z2)) -> Self {
+        let (numerator, denominator) = {
+            let (n, d) = value;
+            (n.into(), d.into())
+        };
+
+        Self::new(numerator, denominator)
+    }
+}
+
 /// Why a string is not a [`Q`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ParseRationalError {
