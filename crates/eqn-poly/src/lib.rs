@@ -11,6 +11,7 @@ use eqn_core::op::{Associative, BinaryOperator, Commutative};
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
+pub mod factor;
 pub mod finite_field;
 mod parse;
 
@@ -96,9 +97,22 @@ impl<R: CommutativeRing> Polynomial<R> {
         }
     }
 
-    // ponytail: repeated multiplication, square-and-multiply if exponents grow
     pub fn pow(self, exponent: NonZeroUsize) -> Self {
-        (1..exponent.get()).fold(self.clone(), |acc, _| acc * self.clone())
+        let mut exponent = exponent.get();
+        let mut base = self;
+        let mut result = Self::ONE;
+
+        while exponent > 0 {
+            if exponent & 1 == 1 {
+                result = result * base.clone();
+            }
+            exponent >>= 1;
+            if exponent > 0 {
+                base = base.clone() * base;
+            }
+        }
+
+        result
     }
 
     fn into_terms(self) -> impl Iterator<Item = (Monomial<R::Domain>, RingElem<R>)> {
