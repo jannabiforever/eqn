@@ -20,20 +20,28 @@ fn inverse_satisfies_both_group_laws() {
 }
 ```
 
-## Blanket impls get a bound check
+## What the compiler decides is not tested
 
-A blanket impl is a theorem: "anything with these bounds is a `Group`". Its
-test is that a concrete type is accepted by the bound. An empty generic
-function is the whole assertion.
+A trait bound, a blanket impl and an associated constant are all checked
+when the crate compiles. A test that names one asserts something that
+cannot be false at run time, so it is not written.
 
 ```rust
 #[test]
 fn quotient_of_an_abelian_group_is_abelian() {
-    fn assert_abelian<G: AbelianGroup>() {}
+    fn assert_abelian<G: AbelianGroup>() {}  // bad
 
     assert_abelian::<IntegersModTwo>();
+    assert_eq!(<IntegersModTwo as FiniteGroup>::ORDER, 2);  // bad
 }
 ```
+
+A blanket impl is a theorem, and the impl that names its bound is the
+proof. `IntegersModTwo` is an `AbelianGroup` because the quotient impl
+compiles; the law left to test is the one on its elements, which belongs
+in a test of that law. A hypothesis on a const generic is forced in a
+`const` block at the entry points that need it, so a violation is a
+compilation failure and needs no test either.
 
 ## Derived structures test well-definedness
 

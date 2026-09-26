@@ -19,6 +19,9 @@ holding the author to it.
   relation as a trait bound, a conversion, or an adapter type whose impl
   states the theorem, so the compiler infers the second from the first.
   Never ask an implementor to state what the bounds already prove.
+- **Hypotheses on constants are compile-time.** A hypothesis about a const
+  generic is forced in a `const` block, so violating it fails to compile.
+  A run-time assertion is for a hypothesis about a value.
 
 ## Rule 2. Test the laws you cannot encode
 
@@ -28,7 +31,8 @@ expressible at all. For every such law:
 
 - Every concrete instance of a structure has a test that exercises the law
   on real elements.
-- Every blanket impl has a test that a concrete type satisfies its bound.
+- No test restates what the compiler decides. A trait bound, a blanket
+  impl and an associated constant are checked when the crate compiles.
 - Test names are propositions that could be false. If a name cannot be
   false, rename it.
 

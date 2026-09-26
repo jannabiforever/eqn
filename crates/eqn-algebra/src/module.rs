@@ -125,9 +125,6 @@ mod tests {
     fn even_integers_form_a_submodule() {
         type Addition = <IntegerModule as Module>::Addition;
 
-        fn assert_submodule<S: Submodule>() {}
-
-        assert_submodule::<EvenIntegers>();
         assert!(EvenIntegers::contains(&Addition::identity()));
 
         for scalar in [-3, 0, 4].map(Z::from) {
