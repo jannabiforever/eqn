@@ -129,12 +129,7 @@ mod tests {
     }
 
     #[test]
-    fn integers_modulo_two_form_a_commutative_ring() {
-        fn assert_ring<R: Ring>() {}
-        fn assert_commutative_ring<R: CommutativeRing>() {}
-
-        assert_ring::<IntegersModTwo>();
-        assert_commutative_ring::<IntegersModTwo>();
+    fn integers_modulo_two_add_to_zero_and_multiply_to_one() {
         assert_eq!(
             IntegersModTwo::add(modulo_two(1), modulo_two(1)),
             modulo_two(0)

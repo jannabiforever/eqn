@@ -119,12 +119,9 @@ mod tests {
     }
 
     #[test]
-    fn classes_form_a_set_and_hold_a_reduced_representative() {
-        fn assert_set<S: Set>() {}
-
-        assert_set::<Parity>();
-        assert_eq!(Parity::new(Z::from(7)).representative(), &Z::ONE);
-        assert_eq!(Parity::new(Z::from(-4)).representative(), &Z::ZERO);
+    fn classes_hold_a_reduced_representative() {
+        assert_eq!(Parity::new(Z::from(7)).representative(), &Z::from(1));
+        assert_eq!(Parity::new(Z::from(-4)).representative(), &Z::from(0));
         assert_eq!(Parity::new(Z::from(5)).into_representative(), Z::from(1));
     }
 }

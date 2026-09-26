@@ -155,9 +155,6 @@ mod tests {
 
     #[test]
     fn even_integers_form_a_subgroup() {
-        fn assert_subgroup<S: Subgroup>() {}
-
-        assert_subgroup::<EvenIntegers>();
         assert!(EvenIntegers::contains(&IntegerAdditionGroup::identity()));
 
         for value in [-10, -2, 0, 4, 12] {

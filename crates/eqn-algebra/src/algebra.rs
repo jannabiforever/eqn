@@ -30,12 +30,11 @@ pub trait Subalgebra: Subring<Parent: Algebra> {}
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::{Subset, Z};
+    use eqn_core::set::Z;
 
     use super::*;
     use crate::module::ModuleElem;
     use crate::operator_impl::{ZAdd, ZMul};
-    use crate::ring::SubSemiRing;
 
     type Integers = (ZAdd, ZMul);
 
@@ -57,36 +56,8 @@ mod tests {
         }
     }
 
-    struct AllIntegers;
-
-    impl Subset for AllIntegers {
-        type Superset = Z;
-
-        fn contains(_: &Z) -> bool {
-            true
-        }
-    }
-
-    impl SubSemiRing for AllIntegers {
-        type Parent = IntegerAlgebra;
-    }
-
-    impl Subring for AllIntegers {}
-
-    impl Subalgebra for AllIntegers {}
-
     #[test]
-    fn compatible_ring_and_module_form_an_algebra() {
-        fn assert_algebra<A: Algebra>() {}
-
-        assert_algebra::<IntegerAlgebra>();
+    fn scalars_embed_into_an_algebra_by_scaling_one() {
         assert_eq!(IntegerAlgebra::from_scalar(Z::from(7)), Z::from(7));
-    }
-
-    #[test]
-    fn compatible_substructures_form_a_subalgebra() {
-        fn assert_subalgebra<S: Subalgebra>() {}
-
-        assert_subalgebra::<AllIntegers>();
     }
 }

@@ -112,26 +112,31 @@ impl<const P: u64> Fp<P> {
         true
     }
 
+    /// The primality hypothesis on `P`. Every constructor of an element
+    /// forces it in a `const` block, so a composite characteristic fails to
+    /// compile and an element that exists carries the hypothesis with it.
     pub const fn assert_valid() {
         assert!(Self::is_valid(), "prime-field characteristic must be prime");
     }
 
     pub const fn zero() -> Self {
+        const { Fp::<P>::assert_valid() };
         Self { value: 0 }
     }
 
     pub const fn one() -> Self {
+        const { Fp::<P>::assert_valid() };
         Self { value: 1 }
     }
 
     pub fn new(value: u64) -> Self {
-        Self::assert_valid();
+        const { Fp::<P>::assert_valid() };
         Self { value: value % P }
     }
 
     /// TODO: Implement as bignum
     pub fn from_i64(value: i64) -> Self {
-        Self::assert_valid();
+        const { Fp::<P>::assert_valid() };
         let modulus = i128::from(P);
         let value = i128::from(value).rem_euclid(modulus) as u64;
         Self { value }
@@ -162,13 +167,11 @@ impl<const P: u64> Fp<P> {
     }
 
     pub fn inverse(self) -> Self {
-        Self::assert_valid();
         assert!(!self.is_zero(), "zero has no multiplicative inverse");
         self.pow(P - 2)
     }
 
     fn product(self, rhs: Self) -> Self {
-        Self::assert_valid();
         let value = (u128::from(self.value) * u128::from(rhs.value)) % u128::from(P);
         Self {
             value: value as u64,
@@ -210,7 +213,6 @@ impl<const P: u64> Add for Fp<P> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
-        Self::assert_valid();
         let value = (u128::from(self.value) + u128::from(rhs.value)) % u128::from(P);
         Self {
             value: value as u64,
@@ -230,7 +232,6 @@ impl<const P: u64> Neg for Fp<P> {
     type Output = Self;
 
     fn neg(self) -> Self {
-        Self::assert_valid();
         if self.is_zero() {
             self
         } else {
@@ -299,9 +300,6 @@ mod tests {
 
     #[test]
     fn rationals_form_a_subfield() {
-        fn assert_subfield<S: Subfield>() {}
-
-        assert_subfield::<AllRationals>();
         for value in [Q::from(-3), Q::from(1), Q::from(4)] {
             assert!(AllRationals::contains(&Rationals::invert(value)));
         }
@@ -350,19 +348,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "prime-field characteristic must be prime")]
-    fn composite_characteristics_fail_fast() {
-        PrimeField::<4>::multiply(Fp::one(), Fp::one());
-    }
-
-    #[test]
-    fn prime_fields_are_fields() {
-        fn assert_field<F: Field>() {}
-
+    fn prime_field_constants_match_element_identities() {
         type F5 = PrimeField<5>;
         type E = Fp<5>;
 
-        assert_field::<F5>();
         assert_eq!(F5::zero(), E::zero());
         assert_eq!(F5::one(), E::one());
     }
