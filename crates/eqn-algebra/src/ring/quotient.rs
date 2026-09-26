@@ -45,6 +45,7 @@ pub type QuotientRing<I> = (QuotientOp<I>, QuotientMul<I>);
 mod tests {
     use eqn_core::quotient::Equivalence;
     use eqn_core::set::{Subset, Z};
+    use num_integer::Integer;
 
     use super::*;
     use crate::group::Subgroup;
@@ -60,7 +61,7 @@ mod tests {
         type Superset = Z;
 
         fn contains(value: &Z) -> bool {
-            i64::from(*value) % 2 == 0
+            value % Z::from(2) == Z::ZERO
         }
     }
 
@@ -72,7 +73,7 @@ mod tests {
 
     impl NormalForm<Z> for EvenIntegers {
         fn reduce(value: Z) -> Z {
-            Z::from(i64::from(value).rem_euclid(2))
+            value.mod_floor(&Z::from(2))
         }
     }
 
@@ -82,35 +83,35 @@ mod tests {
 
     type IntegersModTwo = QuotientRing<EvenIntegers>;
 
-    fn modulo_two(value: impl Into<Z>) -> Quotient<Z, EvenIntegers> {
-        Quotient::new(value.into())
+    fn modulo_two<V: Into<Z> + Clone>(value: &V) -> Quotient<Z, EvenIntegers> {
+        Quotient::new(value.clone().into())
     }
 
     #[test]
     fn equality_is_modulo_the_ideal() {
-        assert_eq!(modulo_two(0), modulo_two(2));
-        assert_eq!(modulo_two(1), modulo_two(3));
-        assert_ne!(modulo_two(0), modulo_two(1));
+        assert_eq!(modulo_two(&0), modulo_two(&2));
+        assert_eq!(modulo_two(&1), modulo_two(&3));
+        assert_ne!(modulo_two(&0), modulo_two(&1));
 
-        let value = modulo_two(5);
-        assert_eq!(value.representative(), &Z::ONE);
+        let value = modulo_two(&5);
+        assert_eq!(value.representative(), &Z::from(1));
         assert_eq!(value.into_representative(), Z::from(1));
     }
 
     #[test]
     fn quotient_equality_is_an_equivalence_relation() {
         for a in (-3..=3).map(Z::from) {
-            assert_eq!(modulo_two(a), modulo_two(a));
+            assert_eq!(modulo_two(&a), modulo_two(&a));
 
             for b in (-3..=3).map(Z::from) {
                 assert_eq!(
-                    modulo_two(a) == modulo_two(b),
-                    modulo_two(b) == modulo_two(a)
+                    modulo_two(&a) == modulo_two(&b),
+                    modulo_two(&b) == modulo_two(&a)
                 );
 
                 for c in -3..=3 {
-                    if modulo_two(a) == modulo_two(b) && modulo_two(b) == modulo_two(c) {
-                        assert_eq!(modulo_two(a), modulo_two(c));
+                    if modulo_two(&a) == modulo_two(&b) && modulo_two(&b) == modulo_two(&c) {
+                        assert_eq!(modulo_two(&a), modulo_two(&c));
                     }
                 }
             }
@@ -119,93 +120,93 @@ mod tests {
 
     #[test]
     fn quotient_operations_do_not_depend_on_representatives() {
-        let sum = IntegersModTwo::add(modulo_two(1), modulo_two(2));
-        let same_sum = IntegersModTwo::add(modulo_two(3), modulo_two(4));
+        let sum = IntegersModTwo::add(modulo_two(&1), modulo_two(&2));
+        let same_sum = IntegersModTwo::add(modulo_two(&3), modulo_two(&4));
         assert_eq!(sum, same_sum);
 
-        let product = IntegersModTwo::multiply(modulo_two(1), modulo_two(2));
-        let same_product = IntegersModTwo::multiply(modulo_two(3), modulo_two(4));
+        let product = IntegersModTwo::multiply(modulo_two(&1), modulo_two(&2));
+        let same_product = IntegersModTwo::multiply(modulo_two(&3), modulo_two(&4));
         assert_eq!(product, same_product);
     }
 
     #[test]
     fn integers_modulo_two_add_to_zero_and_multiply_to_one() {
         assert_eq!(
-            IntegersModTwo::add(modulo_two(1), modulo_two(1)),
-            modulo_two(0)
+            IntegersModTwo::add(modulo_two(&1), modulo_two(&1)),
+            modulo_two(&0)
         );
         assert_eq!(
-            IntegersModTwo::multiply(modulo_two(1), modulo_two(1)),
-            modulo_two(1)
+            IntegersModTwo::multiply(modulo_two(&1), modulo_two(&1)),
+            modulo_two(&1)
         );
-        assert_eq!(IntegersModTwo::negate(modulo_two(1)), modulo_two(1));
+        assert_eq!(IntegersModTwo::negate(modulo_two(&1)), modulo_two(&1));
     }
 
     #[test]
     fn quotient_operators_satisfy_the_ring_laws() {
         for a in (-2..=2).map(Z::from) {
             assert_eq!(
-                IntegersModTwo::add(modulo_two(a), IntegersModTwo::zero()),
-                modulo_two(a)
+                IntegersModTwo::add(modulo_two(&a), IntegersModTwo::zero()),
+                modulo_two(&a)
             );
             assert_eq!(
-                IntegersModTwo::add(modulo_two(a), IntegersModTwo::negate(modulo_two(a))),
+                IntegersModTwo::add(modulo_two(&a), IntegersModTwo::negate(modulo_two(&a))),
                 IntegersModTwo::zero()
             );
             assert_eq!(
-                IntegersModTwo::multiply(modulo_two(a), IntegersModTwo::one()),
-                modulo_two(a)
+                IntegersModTwo::multiply(modulo_two(&a), IntegersModTwo::one()),
+                modulo_two(&a)
             );
 
             for b in (-2..=2).map(Z::from) {
                 assert_eq!(
-                    IntegersModTwo::add(modulo_two(a), modulo_two(b)),
-                    IntegersModTwo::add(modulo_two(b), modulo_two(a))
+                    IntegersModTwo::add(modulo_two(&a), modulo_two(&b)),
+                    IntegersModTwo::add(modulo_two(&b), modulo_two(&a))
                 );
                 assert_eq!(
-                    IntegersModTwo::multiply(modulo_two(a), modulo_two(b)),
-                    IntegersModTwo::multiply(modulo_two(b), modulo_two(a))
+                    IntegersModTwo::multiply(modulo_two(&a), modulo_two(&b)),
+                    IntegersModTwo::multiply(modulo_two(&b), modulo_two(&a))
                 );
 
                 for c in -2..=2 {
                     assert_eq!(
                         IntegersModTwo::add(
-                            IntegersModTwo::add(modulo_two(a), modulo_two(b)),
-                            modulo_two(c)
+                            IntegersModTwo::add(modulo_two(&a), modulo_two(&b)),
+                            modulo_two(&c)
                         ),
                         IntegersModTwo::add(
-                            modulo_two(a),
-                            IntegersModTwo::add(modulo_two(b), modulo_two(c))
+                            modulo_two(&a),
+                            IntegersModTwo::add(modulo_two(&b), modulo_two(&c))
                         )
                     );
                     assert_eq!(
                         IntegersModTwo::multiply(
-                            IntegersModTwo::multiply(modulo_two(a), modulo_two(b)),
-                            modulo_two(c)
+                            IntegersModTwo::multiply(modulo_two(&a), modulo_two(&b)),
+                            modulo_two(&c)
                         ),
                         IntegersModTwo::multiply(
-                            modulo_two(a),
-                            IntegersModTwo::multiply(modulo_two(b), modulo_two(c))
+                            modulo_two(&a),
+                            IntegersModTwo::multiply(modulo_two(&b), modulo_two(&c))
                         )
                     );
                     assert_eq!(
                         IntegersModTwo::multiply(
-                            modulo_two(a),
-                            IntegersModTwo::add(modulo_two(b), modulo_two(c))
+                            modulo_two(&a),
+                            IntegersModTwo::add(modulo_two(&b), modulo_two(&c))
                         ),
                         IntegersModTwo::add(
-                            IntegersModTwo::multiply(modulo_two(a), modulo_two(b)),
-                            IntegersModTwo::multiply(modulo_two(a), modulo_two(c))
+                            IntegersModTwo::multiply(modulo_two(&a), modulo_two(&b)),
+                            IntegersModTwo::multiply(modulo_two(&a), modulo_two(&c))
                         )
                     );
                     assert_eq!(
                         IntegersModTwo::multiply(
-                            IntegersModTwo::add(modulo_two(a), modulo_two(b)),
-                            modulo_two(c)
+                            IntegersModTwo::add(modulo_two(&a), modulo_two(&b)),
+                            modulo_two(&c)
                         ),
                         IntegersModTwo::add(
-                            IntegersModTwo::multiply(modulo_two(a), modulo_two(c)),
-                            IntegersModTwo::multiply(modulo_two(b), modulo_two(c))
+                            IntegersModTwo::multiply(modulo_two(&a), modulo_two(&c)),
+                            IntegersModTwo::multiply(modulo_two(&b), modulo_two(&c))
                         )
                     );
                 }
@@ -244,15 +245,15 @@ mod tests {
         for a in (-3..=3).map(Z::from) {
             for b in (-3..=3).map(Z::from) {
                 assert_eq!(
-                    modulo_two(a) == modulo_two(b),
-                    Modulo::<EvenIntegers>::equivalent(&a, &b)
+                    modulo_two(&a) == modulo_two(&b),
+                    Modulo::<EvenIntegers>::equivalent(&Z::from(a.clone()), &Z::from(b.clone()))
                 );
                 assert_eq!(
-                    Quotient::<Z, WholeRing>::new(a) == Quotient::new(b),
+                    Quotient::<Z, WholeRing>::new(a.clone()) == Quotient::new(b.clone()),
                     Modulo::<WholeRing>::equivalent(&a, &b)
                 );
                 assert_eq!(
-                    Quotient::<Z, ZeroIdeal>::new(a) == Quotient::new(b),
+                    Quotient::<Z, ZeroIdeal>::new(a.clone()) == Quotient::new(b.clone()),
                     Modulo::<ZeroIdeal>::equivalent(&a, &b)
                 );
             }
@@ -297,7 +298,7 @@ mod tests {
         for lhs in (-3..=3).map(Z::from) {
             for rhs in (-3..=3).map(Z::from) {
                 assert_eq!(
-                    Quotient::<Z, ZeroIdeal>::new(lhs) == Quotient::new(rhs),
+                    Quotient::<Z, ZeroIdeal>::new(lhs.clone()) == Quotient::new(rhs.clone()),
                     lhs == rhs
                 );
             }

@@ -311,7 +311,7 @@ mod tests {
         let p = poly("x + 2");
         let q = poly("y - 3");
 
-        assert_eq!(Poly::scale(Z::from(0), p.clone()), P::zero());
+        assert_eq!(Poly::scale(Z::ZERO, p.clone()), P::zero());
         assert_eq!(Poly::scale(Z::from(1), p.clone()), p);
         assert_eq!(
             Poly::scale(Z::from(2 + 3), p.clone()),

@@ -61,6 +61,8 @@ impl<X: Set, N: NormalForm<X>> Set for Quotient<X, N> {}
 mod tests {
     use std::hash::{DefaultHasher, Hash, Hasher};
 
+    use num_integer::Integer;
+
     use super::*;
     use crate::set::Z;
 
@@ -69,7 +71,7 @@ mod tests {
 
     impl NormalForm<Z> for Mod2 {
         fn reduce(element: Z) -> Z {
-            Z::from(i64::from(element).rem_euclid(2))
+            element.mod_floor(&Z::from(2))
         }
     }
 
@@ -78,7 +80,7 @@ mod tests {
 
     impl Equivalence<Z> for SameParity {
         fn equivalent(a: &Z, b: &Z) -> bool {
-            i64::from(*a - *b) % 2 == 0
+            (a - b) % Z::from(2) == Z::ZERO
         }
     }
 
@@ -89,7 +91,7 @@ mod tests {
         for a in (-3..=3).map(Z::from) {
             for b in (-3..=3).map(Z::from) {
                 assert_eq!(
-                    Parity::new(a) == Parity::new(b),
+                    Parity::new(a.clone()) == Parity::new(b.clone()),
                     SameParity::equivalent(&a, &b)
                 );
             }
@@ -106,7 +108,7 @@ mod tests {
 
         for a in (-3..=3).map(Z::from) {
             for b in (-3..=3).map(Z::from) {
-                let (lhs, rhs) = (Parity::new(a), Parity::new(b));
+                let (lhs, rhs) = (Parity::new(a.clone()), Parity::new(b));
 
                 if lhs == rhs {
                     assert_eq!(hash(&lhs), hash(&rhs));

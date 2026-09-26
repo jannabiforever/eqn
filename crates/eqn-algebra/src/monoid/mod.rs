@@ -125,7 +125,7 @@ mod tests {
         type Superset = Z;
 
         fn contains(value: &Z) -> bool {
-            i64::from(*value) >= 0
+            *value >= Z::ZERO
         }
     }
 
@@ -140,7 +140,8 @@ mod tests {
         for lhs in [0, 1, 4, 9].map(Z::from) {
             for rhs in [0, 2, 5, 8].map(Z::from) {
                 assert!(NonnegativeIntegers::contains(&IntegerAddition::apply(
-                    lhs, rhs
+                    lhs.clone(),
+                    rhs
                 )));
             }
         }

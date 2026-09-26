@@ -32,7 +32,7 @@ mod tests {
         type Superset = Z;
 
         fn contains(value: &Z) -> bool {
-            i64::from(*value) % 2 == 0
+            value % Z::from(2) == Z::ZERO
         }
     }
 
@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn membership_and_properness() {
-        assert!(EvenIntegers::contains(&Z::from(0)));
+        assert!(EvenIntegers::contains(&Z::ZERO));
         assert!(EvenIntegers::contains(&Z::from(6)));
         assert!(!EvenIntegers::contains(&Z::from(3)));
         assert!(EvenIntegers::is_proper());
@@ -80,22 +80,22 @@ mod tests {
         let ideal_elements = [-6, -2, 0, 4, 8].map(Z::from);
         let ring_elements = [-3, -1, 0, 2, 5].map(Z::from);
 
-        for &lhs in &ideal_elements {
-            for &rhs in &ideal_elements {
+        for lhs in &ideal_elements {
+            for rhs in &ideal_elements {
                 assert!(EvenIntegers::contains(&Integers::add(
-                    lhs,
-                    Integers::negate(rhs)
+                    lhs.clone(),
+                    Integers::negate(rhs.clone())
                 )));
             }
 
-            for &ring_element in &ring_elements {
+            for ring_element in &ring_elements {
                 assert!(EvenIntegers::contains(&Integers::multiply(
-                    ring_element,
-                    lhs
+                    ring_element.clone(),
+                    lhs.clone()
                 )));
                 assert!(EvenIntegers::contains(&Integers::multiply(
-                    lhs,
-                    ring_element
+                    lhs.clone(),
+                    ring_element.clone()
                 )));
             }
         }

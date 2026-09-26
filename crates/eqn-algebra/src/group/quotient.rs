@@ -55,6 +55,7 @@ pub type QuotientGroup<N> = (QuotientOp<N>,);
 #[cfg(test)]
 mod tests {
     use eqn_core::set::{Set, Subset, Z};
+    use num_integer::Integer;
 
     use super::*;
     use crate::operator_impl::ZAdd;
@@ -67,7 +68,7 @@ mod tests {
         type Superset = Z;
 
         fn contains(value: &Z) -> bool {
-            i64::from(*value) % 2 == 0
+            value % Z::from(2) == Z::ZERO
         }
     }
 
@@ -79,30 +80,30 @@ mod tests {
 
     impl NormalForm<Z> for EvenIntegers {
         fn reduce(value: Z) -> Z {
-            Z::from(i64::from(value).rem_euclid(2))
+            value.mod_floor(&Z::from(2))
         }
     }
 
     type IntegersModTwo = QuotientGroup<EvenIntegers>;
 
-    fn modulo_two(value: impl Into<Z>) -> Quotient<Z, EvenIntegers> {
-        Quotient::new(value.into())
+    fn modulo_two<V: Into<Z> + Clone>(value: &V) -> Quotient<Z, EvenIntegers> {
+        Quotient::new(value.clone().into())
     }
 
     #[test]
     fn coset_equality_is_an_equivalence_relation() {
         for a in (-3..=3).map(Z::from) {
-            assert_eq!(modulo_two(a), modulo_two(a));
+            assert_eq!(modulo_two(&a), modulo_two(&a));
 
             for b in (-3..=3).map(Z::from) {
                 assert_eq!(
-                    modulo_two(a) == modulo_two(b),
-                    modulo_two(b) == modulo_two(a)
+                    modulo_two(&a) == modulo_two(&b),
+                    modulo_two(&b) == modulo_two(&a)
                 );
 
                 for c in -3..=3 {
-                    if modulo_two(a) == modulo_two(b) && modulo_two(b) == modulo_two(c) {
-                        assert_eq!(modulo_two(a), modulo_two(c));
+                    if modulo_two(&a) == modulo_two(&b) && modulo_two(&b) == modulo_two(&c) {
+                        assert_eq!(modulo_two(&a), modulo_two(&c));
                     }
                 }
             }
@@ -114,8 +115,8 @@ mod tests {
         for a in (-3..=3).map(Z::from) {
             for b in (-3..=3).map(Z::from) {
                 assert_eq!(
-                    modulo_two(a) == modulo_two(b),
-                    Modulo::<EvenIntegers>::equivalent(&a, &b)
+                    modulo_two(&a) == modulo_two(&b),
+                    Modulo::<EvenIntegers>::equivalent(&Z::from(a.clone()), &Z::from(b.clone()))
                 );
             }
         }
@@ -133,26 +134,26 @@ mod tests {
     #[test]
     fn integers_modulo_two_are_their_own_inverses() {
         assert_eq!(
-            IntegersModTwo::apply(modulo_two(1), modulo_two(1)),
+            IntegersModTwo::apply(modulo_two(&1), modulo_two(&1)),
             IntegersModTwo::identity()
         );
-        assert_eq!(IntegersModTwo::inverse(modulo_two(1)), modulo_two(1));
+        assert_eq!(IntegersModTwo::inverse(modulo_two(&1)), modulo_two(&1));
     }
 
     #[test]
     fn quotient_operation_does_not_depend_on_representatives() {
-        let product = IntegersModTwo::apply(modulo_two(1), modulo_two(2));
-        let same_product = IntegersModTwo::apply(modulo_two(3), modulo_two(4));
+        let product = IntegersModTwo::apply(modulo_two(&1), modulo_two(&2));
+        let same_product = IntegersModTwo::apply(modulo_two(&3), modulo_two(&4));
 
         assert_eq!(product, same_product);
-        assert_eq!(modulo_two(5).representative(), &Z::ONE);
-        assert_eq!(modulo_two(5).into_representative(), Z::from(1));
+        assert_eq!(modulo_two(&5).representative(), &Z::from(1));
+        assert_eq!(modulo_two(&5).into_representative(), Z::from(1));
     }
 
     #[test]
     fn quotient_operator_satisfies_the_group_laws() {
         for a in (-2..=2).map(Z::from) {
-            let value = modulo_two(a);
+            let value = modulo_two(&a);
             let inverse = IntegersModTwo::inverse(value.clone());
 
             assert_eq!(
@@ -168,12 +169,12 @@ mod tests {
                 for c in -2..=2 {
                     assert_eq!(
                         IntegersModTwo::apply(
-                            IntegersModTwo::apply(modulo_two(a), modulo_two(b)),
-                            modulo_two(c)
+                            IntegersModTwo::apply(modulo_two(&a), modulo_two(&b)),
+                            modulo_two(&c)
                         ),
                         IntegersModTwo::apply(
-                            modulo_two(a),
-                            IntegersModTwo::apply(modulo_two(b), modulo_two(c))
+                            modulo_two(&a),
+                            IntegersModTwo::apply(modulo_two(&b), modulo_two(&c))
                         )
                     );
                 }

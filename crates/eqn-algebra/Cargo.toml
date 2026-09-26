@@ -8,3 +8,6 @@ anyhow.workspace = true
 derive-where.workspace = true
 eqn-core.workspace = true
 eqn-parser.workspace = true
+
+[dev-dependencies]
+num-integer.workspace = true
