@@ -10,6 +10,15 @@ use crate::map::Map;
 
 /// A set: a type whose values are its elements and whose `Eq` is equality of
 /// canonical representations.
+///
+/// `Q` meets the contract by holding every rational in lowest terms, so two
+/// spellings of one number are equal:
+///
+/// ```
+/// use eqn_core::set::{Q, Z};
+///
+/// assert_eq!("6/4".parse::<Q>().unwrap(), Q::new(Z::from(3), Z::from(2)));
+/// ```
 pub trait Set: Clone + Eq + std::fmt::Debug {}
 
 /// A subset of `Superset`, given by its membership predicate.
@@ -199,30 +208,6 @@ impl std::str::FromStr for Q {
 /// The rational numbers.
 pub type Q = Rational;
 
-/// A real number.
-///
-/// NOTE: equality is that of the approximation carried, which is coarser than
-/// equality of the reals.
-/// TODO: an exact representation.
-#[derive(Clone, Debug, Set)]
-pub struct R(f64);
-
-impl PartialEq for R {
-    fn eq(&self, other: &Self) -> bool {
-        other.0 >= self.0 && self.0 >= other.0
-    }
-}
-
-impl Eq for R {}
-
-impl std::str::FromStr for R {
-    type Err = std::num::ParseFloatError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        s.parse().map(Self)
-    }
-}
-
 // ================================================================================
 // Inclusions
 // ================================================================================
@@ -276,12 +261,6 @@ mod tests {
             Rational::new(Z::from(-1), Z::from(2))
         );
         assert_eq!(Rational::new(Z::from(0), Z::from(-7)), Rational::zero());
-    }
-
-    #[test]
-    fn reals_parse_decimals() {
-        assert_eq!("2.5".parse::<R>().unwrap(), R(2.5));
-        assert_eq!("-1".parse::<R>().unwrap(), R(-1.0));
     }
 
     #[test]
