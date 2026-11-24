@@ -2,10 +2,12 @@
 
 ## What this project is
 
-A Rust library for mathematical structures: sets with operators, the laws
-those operators satisfy, and expression trees rewritten using exactly those
-laws. Think SymPy, but with the algebra stated first and the type system
-holding the author to it.
+A Rust library that declares algebraic structures as types, rewrites
+expressions using only the laws those types declare, and is to solve
+equations under the same premises. Think SymPy, but with the algebra stated
+first and the type system holding the author to it. It is not a proof
+assistant: a law is declared and tested, never proven, and a structure earns
+its place by what rewriting or solving does with it.
 
 ## Rule 1. Reach for the highest inferability
 

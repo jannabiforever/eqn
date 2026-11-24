@@ -1,13 +1,14 @@
 # EQN
 
-A Rust library for computing with mathematical structures, stated the way a
-textbook states them.
+A Rust library that declares algebraic structures as types and rewrites
+expressions using only the laws those types declare. The equation solver
+built on the same premises is the work ahead.
 
-EQN is to [SymPy](https://www.sympy.org) what a proof is to a worked example.
-SymPy manipulates expressions and hopes the algebra behind them holds.
-
-Expressions come afterwards, and the rewriter that simplifies them is allowed
-to use exactly the laws the structure declares and nothing else.
+[SymPy](https://www.sympy.org) manipulates expressions and hopes the algebra
+behind them holds. Here the algebra is stated first, the way a textbook
+states it, and the type system holds the author to it. A law the type does
+not declare is a law the rewriter cannot use. EQN is not a proof assistant:
+a declared law is tested on elements, never proven.
 
 ## Crates
 
