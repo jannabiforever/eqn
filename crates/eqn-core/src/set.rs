@@ -21,13 +21,6 @@ use crate::map::Map;
 /// ```
 pub trait Set: Clone + Eq + std::fmt::Debug {}
 
-/// A subset of `Superset`, given by its membership predicate.
-pub trait Subset {
-    type Superset: Set;
-
-    fn contains(element: &Self::Superset) -> bool;
-}
-
 // ================================================================================
 // Sets of numbers
 // ================================================================================

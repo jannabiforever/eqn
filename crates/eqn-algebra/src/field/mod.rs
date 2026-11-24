@@ -7,7 +7,7 @@ use eqn_core::op::{Associative, BinaryOperator, Commutative, Inverse};
 use eqn_core::set::Set;
 
 use crate::algebra::Algebra;
-use crate::ring::{Ring, RingElem, Subring};
+use crate::ring::{Ring, RingElem};
 
 // ================================================================================
 // Field
@@ -33,9 +33,6 @@ where
     R::Multiplication: Commutative + Inverse,
 {
 }
-
-/// A subring of a field that is closed under inversion of nonzero elements.
-pub trait Subfield: Subring<Parent: Field> {}
 
 /// A field equipped with a chosen base-field algebra structure.
 pub trait FieldExtension: Field + Algebra<Scalars = Self::BaseField> {
@@ -273,37 +270,8 @@ pub type PrimeField<const P: u64> = (FpAdd<P>, FpMul<P>);
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::{Q, Subset};
-
     use super::*;
-    use crate::operator_impl::{QAdd, QMul};
-    use crate::ring::{SemiRing, SubSemiRing};
-
-    type Rationals = (QAdd, QMul);
-
-    struct AllRationals;
-
-    impl Subset for AllRationals {
-        type Superset = Q;
-
-        fn contains(_: &Q) -> bool {
-            true
-        }
-    }
-
-    impl SubSemiRing for AllRationals {
-        type Parent = Rationals;
-    }
-
-    impl Subring for AllRationals {}
-    impl Subfield for AllRationals {}
-
-    #[test]
-    fn rationals_form_a_subfield() {
-        for value in [Q::from(-3), Q::from(1), Q::from(4)] {
-            assert!(AllRationals::contains(&Rationals::invert(value)));
-        }
-    }
+    use crate::ring::SemiRing;
 
     #[test]
     fn prime_field_elements_normalize_residues() {

@@ -1,6 +1,6 @@
 use eqn_core::op::{Associative, BinaryOperator, Identity};
 use eqn_core::rewriter::Expression;
-use eqn_core::set::{Set, Subset};
+use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
 mod parse;
@@ -36,11 +36,6 @@ where
 {
     type Domain = Op::Domain;
     type Operator = Op;
-}
-
-/// A subset containing the identity and closed under the monoid operation.
-pub trait Submonoid: Subset<Superset = <Self::Parent as Monoid>::Domain> {
-    type Parent: Monoid;
 }
 
 /// An expression tree over a monoid: constants, named symbols, and n-ary
@@ -107,43 +102,5 @@ impl<M: Monoid> Expression for MonoidExpr<M> {
 impl<D: Set, M: Monoid<Domain = D>> From<Symbol<D>> for MonoidExpr<M> {
     fn from(value: Symbol<D>) -> Self {
         Self::Symbol(value)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use eqn_core::set::Z;
-
-    use super::*;
-    use crate::operator_impl::ZAdd;
-
-    type IntegerAddition = (ZAdd,);
-
-    struct NonnegativeIntegers;
-
-    impl Subset for NonnegativeIntegers {
-        type Superset = Z;
-
-        fn contains(value: &Z) -> bool {
-            *value >= Z::ZERO
-        }
-    }
-
-    impl Submonoid for NonnegativeIntegers {
-        type Parent = IntegerAddition;
-    }
-
-    #[test]
-    fn nonnegative_integers_form_a_submonoid() {
-        assert!(NonnegativeIntegers::contains(&IntegerAddition::identity()));
-
-        for lhs in [0, 1, 4, 9].map(Z::from) {
-            for rhs in [0, 2, 5, 8].map(Z::from) {
-                assert!(NonnegativeIntegers::contains(&IntegerAddition::apply(
-                    lhs.clone(),
-                    rhs
-                )));
-            }
-        }
     }
 }

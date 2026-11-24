@@ -1,5 +1,5 @@
 use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
-use eqn_core::set::{Set, Subset};
+use eqn_core::set::Set;
 
 use crate::ring::{Ring, RingElem};
 
@@ -26,12 +26,6 @@ pub trait Module {
     fn scale(scalar: ModuleScalar<Self>, value: ModuleElem<Self>) -> ModuleElem<Self>;
 }
 
-/// A subset containing zero and closed under addition, additive inverses, and
-/// scalar multiplication.
-pub trait Submodule: Subset<Superset = <Self::Parent as Module>::Domain> {
-    type Parent: Module;
-}
-
 #[cfg(test)]
 mod tests {
     use eqn_core::set::Z;
@@ -52,20 +46,6 @@ mod tests {
         fn scale(scalar: ModuleScalar<Self>, value: ModuleElem<Self>) -> ModuleElem<Self> {
             Integers::multiply(scalar, value)
         }
-    }
-
-    struct EvenIntegers;
-
-    impl Subset for EvenIntegers {
-        type Superset = Z;
-
-        fn contains(value: &Z) -> bool {
-            value % Z::from(2) == Z::ZERO
-        }
-    }
-
-    impl Submodule for EvenIntegers {
-        type Parent = IntegerModule;
     }
 
     #[test]
@@ -117,22 +97,6 @@ mod tests {
                 }
 
                 assert_eq!(IntegerModule::scale(Integers::one(), x.clone()), *x);
-            }
-        }
-    }
-
-    #[test]
-    fn even_integers_form_a_submodule() {
-        type Addition = <IntegerModule as Module>::Addition;
-
-        assert!(EvenIntegers::contains(&Addition::identity()));
-
-        for scalar in [-3, 0, 4].map(Z::from) {
-            for value in [-8, -2, 0, 6].map(Z::from) {
-                assert!(EvenIntegers::contains(&IntegerModule::scale(
-                    scalar.clone(),
-                    value
-                )));
             }
         }
     }

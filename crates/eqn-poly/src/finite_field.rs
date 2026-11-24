@@ -776,13 +776,10 @@ impl PolynomialSelection {
 #[cfg(test)]
 mod tests {
     use eqn_algebra::field::{Field, SplittingField};
-    use eqn_algebra::group::Subgroup;
-    use eqn_algebra::monoid::Submonoid;
     use eqn_algebra::ring::ideal::Ideal;
     use eqn_algebra::ring::quotient::QuotientRing;
     use eqn_algebra::ring::{Ring, SemiRing};
-    use eqn_core::quotient::{NormalForm, Quotient};
-    use eqn_core::set::Subset;
+    use eqn_core::quotient::{Congruence, NormalForm, Quotient};
 
     use super::*;
 
@@ -1000,25 +997,14 @@ mod tests {
         }
     }
 
-    impl Subset for DefiningIdeal {
-        type Superset = UnivariatePolynomial<3>;
-
-        fn contains(polynomial: &UnivariatePolynomial<3>) -> bool {
-            (polynomial.clone() % &Self::modulus()).is_zero()
-        }
-    }
-
-    impl Submonoid for DefiningIdeal {
-        type Parent = (PolynomialAdd<3>,);
-    }
-
-    impl Subgroup for DefiningIdeal {}
-
     impl NormalForm<UnivariatePolynomial<3>> for DefiningIdeal {
         fn reduce(polynomial: UnivariatePolynomial<3>) -> UnivariatePolynomial<3> {
             polynomial % &Self::modulus()
         }
     }
+
+    impl Congruence<PolynomialAdd<3>> for DefiningIdeal {}
+    impl Congruence<PolynomialMul<3>> for DefiningIdeal {}
 
     impl Ideal for DefiningIdeal {
         type Ring = Polynomials<3>;
@@ -1056,5 +1042,34 @@ mod tests {
 
         assert_eq!(as_field(ModM::zero()), F9::zero());
         assert_eq!(as_field(ModM::one()), F9::one());
+    }
+
+    #[test]
+    fn reduction_by_the_defining_polynomial_is_a_congruence_for_both_ring_operations() {
+        let polynomials = || {
+            (0..27u64)
+                .map(|i| UnivariatePolynomial::new([i % 3, i / 3 % 3, i / 9].map(Fp::new).to_vec()))
+        };
+
+        for a in polynomials() {
+            for b in polynomials() {
+                let (a_reduced, b_reduced) = (
+                    DefiningIdeal::reduce(a.clone()),
+                    DefiningIdeal::reduce(b.clone()),
+                );
+
+                assert_eq!(
+                    DefiningIdeal::reduce(Polynomials::<3>::add(a.clone(), b.clone())),
+                    DefiningIdeal::reduce(Polynomials::<3>::add(
+                        a_reduced.clone(),
+                        b_reduced.clone()
+                    ))
+                );
+                assert_eq!(
+                    DefiningIdeal::reduce(Polynomials::<3>::multiply(a.clone(), b)),
+                    DefiningIdeal::reduce(Polynomials::<3>::multiply(a_reduced, b_reduced))
+                );
+            }
+        }
     }
 }

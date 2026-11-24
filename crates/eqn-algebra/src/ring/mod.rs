@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqn_core::op::{Associative, BinaryOperator, Commutative, Identity, Inverse};
 use eqn_core::rewriter::Expression;
-use eqn_core::set::{Set, Subset};
+use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
 pub mod differential;
@@ -93,12 +93,6 @@ where
     type Multiplication = M;
 }
 
-/// A subset containing zero and one and closed under addition and
-/// multiplication.
-pub trait SubSemiRing: Subset<Superset = RingElem<Self::Parent>> {
-    type Parent: SemiRing;
-}
-
 /// A ring: a semi-ring whose addition also has inverses.
 pub trait Ring: SemiRing<Addition: Inverse> {
     /// Source spelling of subtraction and negation.
@@ -117,9 +111,6 @@ where
         <SR::Addition as Inverse>::inverse(a)
     }
 }
-
-/// A unital subsemiring of a ring that is closed under additive inverses.
-pub trait Subring: SubSemiRing<Parent: Ring> {}
 
 /// A ring whose multiplication is also commutative.
 ///
@@ -266,72 +257,6 @@ impl<R: Ring> From<SemiRingExpr<R>> for RingExpr<R> {
                 base: Box::new((*base).into()),
                 exponent,
             },
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use eqn_core::set::Z;
-
-    use super::*;
-    use crate::operator_impl::{ZAdd, ZMul};
-
-    type Integers = (ZAdd, ZMul);
-
-    struct NonnegativeIntegers;
-
-    impl Subset for NonnegativeIntegers {
-        type Superset = Z;
-
-        fn contains(value: &Z) -> bool {
-            *value >= Z::ZERO
-        }
-    }
-
-    impl SubSemiRing for NonnegativeIntegers {
-        type Parent = Integers;
-    }
-
-    struct AllIntegers;
-
-    impl Subset for AllIntegers {
-        type Superset = Z;
-
-        fn contains(_: &Z) -> bool {
-            true
-        }
-    }
-
-    impl SubSemiRing for AllIntegers {
-        type Parent = Integers;
-    }
-
-    impl Subring for AllIntegers {}
-
-    #[test]
-    fn nonnegative_integers_form_a_subsemiring() {
-        assert!(NonnegativeIntegers::contains(&Integers::zero()));
-        assert!(NonnegativeIntegers::contains(&Integers::one()));
-
-        for lhs in [0, 1, 4, 9].map(Z::from) {
-            for rhs in [0, 2, 5, 8].map(Z::from) {
-                assert!(NonnegativeIntegers::contains(&Integers::add(
-                    lhs.clone(),
-                    rhs.clone()
-                )));
-                assert!(NonnegativeIntegers::contains(&Integers::multiply(
-                    lhs.clone(),
-                    rhs
-                )));
-            }
-        }
-    }
-
-    #[test]
-    fn integers_form_a_subring() {
-        for value in [-10, -1, 0, 1, 10].map(Z::from) {
-            assert!(AllIntegers::contains(&Integers::negate(value)));
         }
     }
 }
