@@ -4,10 +4,7 @@ use std::marker::PhantomData;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 use std::sync::{Mutex, OnceLock};
 
-use eqn_algebra::field::{
-    FieldExtension, FieldHomomorphism, FiniteExtension, Fp, NormalExtension, PrimeField,
-    SeparableExtension, SplittingField,
-};
+use eqn_algebra::field::{FieldExtension, FiniteExtension, Fp, PrimeField};
 use eqn_algebra::module::{Module, ModuleElem, ModuleScalar};
 use eqn_algebra::ring::SemiRing;
 use eqn_core::map::Map;
@@ -371,25 +368,6 @@ where
     const DEGREE: usize = N;
 }
 
-impl<const P: u64, const N: usize, M> NormalExtension for FiniteField<P, N, M> where
-    M: IrreduciblePolynomial<P, N>
-{
-}
-
-impl<const P: u64, const N: usize, M> SeparableExtension for FiniteField<P, N, M> where
-    M: IrreduciblePolynomial<P, N>
-{
-}
-
-impl<const P: u64, const N: usize, M> SplittingField<M> for FiniteField<P, N, M>
-where
-    M: IrreduciblePolynomial<P, N>,
-{
-    fn roots() -> Vec<Fq<P, N, M>> {
-        Self::roots_of_defining_polynomial()
-    }
-}
-
 /// `F_(P^N)` whose power-basis generator is multiplicatively primitive.
 pub type PrimitiveFiniteField<const P: u64, const N: usize> = FiniteField<P, N, FirstPrimitive>;
 
@@ -463,14 +441,6 @@ impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
                 result * self.generator_image + Fq::from_constant(coefficient)
             })
     }
-}
-
-impl<const P: u64, const SOURCE_DEGREE: usize, const TARGET_DEGREE: usize>
-    FieldHomomorphism<
-        CompatibleFiniteField<P, SOURCE_DEGREE>,
-        CompatibleFiniteField<P, TARGET_DEGREE>,
-    > for CompatibleFiniteFieldEmbedding<P, SOURCE_DEGREE, TARGET_DEGREE>
-{
 }
 
 /// A polynomial in one variable over `F_P`, stored from constant to leading
@@ -775,7 +745,7 @@ impl PolynomialSelection {
 
 #[cfg(test)]
 mod tests {
-    use eqn_algebra::field::{Field, SplittingField};
+    use eqn_algebra::field::Field;
     use eqn_algebra::ring::ideal::Ideal;
     use eqn_algebra::ring::quotient::QuotientRing;
     use eqn_algebra::ring::{Ring, SemiRing};
@@ -840,7 +810,7 @@ mod tests {
         type E = Fq<3, 2, X2PlusOne>;
 
         let alpha = F9::generator();
-        let roots = <F9 as SplittingField<X2PlusOne>>::roots();
+        let roots = F9::roots_of_defining_polynomial();
         assert_eq!(roots, vec![alpha, alpha.pow(3)]);
         assert_ne!(roots[0], roots[1]);
         for root in roots {
