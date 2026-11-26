@@ -13,6 +13,7 @@ use eqn_core::symbol::Symbol;
 
 pub mod finite_field;
 mod parse;
+pub mod univariate;
 
 // ================================================================================
 // Monomial
