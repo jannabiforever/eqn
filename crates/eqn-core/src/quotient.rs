@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use crate::op::BinaryOperator;
 use crate::set::Set;
 
 // ================================================================================
@@ -22,6 +23,16 @@ pub trait Equivalence<X: Set> {
 pub trait NormalForm<X: Set> {
     fn reduce(element: X) -> X;
 }
+
+/// A congruence for the operation `Op`: a normal form on the domain of `Op`
+/// whose classes `Op` respects, so that the class of `Op(a, b)` depends only
+/// on the classes of `a` and `b`:
+///
+/// `reduce(Op(a, b)) == reduce(Op(reduce(a), reduce(b)))` for all `a`, `b`.
+///
+/// Rust cannot verify this law, so implementations should cover it with
+/// tests on representatives that `reduce` changes.
+pub trait Congruence<Op: BinaryOperator>: NormalForm<Op::Domain> {}
 
 // ================================================================================
 // Quotients

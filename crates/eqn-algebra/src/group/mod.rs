@@ -3,7 +3,7 @@ use eqn_core::rewriter::Expression;
 use eqn_core::set::Set;
 use eqn_core::symbol::Symbol;
 
-use crate::monoid::{Monoid, MonoidElem, Submonoid};
+use crate::monoid::{Monoid, MonoidElem};
 
 pub mod normal;
 mod parse;
@@ -36,9 +36,6 @@ where
     M::Operator: Inverse,
 {
 }
-
-/// A submonoid of a group that is closed under inverses.
-pub trait Subgroup: Submonoid<Parent: Group> {}
 
 /// An abelian group: a group whose operation is commutative.
 ///
@@ -106,9 +103,10 @@ mod tests {
     use std::ops::Add;
 
     use eqn_core::op::{Associative, BinaryOperator};
-    use eqn_core::set::Subset;
+    use eqn_core::quotient::{Congruence, NormalForm};
 
     use super::*;
+    use crate::group::normal::NormalSubgroup;
 
     #[derive(Associative, BinaryOperator, Commutative)]
     #[operator(domain = i64, symbol = "+", apply = Add::add, identity = 0, inverse = |a| -a, inverse_symbol = "-")]
@@ -118,19 +116,17 @@ mod tests {
 
     struct EvenIntegers;
 
-    impl Subset for EvenIntegers {
-        type Superset = i64;
-
-        fn contains(value: &i64) -> bool {
-            value % 2 == 0
+    impl NormalForm<i64> for EvenIntegers {
+        fn reduce(value: i64) -> i64 {
+            value.rem_euclid(2)
         }
     }
 
-    impl Submonoid for EvenIntegers {
-        type Parent = IntegerAdditionGroup;
-    }
+    impl Congruence<Addition> for EvenIntegers {}
 
-    impl Subgroup for EvenIntegers {}
+    impl NormalSubgroup for EvenIntegers {
+        type Group = IntegerAdditionGroup;
+    }
 
     #[test]
     fn invertible_monoid_is_a_group() {
@@ -155,12 +151,25 @@ mod tests {
 
     #[test]
     fn even_integers_form_a_subgroup() {
-        assert!(EvenIntegers::contains(&IntegerAdditionGroup::identity()));
-
         for value in [-10, -2, 0, 4, 12] {
             assert!(EvenIntegers::contains(&IntegerAdditionGroup::inverse(
                 value
             )));
+        }
+    }
+
+    #[test]
+    fn reduction_mod_two_is_a_congruence_for_addition() {
+        for a in -5..=5 {
+            for b in -5..=5 {
+                assert_eq!(
+                    EvenIntegers::reduce(Addition::apply(a, b)),
+                    EvenIntegers::reduce(Addition::apply(
+                        EvenIntegers::reduce(a),
+                        EvenIntegers::reduce(b)
+                    ))
+                );
+            }
         }
     }
 

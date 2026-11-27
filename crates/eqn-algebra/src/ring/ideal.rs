@@ -1,46 +1,49 @@
-use super::{Ring, RingAdd, RingElem, SemiRing};
-use crate::group::normal::NormalSubgroup;
-use crate::monoid::Monoid;
+use eqn_core::quotient::Congruence;
 
-/// A two-sided ideal of a ring: a normal subgroup of the additive group that
-/// absorbs multiplication from both sides by every element of the ring.
-pub trait Ideal:
-    NormalSubgroup<Parent: Monoid<Domain = RingElem<Self::Ring>, Operator = RingAdd<Self::Ring>>>
-{
+use super::{Ring, RingAdd, RingMul, SemiRing};
+use crate::group::normal::NormalSubgroup;
+
+/// A two-sided ideal `I` of a ring, presented by a normal form for its
+/// residue classes.
+///
+/// The normal form is declared a congruence for both ring operations. The
+/// class of zero is then a two-sided ideal and the classes are its cosets
+/// `a + I`, so membership in `I` is derived from the normal form.
+pub trait Ideal: Congruence<RingAdd<Self::Ring>> + Congruence<RingMul<Self::Ring>> {
     type Ring: Ring;
 
-    /// Whether this ideal is strictly smaller than its ring.
+    /// Whether `I` is strictly smaller than its ring.
     fn is_proper() -> bool {
-        !Self::contains(&Self::Ring::one())
+        !<Self as NormalSubgroup>::contains(&Self::Ring::one())
     }
+}
+
+/// An ideal is a normal subgroup of the additive group of its ring.
+impl<I: Ideal + ?Sized> NormalSubgroup for I {
+    type Group = (RingAdd<I::Ring>,);
 }
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::{Subset, Z};
+    use eqn_core::quotient::NormalForm;
+    use eqn_core::set::Z;
+    use num_integer::Integer;
 
     use super::*;
-    use crate::group::Subgroup;
-    use crate::monoid::Submonoid;
     use crate::operator_impl::{ZAdd, ZMul};
 
     type Integers = (ZAdd, ZMul);
 
     struct EvenIntegers;
 
-    impl Subset for EvenIntegers {
-        type Superset = Z;
-
-        fn contains(value: &Z) -> bool {
-            value % Z::from(2) == Z::ZERO
+    impl NormalForm<Z> for EvenIntegers {
+        fn reduce(value: Z) -> Z {
+            value.mod_floor(&Z::from(2))
         }
     }
 
-    impl Submonoid for EvenIntegers {
-        type Parent = (ZAdd,);
-    }
-
-    impl Subgroup for EvenIntegers {}
+    impl Congruence<ZAdd> for EvenIntegers {}
+    impl Congruence<ZMul> for EvenIntegers {}
 
     impl Ideal for EvenIntegers {
         type Ring = Integers;
@@ -48,19 +51,14 @@ mod tests {
 
     struct WholeRing;
 
-    impl Subset for WholeRing {
-        type Superset = Z;
-
-        fn contains(_: &Z) -> bool {
-            true
+    impl NormalForm<Z> for WholeRing {
+        fn reduce(_: Z) -> Z {
+            Z::ZERO
         }
     }
 
-    impl Submonoid for WholeRing {
-        type Parent = (ZAdd,);
-    }
-
-    impl Subgroup for WholeRing {}
+    impl Congruence<ZAdd> for WholeRing {}
+    impl Congruence<ZMul> for WholeRing {}
 
     impl Ideal for WholeRing {
         type Ring = Integers;
@@ -68,7 +66,6 @@ mod tests {
 
     #[test]
     fn membership_and_properness() {
-        assert!(EvenIntegers::contains(&Z::ZERO));
         assert!(EvenIntegers::contains(&Z::from(6)));
         assert!(!EvenIntegers::contains(&Z::from(3)));
         assert!(EvenIntegers::is_proper());
@@ -97,6 +94,46 @@ mod tests {
                     lhs.clone(),
                     ring_element.clone()
                 )));
+            }
+        }
+    }
+
+    #[test]
+    fn reduction_mod_two_is_a_congruence_for_both_ring_operations() {
+        for a in (-5..=5).map(Z::from) {
+            for b in (-5..=5).map(Z::from) {
+                let (a_reduced, b_reduced) = (
+                    EvenIntegers::reduce(a.clone()),
+                    EvenIntegers::reduce(b.clone()),
+                );
+
+                assert_eq!(
+                    EvenIntegers::reduce(Integers::add(a.clone(), b.clone())),
+                    EvenIntegers::reduce(Integers::add(a_reduced.clone(), b_reduced.clone()))
+                );
+                assert_eq!(
+                    EvenIntegers::reduce(Integers::multiply(a.clone(), b)),
+                    EvenIntegers::reduce(Integers::multiply(a_reduced, b_reduced))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn reduction_to_zero_is_a_congruence_for_both_ring_operations() {
+        for a in (-5..=5).map(Z::from) {
+            for b in (-5..=5).map(Z::from) {
+                let (a_reduced, b_reduced) =
+                    (WholeRing::reduce(a.clone()), WholeRing::reduce(b.clone()));
+
+                assert_eq!(
+                    WholeRing::reduce(Integers::add(a.clone(), b.clone())),
+                    WholeRing::reduce(Integers::add(a_reduced.clone(), b_reduced.clone()))
+                );
+                assert_eq!(
+                    WholeRing::reduce(Integers::multiply(a.clone(), b)),
+                    WholeRing::reduce(Integers::multiply(a_reduced, b_reduced))
+                );
             }
         }
     }

@@ -1,52 +1,48 @@
 use std::marker::PhantomData;
 
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
-use eqn_core::quotient::{Equivalence, NormalForm, Quotient};
+use eqn_core::quotient::{Equivalence, Quotient};
 
 use crate::group::normal::NormalSubgroup;
-use crate::group::{AbelianGroup, Group, Subgroup};
-use crate::monoid::{Monoid, MonoidElem, Submonoid};
+use crate::group::{AbelianGroup, Group};
+use crate::monoid::{Monoid, MonoidElem};
 
-/// The domain of the parent group of `S`.
-type Dom<S> = <<S as Submonoid>::Parent as Monoid>::Domain;
+type Dom<N> = MonoidElem<<N as NormalSubgroup>::Group>;
 
-/// The left-coset relation of `S`: `a` and `b` are related when `a^-1 * b`
-/// belongs to `S`. A normal form for the cosets of `S` must agree with it.
-pub struct Modulo<S: Subgroup>(PhantomData<S>);
+/// The left-coset relation of a normal subgroup `N`: `a` and `b` are related
+/// when `a^-1 * b` lies in `N`. The normal form of `N` must agree with it.
+pub struct Modulo<N: NormalSubgroup>(PhantomData<N>);
 
-impl<S: Subgroup> Equivalence<Dom<S>> for Modulo<S> {
-    fn equivalent(a: &MonoidElem<S::Parent>, b: &MonoidElem<S::Parent>) -> bool {
-        S::contains(&S::Parent::apply(S::Parent::inverse(a.clone()), b.clone()))
+impl<N: NormalSubgroup> Equivalence<Dom<N>> for Modulo<N> {
+    fn equivalent(a: &Dom<N>, b: &Dom<N>) -> bool {
+        N::contains(&N::Group::apply(N::Group::inverse(a.clone()), b.clone()))
     }
 }
 
-impl<N: NormalSubgroup + NormalForm<Dom<N>>> Modulo<N> {
+impl<N: NormalSubgroup> Modulo<N> {
     /// `(aN)(bN) = (ab)N`, well defined because `N` is normal.
     pub fn applied(lhs: Quotient<Dom<N>, N>, rhs: Quotient<Dom<N>, N>) -> Quotient<Dom<N>, N> {
-        Quotient::new(N::Parent::apply(
+        Quotient::new(N::Group::apply(
             lhs.into_representative(),
             rhs.into_representative(),
         ))
     }
 
     pub fn inversed(coset: Quotient<Dom<N>, N>) -> Quotient<Dom<N>, N> {
-        Quotient::new(N::Parent::inverse(coset.into_representative()))
+        Quotient::new(N::Group::inverse(coset.into_representative()))
     }
 
     pub fn identity() -> Quotient<Dom<N>, N> {
-        Quotient::new(N::Parent::identity())
+        Quotient::new(N::Group::identity())
     }
 }
 
 /// Multiplication of cosets of a normal subgroup.
 #[derive(Associative, BinaryOperator)]
-#[operator(domain = Quotient<Dom<N>, N>, symbol = <N::Parent as Monoid>::SYMBOL, apply = Modulo::<N>::applied, identity = Modulo::<N>::identity(), inverse = Modulo::<N>::inversed, inverse_symbol = <N::Parent as Group>::INVERSE_SYMBOL)]
-pub struct QuotientOp<N: NormalSubgroup + NormalForm<Dom<N>>>(PhantomData<N>);
+#[operator(domain = Quotient<Dom<N>, N>, symbol = <N::Group as Monoid>::SYMBOL, apply = Modulo::<N>::applied, identity = Modulo::<N>::identity(), inverse = Modulo::<N>::inversed, inverse_symbol = <N::Group as Group>::INVERSE_SYMBOL)]
+pub struct QuotientOp<N: NormalSubgroup>(PhantomData<N>);
 
-impl<N: NormalSubgroup + NormalForm<Dom<N>>> Commutative for QuotientOp<N> where
-    N::Parent: AbelianGroup
-{
-}
+impl<N: NormalSubgroup> Commutative for QuotientOp<N> where N::Group: AbelianGroup {}
 
 /// The quotient of a group by a normal subgroup, on the representatives `N`
 /// chooses.
@@ -54,7 +50,8 @@ pub type QuotientGroup<N> = (QuotientOp<N>,);
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::set::{Set, Subset, Z};
+    use eqn_core::quotient::{Congruence, NormalForm};
+    use eqn_core::set::{Set, Z};
     use num_integer::Integer;
 
     use super::*;
@@ -64,24 +61,16 @@ mod tests {
 
     struct EvenIntegers;
 
-    impl Subset for EvenIntegers {
-        type Superset = Z;
-
-        fn contains(value: &Z) -> bool {
-            value % Z::from(2) == Z::ZERO
-        }
-    }
-
-    impl Submonoid for EvenIntegers {
-        type Parent = Integers;
-    }
-
-    impl Subgroup for EvenIntegers {}
-
     impl NormalForm<Z> for EvenIntegers {
         fn reduce(value: Z) -> Z {
             value.mod_floor(&Z::from(2))
         }
+    }
+
+    impl Congruence<ZAdd> for EvenIntegers {}
+
+    impl NormalSubgroup for EvenIntegers {
+        type Group = Integers;
     }
 
     type IntegersModTwo = QuotientGroup<EvenIntegers>;
@@ -148,6 +137,21 @@ mod tests {
         assert_eq!(product, same_product);
         assert_eq!(modulo_two(&5).representative(), &Z::from(1));
         assert_eq!(modulo_two(&5).into_representative(), Z::from(1));
+    }
+
+    #[test]
+    fn reduction_mod_two_is_a_congruence_for_addition() {
+        for a in (-5..=5).map(Z::from) {
+            for b in (-5..=5).map(Z::from) {
+                assert_eq!(
+                    EvenIntegers::reduce(ZAdd::apply(a.clone(), b.clone())),
+                    EvenIntegers::reduce(ZAdd::apply(
+                        EvenIntegers::reduce(a.clone()),
+                        EvenIntegers::reduce(b)
+                    ))
+                );
+            }
+        }
     }
 
     #[test]
@@ -230,25 +234,16 @@ mod tests {
 
     struct Rotations;
 
-    impl Subset for Rotations {
-        type Superset = Symmetry;
-
-        fn contains(value: &Symmetry) -> bool {
-            !value.reflected
-        }
-    }
-
-    impl Submonoid for Rotations {
-        type Parent = D3;
-    }
-
-    impl Subgroup for Rotations {}
-    impl NormalSubgroup for Rotations {}
-
     impl NormalForm<Symmetry> for Rotations {
         fn reduce(value: Symmetry) -> Symmetry {
             Symmetry::new(0, value.reflected)
         }
+    }
+
+    impl Congruence<Compose> for Rotations {}
+
+    impl NormalSubgroup for Rotations {
+        type Group = D3;
     }
 
     type D3ModuloRotations = QuotientGroup<Rotations>;
@@ -296,6 +291,18 @@ mod tests {
             for n in rotations {
                 let conjugate = D3::apply(D3::apply(g, n), D3::inverse(g));
                 assert!(Rotations::contains(&conjugate));
+            }
+        }
+    }
+
+    #[test]
+    fn forgetting_the_rotation_is_a_congruence_for_composition() {
+        for a in symmetries() {
+            for b in symmetries() {
+                assert_eq!(
+                    Rotations::reduce(Compose::apply(a, b)),
+                    Rotations::reduce(Compose::apply(Rotations::reduce(a), Rotations::reduce(b)))
+                );
             }
         }
     }

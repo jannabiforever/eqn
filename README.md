@@ -1,24 +1,25 @@
 # EQN
 
-A Rust library for computing with mathematical structures, stated the way a
-textbook states them.
+A Rust library that declares algebraic structures as types and rewrites
+expressions using only the laws those types declare. The equation solver
+built on the same premises is the work ahead.
 
-EQN is to [SymPy](https://www.sympy.org) what a proof is to a worked example.
-SymPy manipulates expressions and hopes the algebra behind them holds.
-
-Expressions come afterwards, and the rewriter that simplifies them is allowed
-to use exactly the laws the structure declares and nothing else.
+[SymPy](https://www.sympy.org) manipulates expressions and hopes the algebra
+behind them holds. Here the algebra is stated first, the way a textbook
+states it, and the type system holds the author to it. A law the type does
+not declare is a law the rewriter cannot use. EQN is not a proof assistant:
+a declared law is tested on elements, never proven.
 
 ## Crates
 
-| Crate          | Contents                                                                                                                                                                                                                                                                                     |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `eqn-core`     | `Set` and `Subset`, `BinaryOperator`, the law markers (`Associative`, `Commutative`, `Identity`, `Inverse`), `Map`, `Symbol`, the `Expression` / `Rewriter` traits every tree implements, and `Quotient`, a quotient by an `Equivalence` or a `NormalForm`. Concrete sets `N`, `Z` and `Q`, exact at any size, `R`, and the inclusions between them. |
-| `eqn-macros`   | Derives for the above: `#[derive(Set)]`, `#[derive(BinaryOperator)]` with `#[operator(domain, apply, identity, inverse)]`, and the marker derives.                                                                                                                                           |
-| `eqn-algebra`  | Monoid, group, ring, field, module, algebra, and their substructures, ideals, and quotients. One rewriter per structure, one more for each law that unlocks a stronger canonical form. Prime fields `F_p` and the field-extension hierarchy up to Galois.                                    |
-| `eqn-poly`     | `PolynomialRing<R>`, the free commutative `R`-algebra on its symbols with `\partial / \partial s`. Finite fields `F_{p^n}` as `F_p[x]/(M)`, with irreducible, primitive, and pseudo-Conway defining polynomials found by search.                                                             |
-| `eqn-analysis` | `ElementaryExpr<F>`: exp, log, sin, cos over a field, with symbolic differentiation. Its rewriter eliminates every unevaluated derivative and yields a sorted sum of products.                                                                                                               |
-| `eqn-diffgeom` | A `Manifold` is its `DifferentialRing` of functions. `DifferentialForm<M>`, `Chart<M>` with the contract `\partial_i x^j = \delta_{ij}`, and the exterior derivative, where `d^2 = 0` falls out of the coefficient ring's own `derive`.                                                      |
+| Crate          | Contents                                                                                                                                                                                                                                                                                                                                |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eqn-core`     | `Set`, `BinaryOperator`, the law markers (`Associative`, `Commutative`, `Identity`, `Inverse`), `Map`, `Symbol`, the `Expression` / `Rewriter` traits every tree implements, and `Quotient`, the quotient by a `NormalForm` that is a `Congruence`. Concrete sets `N`, `Z` and `Q`, exact at any size, and the inclusions between them. |
+| `eqn-macros`   | Derives for the above: `#[derive(Set)]`, `#[derive(BinaryOperator)]` with `#[operator(domain, apply, identity, inverse)]`, and the marker derives.                                                                                                                                                                                      |
+| `eqn-algebra`  | Monoid, group, ring, field, module, algebra, and quotients by normal subgroups and ideals, each a congruence. One rewriter per structure, one more for each law that unlocks a stronger canonical form. Prime fields `F_p` and field extensions with a named base field.                                                                |
+| `eqn-poly`     | `PolynomialRing<R>`, the free commutative `R`-algebra on its symbols with `\partial / \partial s`. `Univariate<F>`, dense `F[x]` over a field. Finite fields `F_{p^n}` as `F_p[x]/(M)`, with irreducible, primitive, and pseudo-Conway defining polynomials found by search.                                                            |
+| `eqn-analysis` | `ElementaryExpr<F>`: exp, log, sin, cos over a field, with symbolic differentiation. Its rewriter eliminates every unevaluated derivative and yields a sorted sum of products.                                                                                                                                                          |
+| `eqn-diffgeom` | A `Manifold` is its `DifferentialRing` of functions. `DifferentialForm<M>`, `Chart<M>` with the contract `\partial_i x^j = \delta_{ij}`, and the exterior derivative, where `d^2 = 0` falls out of the coefficient ring's own `derive`.                                                                                                 |
 
 ## A small example
 

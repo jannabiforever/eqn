@@ -1,5 +1,5 @@
 use crate::module::{Module, ModuleScalar};
-use crate::ring::{CommutativeRing, Ring, RingElem, SemiRing, Subring};
+use crate::ring::{CommutativeRing, Ring, RingElem, SemiRing};
 
 /// An associative unital algebra over a commutative ring.
 ///
@@ -24,9 +24,6 @@ where
     A::Scalars: CommutativeRing,
 {
 }
-
-/// A unital subring closed under scalar multiplication.
-pub trait Subalgebra: Subring<Parent: Algebra> {}
 
 #[cfg(test)]
 mod tests {

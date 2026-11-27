@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 
 use eqn_core::op::{Associative, BinaryOperator, Commutative};
-use eqn_core::quotient::{NormalForm, Quotient};
+use eqn_core::quotient::Quotient;
 
 use super::{CommutativeRing, RingElem, SemiRing};
 use crate::group::quotient::{Modulo, QuotientOp};
 use crate::ring::ideal::Ideal;
 
-impl<I: Ideal + NormalForm<RingElem<I::Ring>>> Modulo<I> {
+impl<I: Ideal> Modulo<I> {
     /// `(a + I)(b + I) = ab + I`, well defined because `I` absorbs
     /// multiplication.
     pub fn multiplied(
@@ -28,11 +28,11 @@ impl<I: Ideal + NormalForm<RingElem<I::Ring>>> Modulo<I> {
 /// Multiplication of residue classes.
 #[derive(Associative, BinaryOperator)]
 #[operator(domain = Quotient<RingElem<I::Ring>, I>, symbol = <I::Ring as SemiRing>::MUL_SYMBOL, apply = Modulo::<I>::multiplied, identity = Modulo::<I>::one())]
-pub struct QuotientMul<I: Ideal + NormalForm<RingElem<I::Ring>>>(PhantomData<I>);
+pub struct QuotientMul<I: Ideal>(PhantomData<I>);
 
 impl<I> Commutative for QuotientMul<I>
 where
-    I: Ideal + NormalForm<RingElem<I::Ring>>,
+    I: Ideal,
     I::Ring: CommutativeRing,
 {
 }
@@ -43,13 +43,11 @@ pub type QuotientRing<I> = (QuotientOp<I>, QuotientMul<I>);
 
 #[cfg(test)]
 mod tests {
-    use eqn_core::quotient::Equivalence;
-    use eqn_core::set::{Subset, Z};
+    use eqn_core::quotient::{Congruence, Equivalence, NormalForm};
+    use eqn_core::set::Z;
     use num_integer::Integer;
 
     use super::*;
-    use crate::group::Subgroup;
-    use crate::monoid::Submonoid;
     use crate::operator_impl::{ZAdd, ZMul};
     use crate::ring::Ring;
 
@@ -57,25 +55,14 @@ mod tests {
 
     struct EvenIntegers;
 
-    impl Subset for EvenIntegers {
-        type Superset = Z;
-
-        fn contains(value: &Z) -> bool {
-            value % Z::from(2) == Z::ZERO
-        }
-    }
-
-    impl Submonoid for EvenIntegers {
-        type Parent = (ZAdd,);
-    }
-
-    impl Subgroup for EvenIntegers {}
-
     impl NormalForm<Z> for EvenIntegers {
         fn reduce(value: Z) -> Z {
             value.mod_floor(&Z::from(2))
         }
     }
+
+    impl Congruence<ZAdd> for EvenIntegers {}
+    impl Congruence<ZMul> for EvenIntegers {}
 
     impl Ideal for EvenIntegers {
         type Ring = Integers;
@@ -127,6 +114,27 @@ mod tests {
         let product = IntegersModTwo::multiply(modulo_two(&1), modulo_two(&2));
         let same_product = IntegersModTwo::multiply(modulo_two(&3), modulo_two(&4));
         assert_eq!(product, same_product);
+    }
+
+    #[test]
+    fn reduction_mod_two_is_a_congruence_for_both_ring_operations() {
+        for a in (-5..=5).map(Z::from) {
+            for b in (-5..=5).map(Z::from) {
+                let (a_reduced, b_reduced) = (
+                    EvenIntegers::reduce(a.clone()),
+                    EvenIntegers::reduce(b.clone()),
+                );
+
+                assert_eq!(
+                    EvenIntegers::reduce(Integers::add(a.clone(), b.clone())),
+                    EvenIntegers::reduce(Integers::add(a_reduced.clone(), b_reduced.clone()))
+                );
+                assert_eq!(
+                    EvenIntegers::reduce(Integers::multiply(a.clone(), b)),
+                    EvenIntegers::reduce(Integers::multiply(a_reduced, b_reduced))
+                );
+            }
+        }
     }
 
     #[test]
@@ -216,25 +224,14 @@ mod tests {
 
     struct WholeRing;
 
-    impl Subset for WholeRing {
-        type Superset = Z;
-
-        fn contains(_: &Z) -> bool {
-            true
-        }
-    }
-
-    impl Submonoid for WholeRing {
-        type Parent = (ZAdd,);
-    }
-
-    impl Subgroup for WholeRing {}
-
     impl NormalForm<Z> for WholeRing {
         fn reduce(_: Z) -> Z {
             Z::ZERO
         }
     }
+
+    impl Congruence<ZAdd> for WholeRing {}
+    impl Congruence<ZMul> for WholeRing {}
 
     impl Ideal for WholeRing {
         type Ring = Integers;
@@ -267,27 +264,35 @@ mod tests {
         assert_eq!(ZeroRing::zero(), ZeroRing::one());
     }
 
-    struct ZeroIdeal;
+    #[test]
+    fn reduction_to_zero_is_a_congruence_for_both_ring_operations() {
+        for a in (-5..=5).map(Z::from) {
+            for b in (-5..=5).map(Z::from) {
+                let (a_reduced, b_reduced) =
+                    (WholeRing::reduce(a.clone()), WholeRing::reduce(b.clone()));
 
-    impl Subset for ZeroIdeal {
-        type Superset = Z;
-
-        fn contains(value: &Z) -> bool {
-            *value == Integers::zero()
+                assert_eq!(
+                    WholeRing::reduce(Integers::add(a.clone(), b.clone())),
+                    WholeRing::reduce(Integers::add(a_reduced.clone(), b_reduced.clone()))
+                );
+                assert_eq!(
+                    WholeRing::reduce(Integers::multiply(a.clone(), b)),
+                    WholeRing::reduce(Integers::multiply(a_reduced, b_reduced))
+                );
+            }
         }
     }
 
-    impl Submonoid for ZeroIdeal {
-        type Parent = (ZAdd,);
-    }
-
-    impl Subgroup for ZeroIdeal {}
+    struct ZeroIdeal;
 
     impl NormalForm<Z> for ZeroIdeal {
         fn reduce(value: Z) -> Z {
             value
         }
     }
+
+    impl Congruence<ZAdd> for ZeroIdeal {}
+    impl Congruence<ZMul> for ZeroIdeal {}
 
     impl Ideal for ZeroIdeal {
         type Ring = Integers;
@@ -300,6 +305,25 @@ mod tests {
                 assert_eq!(
                     Quotient::<Z, ZeroIdeal>::new(lhs.clone()) == Quotient::new(rhs.clone()),
                     lhs == rhs
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_identity_map_is_a_congruence_for_both_ring_operations() {
+        for a in (-5..=5).map(Z::from) {
+            for b in (-5..=5).map(Z::from) {
+                let (a_reduced, b_reduced) =
+                    (ZeroIdeal::reduce(a.clone()), ZeroIdeal::reduce(b.clone()));
+
+                assert_eq!(
+                    ZeroIdeal::reduce(Integers::add(a.clone(), b.clone())),
+                    ZeroIdeal::reduce(Integers::add(a_reduced.clone(), b_reduced.clone()))
+                );
+                assert_eq!(
+                    ZeroIdeal::reduce(Integers::multiply(a.clone(), b)),
+                    ZeroIdeal::reduce(Integers::multiply(a_reduced, b_reduced))
                 );
             }
         }

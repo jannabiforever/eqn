@@ -1,10 +1,19 @@
-use super::{AbelianGroup, Subgroup};
+use eqn_core::quotient::Congruence;
 
-/// A subgroup closed under conjugation by every element of its parent group.
+use super::Group;
+use crate::monoid::{Monoid, MonoidElem};
+
+/// A normal subgroup `N` of a group, presented by a normal form for its
+/// cosets.
 ///
-/// For every `g` in the parent and `n` in the subgroup, `g * n * g^-1` must
-/// belong to the subgroup.
-pub trait NormalSubgroup: Subgroup {}
+/// The normal form is declared a congruence for the group's operation. The
+/// class of the identity is then a normal subgroup and the classes are its
+/// cosets, so membership in `N` is derived from the normal form.
+pub trait NormalSubgroup: Congruence<<Self::Group as Monoid>::Operator> {
+    type Group: Group;
 
-/// Every subgroup of an abelian group is normal.
-impl<S: Subgroup> NormalSubgroup for S where S::Parent: AbelianGroup {}
+    /// Whether `element` lies in `N`.
+    fn contains(element: &MonoidElem<Self::Group>) -> bool {
+        Self::reduce(element.clone()) == Self::reduce(Self::Group::identity())
+    }
+}
