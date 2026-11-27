@@ -1,6 +1,6 @@
 use eqn_core::quotient::Congruence;
 
-use super::{Ring, RingAdd, RingMul, SemiRing};
+use super::{CommutativeRing, Ring, RingAdd, RingElem, RingMul, SemiRing};
 use crate::group::normal::NormalSubgroup;
 
 /// A two-sided ideal `I` of a ring, presented by a normal form for its
@@ -21,6 +21,16 @@ pub trait Ideal: Congruence<RingAdd<Self::Ring>> + Congruence<RingMul<Self::Ring
 /// An ideal is a normal subgroup of the additive group of its ring.
 impl<I: Ideal + ?Sized> NormalSubgroup for I {
     type Group = (RingAdd<I::Ring>,);
+}
+
+/// A maximal ideal `I` of a commutative ring: `I` is proper and no ideal lies
+/// strictly between `I` and the ring, so the quotient by `I` is a field.
+///
+/// For `a` outside `I`, `inverse(a)` is an element `b` with `ab - 1` in `I`.
+/// No such `b` exists for `a` in `I`, and asking for one is a contract
+/// violation.
+pub trait MaximalIdeal: Ideal<Ring: CommutativeRing> {
+    fn inverse(element: RingElem<Self::Ring>) -> RingElem<Self::Ring>;
 }
 
 #[cfg(test)]

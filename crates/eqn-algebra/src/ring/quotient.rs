@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 
-use eqn_core::op::{Associative, BinaryOperator, Commutative};
+use eqn_core::op::{Associative, BinaryOperator, Commutative, Inverse};
 use eqn_core::quotient::Quotient;
 
 use super::{CommutativeRing, RingElem, SemiRing};
 use crate::group::quotient::{Modulo, QuotientOp};
-use crate::ring::ideal::Ideal;
+use crate::ring::ideal::{Ideal, MaximalIdeal};
 
 impl<I: Ideal> Modulo<I> {
     /// `(a + I)(b + I) = ab + I`, well defined because `I` absorbs
@@ -35,6 +35,15 @@ where
     I: Ideal,
     I::Ring: CommutativeRing,
 {
+}
+
+/// The quotient of a commutative ring by a maximal ideal is a field.
+impl<I: MaximalIdeal> Inverse for QuotientMul<I> {
+    const INVERSE_SYMBOL: &'static str = "/";
+
+    fn inverse(class: Quotient<RingElem<I::Ring>, I>) -> Quotient<RingElem<I::Ring>, I> {
+        Quotient::new(I::inverse(class.into_representative()))
+    }
 }
 
 /// The quotient of a ring by a two-sided ideal. Its addition is the quotient
