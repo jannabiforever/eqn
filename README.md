@@ -1,8 +1,9 @@
 # EQN
 
 A Rust library that declares algebraic structures as types and rewrites
-expressions using only the laws those types declare. The equation solver
-built on the same premises is the work ahead.
+expressions using only the laws those types declare. Solvers built on the
+same premises solve equations in a group. The rest of the solver is the
+work ahead.
 
 [SymPy](https://www.sympy.org) manipulates expressions and hopes the algebra
 behind them holds. Here the algebra is stated first, the way a textbook
@@ -12,22 +13,25 @@ a declared law is tested on elements, never proven.
 
 ## Crates
 
-| Crate          | Contents                                                                                                                                                                                                                                                                                                                                |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `eqn-core`     | `Set`, `BinaryOperator`, the law markers (`Associative`, `Commutative`, `Identity`, `Inverse`), `Map`, `Symbol`, the `Expression` / `Rewriter` traits every tree implements, and `Quotient`, the quotient by a `NormalForm` that is a `Congruence`. Concrete sets `N`, `Z` and `Q`, exact at any size, and the inclusions between them. |
-| `eqn-macros`   | Derives for the above: `#[derive(Set)]`, `#[derive(BinaryOperator)]` with `#[operator(domain, apply, identity, inverse)]`, and the marker derives.                                                                                                                                                                                      |
-| `eqn-algebra`  | Monoid, group, ring, field, module, algebra, and quotients by normal subgroups and ideals, each a congruence. One rewriter per structure, one more for each law that unlocks a stronger canonical form. Prime fields `F_p` and field extensions with a named base field.                                                                |
-| `eqn-poly`     | `PolynomialRing<R>`, the free commutative `R`-algebra on its symbols with `\partial / \partial s`. `Univariate<F>`, dense `F[x]` over a field. Finite fields `F_{p^n}` as `F_p[x]/(M)`, with irreducible, primitive, and pseudo-Conway defining polynomials found by search.                                                            |
-| `eqn-analysis` | `ElementaryExpr<F>`: exp, log, sin, cos over a field, with symbolic differentiation. Its rewriter eliminates every unevaluated derivative and yields a sorted sum of products.                                                                                                                                                          |
-| `eqn-diffgeom` | A `Manifold` is its `DifferentialRing` of functions. `DifferentialForm<M>`, `Chart<M>` with the contract `\partial_i x^j = \delta_{ij}`, and the exterior derivative, where `d^2 = 0` falls out of the coefficient ring's own `derive`.                                                                                                 |
+| Crate          | Contents                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eqn-core`     | `Set`, `BinaryOperator`, the law markers (`Associative`, `Commutative`, `Identity`, `Inverse`), `Map`, `Symbol`, the `Expression` / `Rewriter` traits every tree implements, and `Quotient`, the quotient by a `NormalForm` that is a `Congruence`. `Equation`, the `SolutionSet` of its unknown, and the `Solver` trait that finds it. Concrete sets `N`, `Z` and `Q`, exact at any size, and the inclusions between them. |
+| `eqn-macros`   | Derives for the above: `#[derive(Set)]`, `#[derive(BinaryOperator)]` with `#[operator(domain, apply, identity, inverse)]`, and the marker derives.                                                                                                                                                                                                                                                                          |
+| `eqn-algebra`  | Monoid, group, ring, field, module, algebra, and quotients by normal subgroups and ideals, each a congruence. One rewriter per structure, one more for each law that unlocks a stronger canonical form. `GroupSolver` and `AbelianGroupSolver`, which solve an equation in a group by the laws of the matching rewriter. Prime fields `F_p` and field extensions with a named base field.                                   |
+| `eqn-poly`     | `PolynomialRing<R>`, the free commutative `R`-algebra on its symbols with `\partial / \partial s`. `Univariate<F>`, dense `F[x]` over a field. Finite fields `F_{p^n}` as `F_p[x]/(M)`, with irreducible, primitive, and pseudo-Conway defining polynomials found by search.                                                                                                                                                |
+| `eqn-analysis` | `ElementaryExpr<F>`: exp, log, sin, cos over a field, with symbolic differentiation. Its rewriter eliminates every unevaluated derivative and yields a sorted sum of products.                                                                                                                                                                                                                                              |
+| `eqn-diffgeom` | A `Manifold` is its `DifferentialRing` of functions. `DifferentialForm<M>`, `Chart<M>` with the contract `\partial_i x^j = \delta_{ij}`, and the exterior derivative, where `d^2 = 0` falls out of the coefficient ring's own `derive`.                                                                                                                                                                                     |
 
 ## A small example
 
 ```rust
-use eqn_algebra::group::{AbelianGroupRewriter, GroupExpr, GroupRewriter};
+use eqn_algebra::group::GroupExpr;
+use eqn_algebra::group::rewriter::{AbelianGroupRewriter, GroupRewriter};
+use eqn_algebra::group::solver::AbelianGroupSolver;
 use eqn_algebra::operator_impl::ZAdd;
 use eqn_core::rewriter::Expression;
 use eqn_core::set::Z;
+use eqn_core::solver::{Equation, SolutionSet};
 use eqn_core::symbol::Symbol;
 
 // x + y - x, written in the group's operation.
@@ -38,6 +42,13 @@ assert_eq!(expr.rewritten(&AbelianGroupRewriter::new()), Symbol::new("y").into()
 
 // GroupRewriter, which lacks the commutative law, leaves the conjugate alone.
 assert_ne!(expr.rewritten(&GroupRewriter::new()), Symbol::new("y").into());
+
+// The abelian solver sees the conjugate cancel: x + y - x = 3 holds for y = 3 alone.
+let equation = "x + y - x = 3".parse::<Equation<GroupExpr<(ZAdd,)>>>().unwrap();
+assert_eq!(
+    equation.solve_for(&Symbol::new("y"), &AbelianGroupSolver::new()),
+    SolutionSet::Finite(vec![GroupExpr::Const(Z::from(3))])
+);
 ```
 
 ## Building

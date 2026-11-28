@@ -51,8 +51,10 @@ dependencies = [
 name = "eqn-core"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "derive-where",
  "eqn-macros",
+ "eqn-parser",
  "num-bigint",
  "num-integer",
 ]

@@ -4,7 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+anyhow.workspace = true
 derive-where.workspace = true
 eqn-macros.workspace = true
+eqn-parser.workspace = true
 num-bigint.workspace = true
 num-integer.workspace = true

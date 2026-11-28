@@ -9,6 +9,7 @@ pub mod normal;
 mod parse;
 pub mod quotient;
 pub mod rewriter;
+pub mod solver;
 
 /// A group: a set equipped with an associative binary operation, an identity
 /// element, and a two-sided inverse for every element.
@@ -113,6 +114,63 @@ mod tests {
     pub(super) struct Addition;
 
     pub(super) type IntegerAdditionGroup = (Addition,);
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, Set)]
+    pub(super) struct Symmetry {
+        rotation: u8,
+        pub(super) reflected: bool,
+    }
+
+    impl Symmetry {
+        pub(super) const fn new(rotation: u8, reflected: bool) -> Self {
+            Self {
+                rotation,
+                reflected,
+            }
+        }
+
+        const fn applied(self, rhs: Self) -> Self {
+            let rhs_rotation = if self.reflected {
+                (3 - rhs.rotation) % 3
+            } else {
+                rhs.rotation
+            };
+            Symmetry::new(
+                (self.rotation + rhs_rotation) % 3,
+                self.reflected ^ rhs.reflected,
+            )
+        }
+
+        const fn identity() -> Self {
+            Self::new(0, false)
+        }
+
+        const fn inversed(self) -> Self {
+            let rotation = if self.reflected {
+                self.rotation
+            } else {
+                (3 - self.rotation) % 3
+            };
+            Self::new(rotation, self.reflected)
+        }
+    }
+
+    #[derive(Associative, BinaryOperator)]
+    #[operator(domain = Symmetry, symbol = "*", apply = Symmetry::applied, identity = Symmetry::identity(), inverse = Symmetry::inversed, inverse_symbol = "/")]
+    pub(super) struct Compose;
+
+    pub(super) type D3 = (Compose,);
+
+    pub(super) fn symmetries() -> [Symmetry; 6] {
+        [
+            Symmetry::new(0, false),
+            Symmetry::new(1, false),
+            Symmetry::new(2, false),
+            Symmetry::new(0, true),
+            Symmetry::new(1, true),
+            Symmetry::new(2, true),
+        ]
+    }
 
     struct EvenIntegers;
 
