@@ -6,4 +6,5 @@ pub mod op;
 pub mod quotient;
 pub mod rewriter;
 pub mod set;
+pub mod solver;
 pub mod symbol;

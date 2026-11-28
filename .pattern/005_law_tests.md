@@ -2,7 +2,7 @@
 
 Rust checks that an operator _declared_ `Associative`. It cannot check that
 it _is_. Every law the compiler cannot verify is covered by a test, in one of
-three shapes.
+four shapes.
 
 ## Concrete instances exercise the law on real elements
 
@@ -56,6 +56,30 @@ fn quotient_operation_does_not_depend_on_representatives() {
     let same_product = IntegersModTwo::apply(modulo_two(3), modulo_two(4));
 
     assert_eq!(product, same_product);
+}
+```
+
+## Solvers test their answer
+
+A solver returns the solution set of an equation, exactly. Test the set two
+ways. Substitute each solution back and rewrite both sides, which must
+agree. On a finite structure, try every element and compare the elements
+that satisfy the equation with the set the solver returned. A condition
+passes when its equation is satisfied by the same elements.
+
+```rust
+#[test]
+fn the_isolated_solution_satisfies_the_equation() {
+    let equation: Equation<Expr> = "a + x + b = c".parse().unwrap();
+    let SolutionSet::Finite(solutions) = equation.clone().solve_for(&x(), &GroupSolver::new())
+    else {
+        panic!("`x` was not isolated");
+    };
+
+    for solution in solutions {
+        let Equation { lhs, rhs } = equation.clone().substituted(x(), &solution);
+        assert_eq!(lhs.rewrite(&GroupRewriter::new()), rhs.rewrite(&GroupRewriter::new()));
+    }
 }
 ```
 
